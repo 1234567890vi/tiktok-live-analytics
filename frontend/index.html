@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TikTok Live Analytics Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+</head>
+<body class="bg-gray-950 text-white font-sans min-h-screen">
+
+  <!-- ════════════════════════════════════════════════════════════════
+       TOP CONTROL BAR
+  ════════════════════════════════════════════════════════════════ -->
+  <header class="sticky top-0 z-50 bg-gray-900/80 backdrop-blur-xl border-b border-gray-800 px-4 py-3">
+    <div class="max-w-screen-2xl mx-auto flex flex-wrap items-center gap-3">
+      <!-- Logo -->
+      <div class="flex items-center gap-2 mr-2">
+        <div class="w-8 h-8 bg-gradient-to-br from-pink-500 to-red-500 rounded-lg flex items-center justify-center text-white font-black text-sm">TT</div>
+        <span class="font-bold text-base tracking-tight hidden sm:block">Live Tracker</span>
+      </div>
+
+      <!-- Username Input -->
+      <div class="flex-1 min-w-[200px] max-w-sm flex items-center gap-2">
+        <div class="relative flex-1">
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-semibold text-sm">@</span>
+          <input
+            id="usernameInput"
+            type="text"
+            placeholder="username"
+            class="w-full bg-gray-800 border border-gray-700 rounded-xl pl-7 pr-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition"
+          />
+        </div>
+        <button
+          id="startBtn"
+          class="bg-gradient-to-r from-pink-600 to-red-600 hover:from-pink-500 hover:to-red-500 active:scale-95 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all duration-150 whitespace-nowrap"
+        >
+          Start Tracking
+        </button>
+        <button
+          id="stopBtn"
+          class="hidden bg-gray-700 hover:bg-gray-600 active:scale-95 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all duration-150"
+        >
+          Disconnect
+        </button>
+      </div>
+
+      <!-- Status Badge -->
+      <div id="statusBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-800 border border-gray-700 text-xs font-semibold">
+        <span id="statusDot" class="w-2 h-2 rounded-full bg-gray-500"></span>
+        <span id="statusText">Idle</span>
+      </div>
+
+      <!-- Room Info -->
+      <div id="roomInfo" class="hidden text-xs text-gray-400 font-mono">
+        Room: <span id="roomIdDisplay" class="text-gray-300">—</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       MAIN CONTENT
+  ════════════════════════════════════════════════════════════════ -->
+  <main class="max-w-screen-2xl mx-auto px-4 py-5 space-y-5">
+
+    <!-- ── KPI CARDS ─────────────────────────────────────────── -->
+    <section class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+
+      <!-- Viewers -->
+      <div class="kpi-card group">
+        <div class="kpi-icon bg-blue-500/20 text-blue-400">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+        </div>
+        <div>
+          <p class="kpi-label">Live Viewers</p>
+          <p class="kpi-value" id="kpiViewers">0</p>
+        </div>
+        <div class="kpi-live-dot"></div>
+      </div>
+
+      <!-- Likes -->
+      <div class="kpi-card group">
+        <div class="kpi-icon bg-red-500/20 text-red-400">
+          <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+        </div>
+        <div>
+          <p class="kpi-label">Total Likes</p>
+          <p class="kpi-value" id="kpiLikes">0</p>
+          <p class="text-xs text-red-400 font-semibold mt-0.5">
+            <span id="kpiLps">0.0</span> <span class="text-gray-500 font-normal">LPS</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- Diamonds / Revenue -->
+      <div class="kpi-card group">
+        <div class="kpi-icon bg-yellow-500/20 text-yellow-400">
+          <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 2l-6 8 12 12L24 10 18 2H6zm1.5 2h9l4.5 6H3L7.5 4zM12 17.5L4.8 10h14.4L12 17.5z"/></svg>
+        </div>
+        <div>
+          <p class="kpi-label">Diamonds / Revenue</p>
+          <p class="kpi-value" id="kpiDiamonds">0</p>
+          <p class="text-xs text-yellow-400 font-semibold mt-0.5">
+            ≈ $<span id="kpiUsd">0.00</span>
+            <span class="text-gray-500 font-normal ml-1">Net: $<span id="kpiNet">0.00</span></span>
+          </p>
+        </div>
+      </div>
+
+      <!-- Comments -->
+      <div class="kpi-card group">
+        <div class="kpi-icon bg-purple-500/20 text-purple-400">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+        </div>
+        <div>
+          <p class="kpi-label">Total Comments</p>
+          <p class="kpi-value" id="kpiComments">0</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── PK BATTLE ARENA ───────────────────────────────────── -->
+    <section id="pkSection" class="glass-card p-5 space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="text-base font-bold text-white flex items-center gap-2">
+          <span class="text-2xl">⚔️</span>
+          PK Battle Arena
+          <span class="text-xs text-gray-500 font-normal">تتبع الجولات</span>
+        </h2>
+        <div class="flex items-center gap-3">
+          <span id="pkStatusBadge" class="px-3 py-1 rounded-full text-xs font-bold bg-gray-700 text-gray-400">IDLE</span>
+          <span class="text-xs text-gray-500">Round <span id="pkRoundNum" class="text-white font-bold">1</span></span>
+        </div>
+      </div>
+
+      <!-- VS Bar -->
+      <div class="space-y-2">
+        <div class="flex justify-between text-sm font-semibold">
+          <span class="text-blue-400" id="pkHostName">HOST</span>
+          <span class="text-gray-400 text-xs">VS</span>
+          <span class="text-red-400" id="pkOpponentName">OPPONENT</span>
+        </div>
+        <div class="relative h-6 bg-gray-800 rounded-full overflow-hidden">
+          <div id="pkHostBar"     class="absolute left-0  top-0 h-full bg-gradient-to-r from-blue-600 to-blue-400 transition-all duration-700 rounded-full" style="width:50%"></div>
+          <div id="pkOpponentBar" class="absolute right-0 top-0 h-full bg-gradient-to-l from-red-600  to-red-400  transition-all duration-700 rounded-full" style="width:50%"></div>
+          <div class="absolute inset-0 flex items-center justify-center">
+            <span class="text-xs font-black text-white drop-shadow">
+              <span id="pkHostScore">0</span> — <span id="pkOppScore">0</span>
+            </span>
+          </div>
+        </div>
+        <div class="flex justify-between text-xs text-gray-400">
+          <span>W: <span id="pkHostWins" class="text-blue-400 font-bold">0</span></span>
+          <span>W: <span id="pkOppWins"  class="text-red-400  font-bold">0</span></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── THREE-COLUMN GRID ─────────────────────────────────── -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+      <!-- LEFT: Comments Feed -->
+      <div class="glass-card flex flex-col h-[600px]">
+        <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+          <h2 class="font-bold text-sm flex items-center gap-2">
+            <span class="text-purple-400">💬</span>
+            Live Comments
+            <span class="text-xs text-gray-500 font-normal">التعليقات</span>
+          </h2>
+          <div class="flex items-center gap-2">
+            <span id="commentCount" class="text-xs text-gray-400 font-mono">0</span>
+            <button id="toggleScrollBtn" class="text-xs px-2 py-1 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 transition" title="Toggle auto-scroll">
+              <span id="scrollIcon">⬇️</span>
+            </button>
+          </div>
+        </div>
+        <div id="commentsFeed" class="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin">
+          <div class="flex items-center justify-center h-full text-gray-600 text-sm">
+            Comments will appear here...
+          </div>
+        </div>
+      </div>
+
+      <!-- CENTER: Gift Alerts Feed -->
+      <div class="glass-card flex flex-col h-[600px]">
+        <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+          <h2 class="font-bold text-sm flex items-center gap-2">
+            <span class="text-yellow-400">🎁</span>
+            Gift Alerts
+            <span class="text-xs text-gray-500 font-normal">الهدايا</span>
+          </h2>
+          <span id="giftCount" class="text-xs text-gray-400 font-mono">0 gifts</span>
+        </div>
+        <div id="giftFeed" class="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin">
+          <div class="flex items-center justify-center h-full text-gray-600 text-sm">
+            Gift alerts will appear here...
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Top Supporters Leaderboard -->
+      <div class="glass-card flex flex-col h-[600px]">
+        <div class="p-4 border-b border-gray-800">
+          <h2 class="font-bold text-sm flex items-center gap-2">
+            <span class="text-yellow-400">🏆</span>
+            Top Supporters
+            <span class="text-xs text-gray-500 font-normal">حساب الدعم</span>
+          </h2>
+        </div>
+        <div id="leaderboardList" class="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin">
+          <div class="flex items-center justify-center h-full text-gray-600 text-sm">
+            Leaderboard will update with gifts...
+          </div>
+        </div>
+
+        <!-- Room Total Bar -->
+        <div class="p-4 border-t border-gray-800 bg-gray-900/50 space-y-1">
+          <div class="flex justify-between text-xs text-gray-400">
+            <span>Session Revenue</span>
+            <span class="text-yellow-400 font-bold">💎 <span id="lbTotalDiamonds">0</span></span>
+          </div>
+          <div class="flex justify-between text-xs text-gray-400">
+            <span>Gross USD</span>
+            <span class="text-green-400 font-semibold">$<span id="lbGrossUsd">0.00</span></span>
+          </div>
+          <div class="flex justify-between text-xs text-gray-400">
+            <span>Streamer Net (~50%)</span>
+            <span class="text-green-300 font-bold">$<span id="lbNetUsd">0.00</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TOP LIKERS (below the grid) ──────────────────────── -->
+    <section class="glass-card p-4">
+      <h2 class="font-bold text-sm flex items-center gap-2 mb-3">
+        <span class="text-red-400">❤️</span>
+        Top Likers
+        <span class="text-xs text-gray-500 font-normal">المعجبون</span>
+      </h2>
+      <div id="likersRow" class="flex gap-3 overflow-x-auto pb-1 scrollbar-thin">
+        <p class="text-gray-600 text-sm">Top likers will appear here...</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       TOAST NOTIFICATION
+  ════════════════════════════════════════════════════════════════ -->
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-50 space-y-2"></div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       GIFT COMBO POPUP
+  ════════════════════════════════════════════════════════════════ -->
+  <div id="comboPopup" class="hidden fixed top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none">
+    <div class="combo-burst text-center">
+      <div id="comboGiftIcon" class="text-6xl mb-2">🎁</div>
+      <div class="combo-count" id="comboCountDisplay">x99</div>
+      <div class="combo-name text-white font-bold text-lg" id="comboGiftName">Rose</div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

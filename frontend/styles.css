@@ -1,0 +1,358 @@
+/* ==========================================================================
+   styles.css — Custom styles for TikTok Live Analytics Tracker
+   NOTE: Uses Tailwind CDN — @apply is NOT supported with the CDN build.
+         All utility classes are written out as plain CSS here.
+   ========================================================================== */
+
+/* ── Base ─────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+
+/* ── Glassmorphism Card ───────────────────────────────────────── */
+.glass-card {
+  background: rgba(17, 24, 39, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 1rem;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  overflow: hidden;
+}
+
+/* ── KPI Cards ────────────────────────────────────────────────── */
+/* Expanded from: @apply glass-card flex items-center gap-4 p-4 relative overflow-hidden cursor-default */
+.kpi-card {
+  background: rgba(17, 24, 39, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 1rem;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  position: relative;
+  cursor: default;
+  transition: transform 0.2s, border-color 0.2s;
+}
+.kpi-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.kpi-icon {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.kpi-label {
+  font-size: 0.7rem;
+  color: #9ca3af;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.kpi-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1;
+  margin-top: 0.125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pulsing live dot */
+.kpi-live-dot {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 8px;
+  height: 8px;
+  background: #22c55e;
+  border-radius: 50%;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(1.4); }
+}
+
+/* ── Number increment animation ───────────────────────────────── */
+.kpi-value.bump {
+  animation: value-bump 0.35s ease-out;
+}
+@keyframes value-bump {
+  0%   { transform: scale(1);    color: inherit; }
+  40%  { transform: scale(1.15); color: #f9a8d4; }
+  100% { transform: scale(1);    color: inherit; }
+}
+
+/* ── Scrollbars ───────────────────────────────────────────────── */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(75, 85, 99, 0.5) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar       { width: 4px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(75,85,99,0.5); border-radius: 4px; }
+
+/* ── Comment Entry ────────────────────────────────────────────── */
+.comment-entry {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  animation: slide-in-up 0.25s ease-out;
+}
+.comment-entry:hover { background: rgba(255, 255, 255, 0.06); }
+
+.comment-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #6366f1, #ec4899);
+}
+.comment-body { flex: 1; min-width: 0; }
+.comment-name {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  line-height: 1.2;
+}
+.comment-handle {
+  font-size: 0.65rem;
+  color: #6b7280;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+.comment-text {
+  font-size: 0.8rem;
+  color: #cbd5e1;
+  margin-top: 2px;
+  word-break: break-word;
+  line-height: 1.4;
+}
+.comment-badge {
+  display: inline-block;
+  font-size: 0.55rem;
+  font-weight: 800;
+  background: linear-gradient(90deg, #f59e0b, #ef4444);
+  color: white;
+  padding: 1px 5px;
+  border-radius: 999px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+/* ── Gift Card ────────────────────────────────────────────────── */
+.gift-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(245,158,11,0.08), rgba(239,68,68,0.05));
+  border: 1px solid rgba(245, 158, 11, 0.15);
+  animation: slide-in-right 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: border-color 0.2s;
+}
+.gift-card:hover { border-color: rgba(245, 158, 11, 0.3); }
+.gift-card.streak-active {
+  border-color: rgba(251, 191, 36, 0.4);
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.12);
+}
+
+.gift-icon {
+  font-size: 1.8rem;
+  min-width: 40px;
+  text-align: center;
+  filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.5));
+}
+.gift-icon img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+.gift-info { flex: 1; min-width: 0; }
+.gift-sender { font-size: 0.75rem; font-weight: 700; color: #fbbf24; }
+.gift-name   { font-size: 0.8rem;  color: #f3f4f6;  font-weight: 600; }
+.gift-value  { font-size: 0.7rem;  color: #9ca3af; }
+.gift-combo {
+  font-size: 1rem;
+  font-weight: 900;
+  color: #fcd34d;
+  text-align: right;
+  white-space: nowrap;
+  text-shadow: 0 0 8px rgba(252, 211, 77, 0.5);
+  min-width: 48px;
+}
+
+/* ── Leaderboard Entry ────────────────────────────────────────── */
+.lb-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  transition: background 0.2s, transform 0.15s;
+}
+.lb-entry:hover { background: rgba(255,255,255,0.07); transform: translateX(2px); }
+
+.lb-rank {
+  font-size: 0.75rem;
+  font-weight: 900;
+  min-width: 22px;
+  text-align: center;
+}
+.lb-rank.gold   { color: #fbbf24; }
+.lb-rank.silver { color: #94a3b8; }
+.lb-rank.bronze { color: #b45309; }
+.lb-rank.other  { color: #6b7280; }
+
+.lb-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #6366f1, #ec4899);
+}
+.lb-info  { flex: 1; min-width: 0; }
+.lb-name  { font-size: 0.75rem; font-weight: 700; color: #e2e8f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-diamonds { font-size: 0.7rem; color: #fbbf24; font-weight: 600; }
+.lb-bar-wrap {
+  width: 60px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.lb-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #f59e0b, #fcd34d);
+  border-radius: 999px;
+  transition: width 0.6s ease;
+}
+
+/* ── Top Likers pill ──────────────────────────────────────────── */
+.liker-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 64px;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(239, 68, 68, 0.07);
+  border: 1px solid rgba(239, 68, 68, 0.15);
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+.liker-pill:hover { transform: translateY(-2px); }
+
+/* Fixed: liker avatars now have explicit size class */
+.liker-pill .liker-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: linear-gradient(135deg, #ef4444, #ec4899);
+}
+.liker-pill .liker-name {
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  max-width: 56px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.liker-pill .liker-count {
+  font-size: 0.65rem;
+  color: #f87171;
+  font-weight: 800;
+}
+
+/* ── Combo Burst Popup ────────────────────────────────────────── */
+.combo-burst {
+  animation: combo-appear 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  text-align: center;
+}
+@keyframes combo-appear {
+  from { transform: scale(0.3) rotate(-10deg); opacity: 0; }
+  to   { transform: scale(1)   rotate(0deg);   opacity: 1; }
+}
+.combo-count {
+  font-size: 3.5rem;
+  font-weight: 900;
+  background: linear-gradient(135deg, #fbbf24, #ef4444);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+}
+.combo-name {
+  color: white;
+  font-weight: 700;
+  font-size: 1.125rem;
+}
+
+/* ── Status Badge colours ─────────────────────────────────────── */
+.status-connecting #statusDot { background: #f59e0b; animation: pulse-dot 1s ease-in-out infinite; }
+.status-online     #statusDot { background: #22c55e; }
+.status-offline    #statusDot { background: #ef4444; }
+.status-idle       #statusDot { background: #6b7280; }
+
+/* ── Animations ───────────────────────────────────────────────── */
+@keyframes slide-in-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(100%); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes toast-out {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(100%); }
+}
+
+/* ── Toast ────────────────────────────────────────────────────── */
+.toast {
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  max-width: 320px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  animation: toast-in 0.3s ease-out;
+}
+.toast.info    { background: #1e40af; border: 1px solid #3b82f6; color: #bfdbfe; }
+.toast.success { background: #14532d; border: 1px solid #22c55e; color: #bbf7d0; }
+.toast.error   { background: #7f1d1d; border: 1px solid #ef4444; color: #fecaca; }
+.toast.warning { background: #78350f; border: 1px solid #f59e0b; color: #fde68a; }
+
+/* ── PK Active glow ───────────────────────────────────────────── */
+#pkSection.pk-active {
+  border-color: rgba(239, 68, 68, 0.3);
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.08);
+}
+
+/* ── Responsive ───────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .kpi-value { font-size: 1.25rem; }
+}
