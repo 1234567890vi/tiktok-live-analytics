@@ -253,8 +253,8 @@ class BackgroundSupervisor:
             env=env,
         )
 
-        # Wait up to 30 seconds for server to become responsive
-        for _ in range(30):
+        # Wait up to 60 seconds for server to become responsive
+        for _ in range(60):
             time.sleep(1)
             if check_health(8000):
                 logger.info("Uvicorn is healthy and accepting connections.")
@@ -444,7 +444,7 @@ class BackgroundSupervisor:
             time.sleep(5)
 
             # 1. Check Uvicorn process
-            if self.uvicorn_proc is None or self.uvicorn_proc.poll() is not None:
+            if (self.uvicorn_proc is None or self.uvicorn_proc.poll() is not None) and not is_port_in_use(8000):
                 logger.warning("Uvicorn process died! Restarting...")
                 self.start_uvicorn()
 
