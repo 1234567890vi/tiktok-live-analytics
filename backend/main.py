@@ -16,8 +16,9 @@ import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import httpx
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -463,6 +464,69 @@ async def admin_logout(data: dict):
     token = data.get("token", "")
     _admin_tokens.discard(token)
     return {"status": "ok"}
+
+
+@app.get("/api/stream_proxy")
+async def stream_proxy(url: str):
+    """
+    Reverse proxy for live video stream playlists (.m3u8) and video segments (.ts)
+    to bypass browser CORS restrictions and allow in-browser live video playback.
+    """
+    if not url or not (url.startswith("http://") or url.startswith("https://")):
+        return JSONResponse(status_code=400, content={"error": "Invalid stream URL"})
+
+    from urllib.parse import urljoin, quote
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://www.tiktok.com/",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True, headers=headers) as client:
+            resp = await client.get(url)
+
+            # Check if this is an HLS playlist
+            is_playlist = ".m3u8" in url or "mpegurl" in (resp.headers.get("content-type") or "")
+            if is_playlist and resp.status_code == 200:
+                text = resp.text
+                lines = []
+                for line in text.splitlines():
+                    stripped = line.strip()
+                    if stripped and not stripped.startswith("#"):
+                        # Relative or absolute segment/variant URL
+                        full_url = urljoin(url, stripped)
+                        proxied_url = f"/api/stream_proxy?url={quote(full_url)}"
+                        lines.append(proxied_url)
+                    else:
+                        lines.append(line)
+
+                rewritten = "\n".join(lines)
+                return Response(
+                    content=rewritten,
+                    media_type="application/vnd.apple.mpegurl",
+                    headers={
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+                        "Cache-Control": "no-cache, no-store, must-revalidate",
+                    }
+                )
+
+            # Direct binary streaming for video chunks (.ts) or other formats
+            media_type = resp.headers.get("content-type") or "video/mp2t"
+            return Response(
+                content=resp.content,
+                status_code=resp.status_code,
+                media_type=media_type,
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                }
+            )
+    except Exception as exc:
+        logger.debug("stream_proxy error: %s", exc)
+        return JSONResponse(status_code=502, content={"error": "Proxy error", "detail": str(exc)})
 
 
 # ---------------------------------------------------------------------------

@@ -13,6 +13,7 @@ import time
 import types
 from typing import Callable, Awaitable
 import os
+import json
 
 from TikTokLive import TikTokLiveClient
 from TikTokLive.client.web.web_settings import WebDefaults
@@ -207,14 +208,40 @@ except ModuleNotFoundError:
         def set_total_likes(self, n: int) -> None:
             self._likes = max(self._likes, n)
 
-        def update_supporter_score(self, uid, uniq, nick, av, score: int) -> None:
+        def update_supporter_score(
+            self, uid, uniq, nick, av, score: int,
+            is_hidden: bool = False, is_unmasked: bool = False,
+            revealed_username: str = "", revealed_nickname: str = "", revealed_avatar: str = ""
+        ) -> None:
             if not uid:
                 return
             sup = self._supporters.setdefault(uid, {
                 "user_id": uid, "unique_id": uniq, "nickname": nick,
                 "avatar_url": av, "total_diamonds": 0, "gift_count": 0,
+                "is_hidden": is_hidden, "is_unmasked": is_unmasked,
+                "revealed_username": revealed_username,
+                "revealed_nickname": revealed_nickname,
+                "revealed_avatar": revealed_avatar,
             })
             sup["total_diamonds"] = max(sup["total_diamonds"], score)
+            if is_hidden:
+                sup["is_hidden"] = True
+            if is_unmasked:
+                sup["is_unmasked"] = True
+                if revealed_username: sup["revealed_username"] = revealed_username
+                if revealed_nickname: sup["revealed_nickname"] = revealed_nickname
+                if revealed_avatar: sup["revealed_avatar"] = revealed_avatar
+
+        def unmask_supporter(self, uid: str, uniq: str, nick: str, av: str = "") -> None:
+            """Unmask a previously hidden supporter when their true identity is discovered."""
+            if not uid or uid not in self._supporters:
+                return
+            sup = self._supporters[uid]
+            sup["is_unmasked"] = True
+            sup["revealed_username"] = uniq
+            sup["revealed_nickname"] = nick or uniq
+            if av and not sup.get("revealed_avatar"):
+                sup["revealed_avatar"] = av
 
         def process_like(self, uid, uniq, nick, av, lc, total):
             self._likes = max(self._likes, total)
@@ -243,7 +270,11 @@ except ModuleNotFoundError:
                 def to_dict(self_): return item  # noqa: N805
             return _C()
 
-        def process_gift(self, uid, uniq, nick, av, gid, gname, gicon, udiam, rc, streak):
+        def process_gift(
+            self, uid, uniq, nick, av, gid, gname, gicon, udiam, rc, streak,
+            is_hidden: bool = False, is_unmasked: bool = False,
+            revealed_username: str = "", revealed_nickname: str = "", revealed_avatar: str = ""
+        ):
             key = f"{uid}_{gid}"
             prev = self._streaks.get(key, 0)
 
@@ -262,8 +293,20 @@ except ModuleNotFoundError:
             sup = self._supporters.setdefault(uid, {
                 "user_id": uid, "unique_id": uniq, "nickname": nick,
                 "avatar_url": av, "total_diamonds": 0, "gift_count": 0,
+                "is_hidden": is_hidden, "is_unmasked": is_unmasked,
+                "revealed_username": revealed_username,
+                "revealed_nickname": revealed_nickname,
+                "revealed_avatar": revealed_avatar,
             })
             sup["total_diamonds"] += val
+            if is_hidden:
+                sup["is_hidden"] = True
+            if is_unmasked:
+                sup["is_unmasked"] = True
+                if revealed_username: sup["revealed_username"] = revealed_username
+                if revealed_nickname: sup["revealed_nickname"] = revealed_nickname
+                if revealed_avatar: sup["revealed_avatar"] = revealed_avatar
+
             if delta > 0:
                 sup["gift_count"] += 1
                 self._gift_count += max(1, delta)
@@ -479,6 +522,117 @@ def _extract_gift_icon(gift, event=None) -> str:
     return ""
 
 
+def _is_hidden_user(user_id: str, unique_id: str, nickname: str, event_or_user=None) -> bool:
+    """
+    Detect if a user or gift supporter is masked, anonymous, or incognito.
+    Detects Arabic/English masked strings, asterisk obfuscation, and incognito flags.
+    """
+    if not user_id or str(user_id) == "0":
+        return True
+
+    # Check explicit incognito flags in event or user object
+    if event_or_user is not None:
+        for attr in ("is_anonymous", "anonymous", "is_stealth", "is_incognito", "stealth_mode"):
+            val = _safe(event_or_user, attr, default=False)
+            if bool(val):
+                return True
+
+    nick_clean = (nickname or "").strip().lower()
+    uniq_clean = (unique_id or "").strip().lower()
+
+    # Empty nickname or unique_id
+    if not nick_clean and not uniq_clean:
+        return True
+
+    # Known masked patterns in Arabic and English
+    masked_patterns = (
+        "مستخدم tiktok", "tiktok user", "tiktok_user", "مستخدم تيك توك",
+        "مستخدم", "مخفي", "مجهول", "فاعل خير", "داعم مخفي", "anonymous",
+        "incognito", "hidden", "user_", "tiktokuser", "ghost",
+    )
+    if any(p == nick_clean or nick_clean.startswith(p) for p in masked_patterns):
+        return True
+    if any(p == uniq_clean or uniq_clean.startswith(p) for p in masked_patterns):
+        return True
+
+    # Asterisk masking (e.g. "a***d" or "***")
+    if "***" in nick_clean or "***" in uniq_clean:
+        return True
+
+    return False
+
+
+def _extract_stream_video_urls(room_info: dict, username: str) -> dict:
+    """
+    Extract HLS (.m3u8), FLV, and web URLs from TikTok room_info.
+    Parses both direct pull URLs and nested live_core_sdk_data stream_data JSON.
+    """
+    res = {
+        "hls_url": "",
+        "flv_url": "",
+        "web_url": f"https://www.tiktok.com/@{username}/live",
+        "embed_url": "",
+        "qualities": {},
+        "has_video": False,
+    }
+    if not room_info or not isinstance(room_info, dict):
+        return res
+
+    stream_url = room_info.get("stream_url") or {}
+    if not isinstance(stream_url, dict):
+        return res
+
+    # 1. Direct pull URLs
+    hls_direct = str(stream_url.get("hls_pull_url") or "")
+    flv_direct = str(stream_url.get("flv_pull_url") or stream_url.get("rtmp_pull_url") or "")
+
+    # 2. Extract from live_core_sdk_data / pull_data / stream_data JSON
+    try:
+        sdk_data = stream_url.get("live_core_sdk_data") or {}
+        pull_data = sdk_data.get("pull_data") or stream_url.get("pull_data") or {}
+        if isinstance(pull_data, str):
+            try:
+                pull_data = json.loads(pull_data)
+            except Exception:
+                pull_data = {}
+
+        stream_data_str = pull_data.get("stream_data") or ""
+        if stream_data_str and isinstance(stream_data_str, str):
+            try:
+                stream_data = json.loads(stream_data_str)
+                data_map = stream_data.get("data", {})
+                for q in ("origin", "uhd", "hd", "sd", "ld"):
+                    if q in data_map:
+                        main = data_map[q].get("main", {})
+                        hls = str(main.get("hls", ""))
+                        flv = str(main.get("flv", "") or main.get("cmaf", ""))
+                        if hls or flv:
+                            res["qualities"][q] = {"hls": hls, "flv": flv}
+                            if not res["hls_url"] and hls:
+                                res["hls_url"] = hls
+                            if not res["flv_url"] and flv:
+                                res["flv_url"] = flv
+            except Exception as e:
+                logger.debug("Error parsing stream_data JSON: %s", e)
+    except Exception as e:
+        logger.debug("Error extracting pull_data: %s", e)
+
+    if not res["hls_url"] and hls_direct:
+        res["hls_url"] = hls_direct
+    if not res["flv_url"] and flv_direct:
+        res["flv_url"] = flv_direct
+
+    room_id = str(room_info.get("id") or room_info.get("room_id") or "")
+    if room_id:
+        res["room_id"] = room_id
+        res["embed_url"] = f"https://www.tiktok.com/embed/v2/live/{room_id}"
+
+    if res["hls_url"] or res["flv_url"]:
+        res["has_video"] = True
+
+    return res
+
+
 def _parse_anchor_user(wrapper, default_anchor_id: str = "") -> dict:
     """Extract anchor details from BattleUserInfoWrapper or similar."""
     key = str(_safe(wrapper, "key", default=default_anchor_id))
@@ -690,6 +844,86 @@ class TikTokSession:
         self._streamer_avatar    = ""
         self._gift_catalog: dict[str, dict] = {}
         self._gift_catalog_by_name: dict[str, dict] = {}
+        self._user_identities: dict[str, dict] = {}
+        self._stream_video_data: dict = {}
+
+    def resolve_supporter_identity(self, uinfo: dict, event=None) -> dict:
+        """
+        Detect if a supporter is masked or hidden.
+        If hidden, cross-reference their persistent numeric user_id with known
+        room commenters/likers, or display_id to reveal their true username and nickname.
+        """
+        uid = str(uinfo.get("user_id", "") or "")
+        uniq = str(uinfo.get("unique_id", "") or "")
+        nick = str(uinfo.get("nickname", "") or "")
+        av = str(uinfo.get("avatar_url", "") or "")
+
+        is_hidden = _is_hidden_user(uid, uniq, nick, event)
+        is_unmasked = False
+        revealed_username = ""
+        revealed_nickname = ""
+        revealed_avatar = ""
+
+        if is_hidden:
+            # Check 1: Does unique_id or display_id contain a real handle?
+            if uniq and not _is_hidden_user(uid, uniq, uniq, None):
+                is_unmasked = True
+                revealed_username = uniq
+                revealed_nickname = nick if (nick and not _is_hidden_user(uid, "", nick, None)) else uniq
+                revealed_avatar = av
+            # Check 2: Check persistent room identity registry for this user_id
+            elif uid and uid in self._user_identities:
+                cached = self._user_identities[uid]
+                c_uniq = cached.get("unique_id", "")
+                c_nick = cached.get("nickname", "")
+                if c_uniq and not _is_hidden_user(uid, c_uniq, c_nick, None):
+                    is_unmasked = True
+                    revealed_username = c_uniq
+                    revealed_nickname = c_nick or c_uniq
+                    revealed_avatar = cached.get("avatar_url", "") or av
+
+            # If still not unmasked, provide system short ID badge
+            if not is_unmasked:
+                short_id = uid[-6:] if len(uid) >= 6 else (uid or "anon")
+                revealed_username = f"user_{short_id}"
+                revealed_nickname = f"داعم مخفي #{short_id}"
+                revealed_avatar = av
+        else:
+            # User is public: record in identity registry for future cross-referencing
+            if uid and uid != "0" and uniq:
+                self._user_identities[uid] = {
+                    "user_id": uid,
+                    "unique_id": uniq,
+                    "nickname": nick or uniq,
+                    "avatar_url": av,
+                }
+
+        return {
+            "is_hidden": is_hidden,
+            "is_unmasked": is_unmasked,
+            "revealed_username": revealed_username,
+            "revealed_nickname": revealed_nickname,
+            "revealed_avatar": revealed_avatar,
+        }
+
+    def check_and_unmask_existing_supporter(self, uid: str, uniq: str, nick: str, av: str = "") -> None:
+        """
+        Record genuine user identity from comments/likes/ranks,
+        and automatically unmask any existing supporter in the engine.
+        """
+        if not uid or uid == "0":
+            return
+        if _is_hidden_user(uid, uniq, nick, None):
+            return
+
+        self._user_identities[uid] = {
+            "user_id": uid,
+            "unique_id": uniq,
+            "nickname": nick or uniq,
+            "avatar_url": av,
+        }
+        if hasattr(self._engine, "unmask_supporter"):
+            self._engine.unmask_supporter(uid, uniq, nick or uniq, av)
 
     # ------------------------------------------------------------------
     # Public API
@@ -749,6 +983,7 @@ class TikTokSession:
         data["net_payout_usd"] = round(
             data.get("estimated_usd", 0.0) * NET_PAYOUT_RATIO, 4
         )
+        data["stream_video"]   = getattr(self, "_stream_video_data", None) or _extract_stream_video_urls({}, self.username)
         return {"type": "snapshot", "data": data}
 
     async def send_snapshot(self) -> None:
@@ -963,7 +1198,18 @@ class TikTokSession:
                             c_av = _extract_avatar(c_user)
                             c_score = int(contributor.get("fan_ticket") or contributor.get("score") or 0)
                             if c_score > 0 and c_uid:
-                                self._engine.update_supporter_score(c_uid, c_uniq, c_nick, c_av, c_score)
+                                id_res = self.resolve_supporter_identity({
+                                    "user_id": c_uid, "unique_id": c_uniq,
+                                    "nickname": c_nick, "avatar_url": c_av,
+                                })
+                                self._engine.update_supporter_score(
+                                    c_uid, c_uniq, c_nick, c_av, c_score,
+                                    is_hidden=id_res["is_hidden"],
+                                    is_unmasked=id_res["is_unmasked"],
+                                    revealed_username=id_res["revealed_username"],
+                                    revealed_nickname=id_res["revealed_nickname"],
+                                    revealed_avatar=id_res["revealed_avatar"],
+                                )
 
                     # Check if stream is ALREADY in an active battle upon connection!
                     link_mic = r_info.get("link_mic") or r_info.get("linkmic_info") or r_info.get("battle_info") or {}
@@ -976,6 +1222,14 @@ class TikTokSession:
                                 active=True,
                                 status="ACTIVE",
                             )
+
+                    # Extract stream video URLs (HLS / FLV / web) and broadcast to frontend
+                    self._stream_video_data = _extract_stream_video_urls(r_info, self.username)
+                    await self._send({
+                        "type": "stream_video",
+                        "data": self._stream_video_data,
+                    })
+                    logger.info("Extracted stream video for @%s (has_video=%s)", self.username, self._stream_video_data.get("has_video"))
             except Exception as e:
                 logger.debug("Optional initial room_info fetch: %s", e)
 
@@ -1032,14 +1286,19 @@ class TikTokSession:
                     if c_user:
                         c_uinfo = _user_info(c_user)
                         c_score = int(_safe(contributor, "score", default=0))
-                        if c_score > 0:
+                        if c_score > 0 and c_uinfo["user_id"]:
                             contributors_total += c_score
-                            if c_uinfo["user_id"]:
-                                self._engine.update_supporter_score(
-                                    c_uinfo["user_id"], c_uinfo["unique_id"],
-                                    c_uinfo["nickname"], c_uinfo["avatar_url"],
-                                    c_score
-                                )
+                            id_res = self.resolve_supporter_identity(c_uinfo)
+                            self._engine.update_supporter_score(
+                                c_uinfo["user_id"], c_uinfo["unique_id"],
+                                c_uinfo["nickname"], c_uinfo["avatar_url"],
+                                c_score,
+                                is_hidden=id_res["is_hidden"],
+                                is_unmasked=id_res["is_unmasked"],
+                                revealed_username=id_res["revealed_username"],
+                                revealed_nickname=id_res["revealed_nickname"],
+                                revealed_avatar=id_res["revealed_avatar"],
+                            )
 
             if contributors_total > 0:
                 self._engine.set_total_diamonds(contributors_total)
@@ -1070,6 +1329,12 @@ class TikTokSession:
         async def on_comment(event: CommentEvent):
             user  = _safe(event, "user")
             uinfo = _user_info(user)
+
+            # Auto-unmask: if this user was previously a hidden supporter, reveal their identity!
+            self.check_and_unmask_existing_supporter(
+                uinfo["user_id"], uinfo["unique_id"], uinfo["nickname"], uinfo["avatar_url"]
+            )
+
             text  = str(_safe(event, "comment", default=""))
             ts_ms = int(time.time() * 1000)
 
@@ -1094,6 +1359,12 @@ class TikTokSession:
         async def on_like(event: LikeEvent):
             user  = _safe(event, "user")
             uinfo = _user_info(user)
+
+            # Auto-unmask from likes
+            self.check_and_unmask_existing_supporter(
+                uinfo["user_id"], uinfo["unique_id"], uinfo["nickname"], uinfo["avatar_url"]
+            )
+
             like_count       = int(_safe(event, "count", default=0))
             total_room_likes = int(_safe(event, "total", default=0))
 
@@ -1122,6 +1393,14 @@ class TikTokSession:
         async def on_gift(event: GiftEvent):
             user  = _safe(event, "user")
             uinfo = _user_info(user)
+
+            # Identity & Hidden Supporter Resolution
+            identity = self.resolve_supporter_identity(uinfo, event)
+            is_hidden = identity["is_hidden"]
+            is_unmasked = identity["is_unmasked"]
+            revealed_username = identity["revealed_username"]
+            revealed_nickname = identity["revealed_nickname"]
+            revealed_avatar = identity["revealed_avatar"]
 
             gift      = _safe(event, "gift")
             gift_id   = str(_safe(event, "gift_id", default=0) or _safe(gift, "id", default="0"))
@@ -1209,6 +1488,10 @@ class TikTokSession:
                 uinfo["nickname"], uinfo["avatar_url"],
                 gift_id, gift_name, gift_icon,
                 unit_diamonds, repeat_count, streak_active,
+                is_hidden=is_hidden, is_unmasked=is_unmasked,
+                revealed_username=revealed_username,
+                revealed_nickname=revealed_nickname,
+                revealed_avatar=revealed_avatar,
             )
 
             if room_fan_tickets > 0:
@@ -1243,6 +1526,11 @@ class TikTokSession:
                     "recipient_side":    recipient_side,
                     "recipient_name":    recipient_name,
                     "is_battle_gift":    is_pk,
+                    "is_hidden":         is_hidden,
+                    "is_unmasked":       is_unmasked,
+                    "revealed_username": revealed_username,
+                    "revealed_nickname": revealed_nickname,
+                    "revealed_avatar":   revealed_avatar,
                 },
                 "leaderboard": leaderboard,
             })

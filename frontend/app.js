@@ -233,6 +233,31 @@ const DOM = {
 
   // Admin Link
   linkOpenAdmin: $('linkOpenAdmin'),
+
+  // Live Video Player
+  liveVideoSection:       $('liveVideoSection'),
+  playerTitle:            $('playerTitle'),
+  videoLiveBadge:         $('videoLiveBadge'),
+  videoStreamerInfo:      $('videoStreamerInfo'),
+  btnVideoMute:           $('btnVideoMute'),
+  videoMuteIcon:          $('videoMuteIcon'),
+  videoMuteText:          $('videoMuteText'),
+  btnVideoPip:            $('btnVideoPip'),
+  btnVideoFullscreen:     $('btnVideoFullscreen'),
+  btnVideoAspect:         $('btnVideoAspect'),
+  videoAspectIcon:        $('videoAspectIcon'),
+  btnVideoExternal:       $('btnVideoExternal'),
+  btnToggleVideoCollapse: $('btnToggleVideoCollapse'),
+  videoCollapseIcon:      $('videoCollapseIcon'),
+  videoCollapseText:      $('videoCollapseText'),
+  liveVideoContainer:     $('liveVideoContainer'),
+  liveVideoElement:       $('liveVideoElement'),
+  videoPlaceholder:       $('videoPlaceholder'),
+  videoPlaceholderTitle:  $('videoPlaceholderTitle'),
+  videoPlaceholderDesc:   $('videoPlaceholderDesc'),
+  btnLaunchDemoVideo:     $('btnLaunchDemoVideo'),
+  videoSpyAlert:          $('videoSpyAlert'),
+  videoSpyAlertText:      $('videoSpyAlertText'),
 };
 
 // ---------------------------------------------------------------------------
@@ -497,6 +522,33 @@ function createGiftNode(data) {
 
   info.append(senderRow, nameLine, detailsLine);
 
+  // Hidden Supporter Unmasking Display (كشف هوية الداعم المخفي)
+  const isHidden = !!(data.is_hidden || user.is_hidden || data.identity?.is_hidden);
+  const isUnmasked = !!(data.is_unmasked || user.is_unmasked || data.identity?.is_unmasked);
+  const revealedUsername = data.revealed_username || user.revealed_username || data.identity?.revealed_username || '';
+  const revealedNickname = data.revealed_nickname || user.revealed_nickname || data.identity?.revealed_nickname || '';
+
+  if (isHidden) {
+    card.classList.add('hidden-supporter-glow');
+    const unmaskDiv = document.createElement('div');
+    if (isUnmasked && revealedUsername) {
+      unmaskDiv.className = 'unmask-badge unmask-revealed';
+      unmaskDiv.innerHTML = `
+        <span>🕵️</span>
+        <span>داعم مخفي: كشف الهوية <span class="unmask-handle">@${revealedUsername}</span>${revealedNickname && revealedNickname !== revealedUsername ? ` (${revealedNickname})` : ''}</span>
+      `;
+      triggerSpyAlert(`🕵️ تم كشف هوية داعم مخفي: @${revealedUsername} (${fmt(totalComboDiamonds)} 💎)`);
+    } else {
+      const shortId = (user.user_id ? String(user.user_id).slice(-6) : 'anon');
+      unmaskDiv.className = 'unmask-badge unmask-pending';
+      unmaskDiv.innerHTML = `
+        <span>🕵️</span>
+        <span>داعم مخفي (معرف النظام: #${shortId})</span>
+      `;
+    }
+    info.appendChild(unmaskDiv);
+  }
+
   // Combo counter
   const comboDiv = document.createElement('div');
   comboDiv.className   = 'gift-combo';
@@ -660,9 +712,26 @@ function updateLeaderboard(supporters) {
     info.className = 'lb-info';
 
     const nameEl = document.createElement('div');
-    nameEl.className   = 'lb-name';
-    nameEl.textContent = sup.nickname || sup.unique_id || 'Anon';
-    nameEl.title       = sup.nickname || '';
+    nameEl.className   = 'lb-name flex items-center gap-1.5 flex-wrap';
+
+    if (sup.is_hidden) {
+      if (sup.is_unmasked && sup.revealed_username) {
+        nameEl.innerHTML = `
+          <span class="text-emerald-400 font-bold">@${sup.revealed_username}</span>
+          <span class="lb-spy-tag revealed" title="داعم مخفي تم كشف هويته!">🕵️ كشف: @${sup.revealed_username}</span>
+        `;
+        nameEl.title = `داعم مخفي: الاسم المستعار (${sup.nickname}) — الهوية الحقيقية: @${sup.revealed_username}`;
+      } else {
+        nameEl.innerHTML = `
+          <span>${sup.nickname || 'مستخدم مخفي'}</span>
+          <span class="lb-spy-tag pending" title="داعم مخفي">🕵️ مخفي</span>
+        `;
+        nameEl.title = `داعم مخفي (معرف #${sup.user_id ? String(sup.user_id).slice(-6) : 'anon'})`;
+      }
+    } else {
+      nameEl.textContent = sup.nickname || sup.unique_id || 'Anon';
+      nameEl.title       = sup.nickname || '';
+    }
 
     const diamondsEl = document.createElement('div');
     diamondsEl.className   = 'lb-diamonds';
@@ -947,6 +1016,184 @@ function applySnapshot(data) {
   if (data.pk_state)       updatePK(data.pk_state, 'snapshot');
   if (data.top_supporters) updateLeaderboard(data.top_supporters);
   if (data.top_likers)     renderLikers(data.top_likers);
+  if (data.stream_video)   loadVideoStream(data.stream_video);
+}
+
+// ---------------------------------------------------------------------------
+// Live Video Player Controller (مشغل البث المرئي المباشر)
+// ---------------------------------------------------------------------------
+let hlsInstance = null;
+let isVideoMuted = true;
+let isVideoPortrait = false;
+let isVideoCollapsed = false;
+let currentStreamData = null;
+
+function initLiveVideoPlayer() {
+  if (!DOM.liveVideoElement) return;
+
+  // Toggle Mute / Unmute
+  DOM.btnVideoMute?.addEventListener('click', () => {
+    isVideoMuted = !DOM.liveVideoElement.muted;
+    DOM.liveVideoElement.muted = isVideoMuted;
+    if (DOM.videoMuteIcon) DOM.videoMuteIcon.textContent = isVideoMuted ? '🔇' : '🔊';
+    if (DOM.videoMuteText) DOM.videoMuteText.textContent = isVideoMuted ? 'صامت' : 'مسموع';
+  });
+
+  // Toggle Picture-in-Picture
+  DOM.btnVideoPip?.addEventListener('click', async () => {
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+      } else if (DOM.liveVideoElement && document.pictureInPictureEnabled) {
+        await DOM.liveVideoElement.requestPictureInPicture();
+      }
+    } catch (err) {
+      console.debug('[Video] PiP error:', err);
+    }
+  });
+
+  // Toggle Fullscreen
+  DOM.btnVideoFullscreen?.addEventListener('click', () => {
+    const el = DOM.liveVideoContainer || DOM.liveVideoElement;
+    if (!el) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else {
+      el.requestFullscreen().catch(() => {});
+    }
+  });
+
+  // Toggle Aspect Ratio (Portrait / Landscape)
+  DOM.btnVideoAspect?.addEventListener('click', () => {
+    isVideoPortrait = !isVideoPortrait;
+    if (isVideoPortrait) {
+      DOM.liveVideoElement.classList.remove('aspect-landscape');
+      DOM.liveVideoElement.classList.add('aspect-portrait');
+      if (DOM.videoAspectIcon) DOM.videoAspectIcon.textContent = '🖥️';
+    } else {
+      DOM.liveVideoElement.classList.remove('aspect-portrait');
+      DOM.liveVideoElement.classList.add('aspect-landscape');
+      if (DOM.videoAspectIcon) DOM.videoAspectIcon.textContent = '📱';
+    }
+  });
+
+  // Collapse / Expand Toggle
+  DOM.btnToggleVideoCollapse?.addEventListener('click', () => {
+    isVideoCollapsed = !isVideoCollapsed;
+    if (isVideoCollapsed) {
+      DOM.liveVideoContainer.classList.add('video-collapsed');
+      if (DOM.videoCollapseIcon) DOM.videoCollapseIcon.textContent = '🔽';
+      if (DOM.videoCollapseText) DOM.videoCollapseText.textContent = 'تكبير';
+    } else {
+      DOM.liveVideoContainer.classList.remove('video-collapsed');
+      if (DOM.videoCollapseIcon) DOM.videoCollapseIcon.textContent = '🔼';
+      if (DOM.videoCollapseText) DOM.videoCollapseText.textContent = 'تصغير';
+    }
+  });
+
+  // Demo Video Launch Button
+  DOM.btnLaunchDemoVideo?.addEventListener('click', () => {
+    loadDemoVideoStream();
+  });
+}
+
+function loadVideoStream(streamData) {
+  if (!streamData) return;
+  currentStreamData = streamData;
+
+  const hlsUrl = streamData.hls_url || '';
+  const flvUrl = streamData.flv_url || '';
+  const webUrl = streamData.web_url || `https://www.tiktok.com/@${currentUsername}/live`;
+
+  if (DOM.videoStreamerInfo) {
+    DOM.videoStreamerInfo.textContent = `🔴 بث تيك توك المباشر للحساب @${streamData.username || currentUsername}`;
+  }
+  if (DOM.videoLiveBadge) {
+    DOM.videoLiveBadge.classList.remove('hidden');
+  }
+  if (DOM.btnVideoExternal) {
+    DOM.btnVideoExternal.href = webUrl;
+    DOM.btnVideoExternal.classList.remove('hidden');
+  }
+
+  if (!hlsUrl) {
+    // If no direct HLS, show helpful prompt with direct link
+    if (DOM.videoPlaceholder) DOM.videoPlaceholder.classList.remove('hidden');
+    if (DOM.videoPlaceholderTitle) DOM.videoPlaceholderTitle.textContent = `البث المباشر نشط (@${streamData.username || currentUsername})`;
+    if (DOM.videoPlaceholderDesc) {
+      DOM.videoPlaceholderDesc.innerHTML = `تم ربط إحصائيات البث المباشر بنجاح. يمكنك أيضاً مشاهدة الفيديو مباشرة عبر تيك توك: <a href="${webUrl}" target="_blank" class="text-pink-400 font-bold underline">فتح على تيك توك ↗</a>`;
+    }
+    return;
+  }
+
+  // Hide placeholder and prepare video element
+  if (DOM.videoPlaceholder) DOM.videoPlaceholder.classList.add('hidden');
+  DOM.liveVideoElement.muted = isVideoMuted;
+
+  // Cleanup previous HLS instance
+  if (hlsInstance) {
+    try { hlsInstance.destroy(); } catch (_) {}
+    hlsInstance = null;
+  }
+
+  // Setup HLS.js
+  if (window.Hls && window.Hls.isSupported()) {
+    hlsInstance = new window.Hls({
+      enableWorker: true,
+      lowLatencyMode: true,
+      backBufferLength: 60,
+    });
+
+    let hasFailedOver = false;
+    hlsInstance.loadSource(hlsUrl);
+    hlsInstance.attachMedia(DOM.liveVideoElement);
+
+    hlsInstance.on(window.Hls.Events.MANIFEST_PARSED, () => {
+      DOM.liveVideoElement.play().catch(() => {
+        // Autoplay policy fallback: mute and play
+        DOM.liveVideoElement.muted = true;
+        DOM.liveVideoElement.play().catch(() => {});
+      });
+    });
+
+    hlsInstance.on(window.Hls.Events.ERROR, (event, data) => {
+      if (data.fatal && !hasFailedOver) {
+        hasFailedOver = true;
+        console.debug('[HLS] Direct stream blocked. Switching to server CORS proxy...');
+        const proxyUrl = `/api/stream_proxy?url=${encodeURIComponent(hlsUrl)}`;
+        hlsInstance.loadSource(proxyUrl);
+      }
+    });
+  } else if (DOM.liveVideoElement.canPlayType('application/vnd.apple.mpegurl')) {
+    // Native Safari / iOS HLS
+    DOM.liveVideoElement.src = hlsUrl;
+    DOM.liveVideoElement.play().catch(() => {});
+  }
+}
+
+function loadDemoVideoStream() {
+  if (DOM.videoPlaceholder) DOM.videoPlaceholder.classList.add('hidden');
+  if (DOM.videoLiveBadge) DOM.videoLiveBadge.classList.remove('hidden');
+  if (DOM.videoStreamerInfo) DOM.videoStreamerInfo.textContent = '🎮 بث تجريبي حي (Live Stream Demo)';
+
+  // High-reliability public HLS test stream
+  const demoHls = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
+  loadVideoStream({
+    username: 'demo_streamer',
+    hls_url: demoHls,
+    web_url: 'https://www.tiktok.com',
+  });
+  toast('📺 تم تشغيل البث المرئي التجريبي بنجاح!', 'success');
+}
+
+function triggerSpyAlert(text) {
+  if (!DOM.videoSpyAlert) return;
+  if (DOM.videoSpyAlertText) DOM.videoSpyAlertText.textContent = text;
+  DOM.videoSpyAlert.classList.remove('hidden');
+  clearTimeout(DOM.videoSpyAlert._timer);
+  DOM.videoSpyAlert._timer = setTimeout(() => {
+    DOM.videoSpyAlert?.classList.add('hidden');
+  }, 6000);
 }
 
 // ---------------------------------------------------------------------------
@@ -1015,6 +1262,10 @@ function connectWs(username) {
         setStatus('offline', msg.message || 'Disconnected');
         DOM.stopBtn.classList.add('hidden');
         DOM.startBtn.classList.remove('hidden');
+        if (DOM.videoPlaceholder) DOM.videoPlaceholder.classList.remove('hidden');
+        if (DOM.videoLiveBadge) DOM.videoLiveBadge.classList.add('hidden');
+        if (hlsInstance) { try { hlsInstance.destroy(); } catch (_) {} hlsInstance = null; }
+        if (DOM.liveVideoElement) { DOM.liveVideoElement.pause(); DOM.liveVideoElement.removeAttribute('src'); DOM.liveVideoElement.load(); }
         toast(`🔴 ${msg.message || 'Stream ended'}`, 'warning', 6000);
         if (ws) {
           try { ws.close(); } catch (_) {}
@@ -1026,11 +1277,19 @@ function connectWs(username) {
         setStatus('offline', msg.message || 'Error');
         DOM.stopBtn.classList.add('hidden');
         DOM.startBtn.classList.remove('hidden');
+        if (DOM.videoPlaceholder) DOM.videoPlaceholder.classList.remove('hidden');
+        if (DOM.videoLiveBadge) DOM.videoLiveBadge.classList.add('hidden');
+        if (hlsInstance) { try { hlsInstance.destroy(); } catch (_) {} hlsInstance = null; }
+        if (DOM.liveVideoElement) { DOM.liveVideoElement.pause(); DOM.liveVideoElement.removeAttribute('src'); DOM.liveVideoElement.load(); }
         toast(`⚠️ ${msg.message}${msg.detail ? ': ' + msg.detail : ''}`, 'error', 9000);
         if (ws) {
           try { ws.close(); } catch (_) {}
           ws = null;
         }
+        break;
+
+      case 'stream_video':
+        loadVideoStream(msg.data);
         break;
 
       case 'snapshot':
@@ -1710,6 +1969,41 @@ function startDemoSimulation() {
       }, 'points_update');
     }
 
+    // 3.5. Incoming hidden supporter gift with unmasking every ~7 ticks
+    if (tick % 7 === 0) {
+      const isUnmasked = Math.random() > 0.2;
+      const addedVal = 10000;
+      demoDiamonds += addedVal;
+      addGift({
+        user: {
+          user_id: '8899776655',
+          nickname: 'مستخدم TikTok',
+          unique_id: '',
+          avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=faces',
+          is_hidden: true,
+          is_unmasked: isUnmasked,
+          revealed_username: 'algerian_whale',
+          revealed_nickname: 'حوت الجزائر 🇩🇿',
+        },
+        transaction: {
+          gift_name: 'Interstellar Galaxy',
+          gift_icon_url: 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_galaxy.png~tplv-obj.png',
+          diamond_unit_cost: 10000,
+          repeat_count: 1,
+          total_value: addedVal,
+        },
+        is_hidden: true,
+        is_unmasked: isUnmasked,
+        revealed_username: 'algerian_whale',
+        revealed_nickname: 'حوت الجزائر 🇩🇿',
+        recipient_side: 'host',
+        recipient_name: 'المضيف',
+      });
+      bumpKpi(DOM.kpiDiamonds, demoDiamonds);
+      bumpKpi(DOM.kpiUsd, (demoDiamonds * 0.005).toFixed(2), fmtUsd);
+      bumpKpi(DOM.kpiNet, (demoDiamonds * 0.005 * 0.5).toFixed(2), fmtUsd);
+    }
+
     // 4. Random liker every 4 ticks
     if (tick % 4 === 0) {
       const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
@@ -1722,6 +2016,9 @@ function startDemoSimulation() {
       });
     }
   }, 1000);
+
+  // Auto-start video player in demo mode
+  loadDemoVideoStream();
 }
 
 function stopDemoSimulation() {
@@ -1754,6 +2051,7 @@ document.querySelectorAll('.quick-stream-btn').forEach(btn => {
 // ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
+initLiveVideoPlayer();
 applyLanguage(currentLang);
 applyTheme(currentTheme);
 setStatus('idle', I18N[currentLang]?.statusIdle || 'Idle');
@@ -1763,5 +2061,5 @@ if (sessionStorage.getItem('tt_admin_token')) {
   if (DOM.adminSidebarSection) DOM.adminSidebarSection.classList.remove('hidden');
 }
 
-console.log('🎯 TikTok Live Analytics Tracker initialized.');
+console.log('🎯 TIKTOK VRF initialized successfully.');
 
