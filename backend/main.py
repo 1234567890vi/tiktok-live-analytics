@@ -44,6 +44,20 @@ _server_start_time = time.time()
 _total_connections = 0
 _admin_tokens: set[str] = set()
 _search_history: list[dict] = []
+_banned_targets: set[str] = set()
+_tracking_enabled: bool = True
+_active_websockets: dict[str, set[WebSocket]] = {}
+
+
+def _get_admin_token(request: Request, data: dict | None = None) -> str:
+    """Extract admin token from header, body, or query param."""
+    auth_hdr = request.headers.get("authorization", "")
+    if "Bearer " in auth_hdr:
+        return auth_hdr.replace("Bearer ", "").strip()
+    if data and isinstance(data, dict) and "token" in data:
+        return str(data["token"]).strip()
+    return request.query_params.get("token", "").strip()
+
 
 # ---------------------------------------------------------------------------
 # Session registry — created inside the lifespan so it has a running event loop
@@ -124,6 +138,13 @@ async def serve_index():
     return FileResponse(str(index_path), media_type="text/html")
 
 
+@app.get("/admin", response_class=FileResponse)
+async def serve_admin_page():
+    """Direct route for the owner to access admin mode."""
+    index_path = FRONTEND_DIR / "index.html"
+    return FileResponse(str(index_path), media_type="text/html")
+
+
 @app.get("/health")
 async def health_check():
     """Liveness / readiness probe for cloud deployment health checks."""
@@ -131,6 +152,7 @@ async def health_check():
         "status":          "ok",
         "active_sessions": len(_active_sessions),
         "max_sessions":    MAX_SESSIONS,
+        "tracking_enabled": _tracking_enabled,
     }
 
 
@@ -158,15 +180,14 @@ async def admin_login(data: dict):
 @app.get("/api/admin/stats")
 async def admin_stats(request: Request, token: str = ""):
     """Return administrative analytics: active users, total visits, searched targets & durations."""
-    auth_hdr = request.headers.get("authorization", "")
-    tok = token or (auth_hdr.replace("Bearer ", "").strip() if "Bearer " in auth_hdr else "")
+    tok = _get_admin_token(request, {"token": token})
     if not tok or tok not in _admin_tokens:
         return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
 
     uptime = int(time.time() - _server_start_time)
     now = int(time.time())
     history_copy = []
-    for item in _search_history[:50]:
+    for item in _search_history[:80]:
         row = dict(item)
         if row["status"] == "active":
             row["duration_seconds"] = max(0, now - row["started_at"])
@@ -182,7 +203,161 @@ async def admin_stats(request: Request, token: str = ""):
         "active_users_count": len(_active_sessions),
         "active_sessions": list(_active_sessions.keys()),
         "search_history": history_copy,
+        "tracking_enabled": _tracking_enabled,
+        "banned_targets": sorted(list(_banned_targets)),
     }
+
+
+@app.post("/api/admin/kick")
+async def admin_kick(request: Request, data: dict):
+    """Forcefully disconnect / kick an active tracking session."""
+    tok = _get_admin_token(request, data)
+    if not tok or tok not in _admin_tokens:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
+
+    target = str(data.get("username", "")).lstrip("@").strip()
+    if not target:
+        return JSONResponse(status_code=400, content={"status": "error", "message": "Username required"})
+
+    logger.warning("Admin kicking session for target @%s", target)
+
+    # Disconnect client WebSockets
+    sockets = list(_active_websockets.get(target, set()))
+    for ws in sockets:
+        try:
+            await ws.send_text(json.dumps({
+                "type": "error",
+                "message": "Session Terminated",
+                "detail": "تم إنهاء جلسة التتبع وإيقافها بواسطة إدارة الموقع.",
+            }))
+            await ws.close(code=1008, reason="Terminated by admin")
+        except Exception:
+            pass
+
+    # Stop background session
+    lock = _get_lock()
+    async with lock:
+        sess = _active_sessions.pop(target, None)
+    if sess:
+        await sess.stop()
+
+    # Update history status
+    now = int(time.time())
+    for record in _search_history:
+        if record["username"] == target and record["status"] == "active":
+            record["status"] = "kicked"
+            record["ended_at"] = now
+            record["duration_seconds"] = max(0, now - record["started_at"])
+
+    return {"status": "ok", "message": f"Kicked session for @{target}"}
+
+
+@app.post("/api/admin/ban")
+async def admin_ban(request: Request, data: dict):
+    """Ban a target account from being tracked on the platform."""
+    tok = _get_admin_token(request, data)
+    if not tok or tok not in _admin_tokens:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
+
+    target = str(data.get("username", "")).lstrip("@").strip()
+    if not target:
+        return JSONResponse(status_code=400, content={"status": "error", "message": "Username required"})
+
+    _banned_targets.add(target)
+    logger.warning("Admin banned target @%s", target)
+
+    # If currently active, immediately kick it
+    sockets = list(_active_websockets.get(target, set()))
+    for ws in sockets:
+        try:
+            await ws.send_text(json.dumps({
+                "type": "error",
+                "message": "Account Banned",
+                "detail": f"تم حظر حساب @{target} من التتبع بواسطة الأدمن.",
+            }))
+            await ws.close(code=1008, reason="Banned by admin")
+        except Exception:
+            pass
+
+    lock = _get_lock()
+    async with lock:
+        sess = _active_sessions.pop(target, None)
+    if sess:
+        await sess.stop()
+
+    now = int(time.time())
+    for record in _search_history:
+        if record["username"] == target and record["status"] == "active":
+            record["status"] = "banned"
+            record["ended_at"] = now
+            record["duration_seconds"] = max(0, now - record["started_at"])
+
+    return {"status": "ok", "banned_targets": sorted(list(_banned_targets))}
+
+
+@app.post("/api/admin/unban")
+async def admin_unban(request: Request, data: dict):
+    """Remove a target account from the banned list."""
+    tok = _get_admin_token(request, data)
+    if not tok or tok not in _admin_tokens:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
+
+    target = str(data.get("username", "")).lstrip("@").strip()
+    _banned_targets.discard(target)
+    logger.info("Admin unbanned target @%s", target)
+    return {"status": "ok", "banned_targets": sorted(list(_banned_targets))}
+
+
+@app.post("/api/admin/toggle-tracking")
+async def admin_toggle_tracking(request: Request, data: dict):
+    """Enable or disable global tracking (maintenance mode / freeze)."""
+    tok = _get_admin_token(request, data)
+    if not tok or tok not in _admin_tokens:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
+
+    global _tracking_enabled
+    _tracking_enabled = bool(data.get("enabled", True))
+    logger.warning("Admin changed tracking_enabled to %s", _tracking_enabled)
+    return {"status": "ok", "tracking_enabled": _tracking_enabled}
+
+
+@app.post("/api/admin/broadcast")
+async def admin_broadcast(request: Request, data: dict):
+    """Send an instant announcement toast to all active users."""
+    tok = _get_admin_token(request, data)
+    if not tok or tok not in _admin_tokens:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
+
+    msg = str(data.get("message", "")).strip()
+    if not msg:
+        return JSONResponse(status_code=400, content={"status": "error", "message": "Message required"})
+
+    count = 0
+    payload = json.dumps({
+        "type": "admin_announcement",
+        "message": msg,
+    })
+    for ws_set in _active_websockets.values():
+        for ws in list(ws_set):
+            try:
+                await ws.send_text(payload)
+                count += 1
+            except Exception:
+                pass
+
+    return {"status": "ok", "recipients_count": count}
+
+
+@app.post("/api/admin/clear-history")
+async def admin_clear_history(request: Request, data: dict):
+    """Clear completed search history records."""
+    tok = _get_admin_token(request, data)
+    if not tok or tok not in _admin_tokens:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
+
+    global _search_history
+    _search_history = [r for r in _search_history if r.get("status") == "active"]
+    return {"status": "ok", "message": "Completed history cleared"}
 
 
 @app.post("/api/admin/logout")
@@ -231,6 +406,24 @@ async def ws_track(websocket: WebSocket, username: str):
         await websocket.close()
         return
 
+    if not _tracking_enabled:
+        await websocket.send_text(json.dumps({
+            "type":    "error",
+            "message": "Tracking Disabled",
+            "detail":  "خدمة التتبع معطلة مؤقتاً للصيانة بواسطة إدارة الموقع.",
+        }))
+        await websocket.close()
+        return
+
+    if clean_username in _banned_targets:
+        await websocket.send_text(json.dumps({
+            "type":    "error",
+            "message": "Target Banned",
+            "detail":  f"الحساب @{clean_username} محظور من التتبع بواسطة الأدمن.",
+        }))
+        await websocket.close()
+        return
+
     lock = _get_lock()
 
     async with lock:
@@ -247,6 +440,9 @@ async def ws_track(websocket: WebSocket, username: str):
         if clean_username in _active_sessions:
             old = _active_sessions.pop(clean_username)
             await old.stop()
+
+    # Register active websocket for this target
+    _active_websockets.setdefault(clean_username, set()).add(websocket)
 
     # Track search history & connection count
     global _total_connections
@@ -327,6 +523,11 @@ async def ws_track(websocket: WebSocket, username: str):
         session_record["duration_seconds"] = max(0, session_record["ended_at"] - session_record["started_at"])
         session_record["total_diamonds"] = getattr(session._engine, "get_total_diamonds", lambda: 0)()
         session_record["status"] = "completed"
+
+        if clean_username in _active_websockets:
+            _active_websockets[clean_username].discard(websocket)
+            if not _active_websockets[clean_username]:
+                _active_websockets.pop(clean_username, None)
 
         async with lock:
             _active_sessions.pop(clean_username, None)

@@ -100,12 +100,16 @@ const DOM = {
 
   toastContainer: $('toastContainer'),
 
+  // Header Logo for owner secret click
+  appLogo: $('appLogo'),
+
   // Sidebar & Navigation
-  sidebarToggleBtn: $('sidebarToggleBtn'),
-  sidebarBtnText:   $('sidebarBtnText'),
-  sidebarBackdrop:  $('sidebarBackdrop'),
-  mainSidebar:      $('mainSidebar'),
-  closeSidebarBtn:  $('closeSidebarBtn'),
+  sidebarToggleBtn:    $('sidebarToggleBtn'),
+  sidebarBtnText:      $('sidebarBtnText'),
+  sidebarBackdrop:     $('sidebarBackdrop'),
+  mainSidebar:         $('mainSidebar'),
+  closeSidebarBtn:     $('closeSidebarBtn'),
+  adminSidebarSection: $('adminSidebarSection'),
 
   // Language buttons
   langArBtn: $('langArBtn'),
@@ -131,6 +135,24 @@ const DOM = {
   adminTableBody:        $('adminTableBody'),
   adminRefreshBtn:       $('adminRefreshBtn'),
   adminLogoutBtn:        $('adminLogoutBtn'),
+
+  // Advanced User Controls & Tabs
+  btnToggleTracking:   $('btnToggleTracking'),
+  textToggleTracking:  $('textToggleTracking'),
+  btnClearHistory:     $('btnClearHistory'),
+  tabBtnSessions:      $('tabBtnSessions'),
+  tabBtnBanned:        $('tabBtnBanned'),
+  tabBtnBroadcast:     $('tabBtnBroadcast'),
+  tabViewSessions:     $('tabViewSessions'),
+  tabViewBanned:       $('tabViewBanned'),
+  tabViewBroadcast:    $('tabViewBroadcast'),
+  badgeBannedCount:    $('badgeBannedCount'),
+  bannedInputTarget:   $('bannedInputTarget'),
+  btnSubmitBan:        $('btnSubmitBan'),
+  bannedTableBody:     $('bannedTableBody'),
+  broadcastMsgInput:   $('broadcastMsgInput'),
+  btnSubmitBroadcast:  $('btnSubmitBroadcast'),
+  broadcastResult:     $('broadcastResult'),
 };
 
 // ---------------------------------------------------------------------------
@@ -808,6 +830,10 @@ function connectWs(username) {
         // silent keep-alive
         break;
 
+      case 'admin_announcement':
+        toast(`📢 تنبيه من الإدارة: ${msg.message || ''}`, 'warning', 9000);
+        break;
+
       default:
         console.debug('[WS] Unknown message type:', type, msg);
     }
@@ -1152,6 +1178,12 @@ function closeSidebar() {
 // ---------------------------------------------------------------------------
 // Admin Dashboard Management
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Admin Dashboard & User Control Management (Owner Only)
+// ---------------------------------------------------------------------------
+let currentTrackingEnabled = true;
+let currentAdminTab = 'sessions';
+
 function openAdminModal() {
   closeSidebar();
   if (DOM.adminModal) DOM.adminModal.classList.remove('hidden');
@@ -1173,6 +1205,7 @@ function closeAdminModal() {
 function showAdminLogin() {
   if (DOM.adminLoginSection) DOM.adminLoginSection.classList.remove('hidden');
   if (DOM.adminDashboardSection) DOM.adminDashboardSection.classList.add('hidden');
+  if (DOM.adminSidebarSection) DOM.adminSidebarSection.classList.add('hidden');
   if (DOM.adminPasswordInput) {
     DOM.adminPasswordInput.value = '';
     DOM.adminPasswordInput.focus();
@@ -1183,6 +1216,26 @@ function showAdminLogin() {
 function showAdminDashboard() {
   if (DOM.adminLoginSection) DOM.adminLoginSection.classList.add('hidden');
   if (DOM.adminDashboardSection) DOM.adminDashboardSection.classList.remove('hidden');
+  // Display admin controls in sidebar exclusively for the authenticated owner
+  if (DOM.adminSidebarSection) DOM.adminSidebarSection.classList.remove('hidden');
+}
+
+function switchAdminTab(tab) {
+  currentAdminTab = tab;
+  const isSessions = tab === 'sessions';
+  const isBanned   = tab === 'banned';
+  const isBcast    = tab === 'broadcast';
+
+  if (DOM.tabViewSessions) DOM.tabViewSessions.classList.toggle('hidden', !isSessions);
+  if (DOM.tabViewBanned) DOM.tabViewBanned.classList.toggle('hidden', !isBanned);
+  if (DOM.tabViewBroadcast) DOM.tabViewBroadcast.classList.toggle('hidden', !isBcast);
+
+  const activeTabClass = 'px-4 py-2.5 text-xs font-bold border-b-2 border-purple-500 text-purple-300 transition flex items-center gap-2';
+  const inactiveTabClass = 'px-4 py-2.5 text-xs font-bold border-b-2 border-transparent text-gray-400 hover:text-gray-200 transition flex items-center gap-2';
+
+  if (DOM.tabBtnSessions) DOM.tabBtnSessions.className = isSessions ? activeTabClass : inactiveTabClass;
+  if (DOM.tabBtnBanned) DOM.tabBtnBanned.className = isBanned ? activeTabClass : inactiveTabClass;
+  if (DOM.tabBtnBroadcast) DOM.tabBtnBroadcast.className = isBcast ? activeTabClass : inactiveTabClass;
 }
 
 async function handleAdminLogin() {
@@ -1206,7 +1259,7 @@ async function handleAdminLogin() {
       showAdminDashboard();
       await loadAdminStats();
       startAdminRefresh();
-      toast(currentLang === 'ar' ? '✅ تم تسجيل الدخول بنجاح' : '✅ Admin authenticated successfully', 'success');
+      toast(currentLang === 'ar' ? '👑 مرحباً بك يا مالك الموقع! تم تسجيل الدخول بنجاح' : '👑 Welcome Owner! Authentication successful', 'success');
     } else {
       if (DOM.adminLoginError) DOM.adminLoginError.classList.remove('hidden');
     }
@@ -1237,10 +1290,30 @@ async function loadAdminStats() {
       if (DOM.admActiveUsers) DOM.admActiveUsers.textContent = data.active_users_count ?? 0;
       if (DOM.admTotalVisits) DOM.admTotalVisits.textContent = data.total_connections ?? 0;
       if (DOM.admServerUptime) DOM.admServerUptime.textContent = formatUptime(data.server_uptime_seconds ?? 0, currentLang);
+      
+      // Update global tracking switch UI
+      currentTrackingEnabled = !!data.tracking_enabled;
+      updateTrackingSwitchUI(currentTrackingEnabled);
+
+      // Render search history & active users with control buttons
       renderAdminTable(data);
+
+      // Render banned targets
+      renderBannedTable(data.banned_targets || []);
     }
   } catch (err) {
     console.error('Failed to load admin stats:', err);
+  }
+}
+
+function updateTrackingSwitchUI(enabled) {
+  if (!DOM.btnToggleTracking || !DOM.textToggleTracking) return;
+  if (enabled) {
+    DOM.btnToggleTracking.className = 'px-3 py-1.5 rounded-lg text-xs font-bold border transition flex items-center gap-1.5 bg-emerald-950/60 border-emerald-600/50 text-emerald-300 hover:bg-emerald-900/60';
+    DOM.textToggleTracking.textContent = currentLang === 'ar' ? '🟢 التتبع: يعمل (نشط)' : '🟢 Tracking: Active';
+  } else {
+    DOM.btnToggleTracking.className = 'px-3 py-1.5 rounded-lg text-xs font-bold border transition flex items-center gap-1.5 bg-red-950/60 border-red-600/50 text-red-300 hover:bg-red-900/60';
+    DOM.textToggleTracking.textContent = currentLang === 'ar' ? '🔴 التتبع: معطل (صيانة)' : '🔴 Tracking: Frozen';
   }
 }
 
@@ -1253,7 +1326,7 @@ function renderAdminTable(data) {
   if (history.length === 0) {
     const tr = document.createElement('tr');
     const td = document.createElement('td');
-    td.colSpan = 5;
+    td.colSpan = 6;
     td.className = 'p-4 text-center text-gray-500';
     td.textContent = t.noRecords;
     tr.appendChild(td);
@@ -1282,6 +1355,12 @@ function renderAdminTable(data) {
       const spanText = document.createElement('span');
       spanText.textContent = t.statusActive;
       badge.appendChild(spanText);
+    } else if (item.status === 'kicked') {
+      badge.className = 'px-2 py-0.5 rounded-full bg-red-950/60 border border-red-700/50 text-red-300 font-bold text-[10px]';
+      badge.textContent = currentLang === 'ar' ? 'مقطوع (Kicked)' : 'Kicked by Admin';
+    } else if (item.status === 'banned') {
+      badge.className = 'px-2 py-0.5 rounded-full bg-red-900/80 border border-red-500 text-red-200 font-bold text-[10px]';
+      badge.textContent = currentLang === 'ar' ? 'محظور (Banned)' : 'Banned';
     } else {
       badge.className = 'admin-badge-completed';
       badge.textContent = t.statusCompleted;
@@ -1304,14 +1383,237 @@ function renderAdminTable(data) {
     tdDiamonds.className = 'p-3 font-mono font-bold text-yellow-400';
     tdDiamonds.textContent = `💎 ${fmt(item.total_diamonds || 0)}`;
 
+    // 6. Action Controls (Kick & Ban)
+    const tdActions = document.createElement('td');
+    tdActions.className = 'p-3';
+    const actionsWrap = document.createElement('div');
+    actionsWrap.className = 'flex items-center gap-1.5';
+
+    if (item.status === 'active') {
+      // Kick Button
+      const kickBtn = document.createElement('button');
+      kickBtn.className = 'px-2.5 py-1 rounded bg-red-600 hover:bg-red-500 text-white font-bold text-[10px] transition active:scale-95 shadow flex items-center gap-1';
+      kickBtn.textContent = currentLang === 'ar' ? '🔴 قطع الاتصال' : '🔴 Kick';
+      kickBtn.onclick = () => handleAdminKick(item.username);
+      actionsWrap.appendChild(kickBtn);
+    }
+
+    // Ban Button
+    const banBtn = document.createElement('button');
+    banBtn.className = 'px-2.5 py-1 rounded bg-gray-800 hover:bg-red-900/60 border border-red-800/40 text-red-300 font-bold text-[10px] transition active:scale-95 flex items-center gap-1';
+    banBtn.textContent = currentLang === 'ar' ? '🚫 حظر' : '🚫 Ban';
+    banBtn.onclick = () => handleAdminBan(item.username);
+    actionsWrap.appendChild(banBtn);
+
+    tdActions.appendChild(actionsWrap);
+
     tr.appendChild(tdUser);
     tr.appendChild(tdStatus);
     tr.appendChild(tdStart);
     tr.appendChild(tdDuration);
     tr.appendChild(tdDiamonds);
+    tr.appendChild(tdActions);
 
     DOM.adminTableBody.appendChild(tr);
   });
+}
+
+function renderBannedTable(bannedList) {
+  if (!DOM.bannedTableBody) return;
+  DOM.bannedTableBody.innerHTML = '';
+  if (DOM.badgeBannedCount) DOM.badgeBannedCount.textContent = bannedList.length;
+
+  if (bannedList.length === 0) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 3;
+    td.className = 'p-4 text-center text-gray-500';
+    td.textContent = currentLang === 'ar' ? 'لا توجد حسابات محظورة حالياً' : 'No banned accounts';
+    tr.appendChild(td);
+    DOM.bannedTableBody.appendChild(tr);
+    return;
+  }
+
+  bannedList.forEach(target => {
+    const tr = document.createElement('tr');
+    tr.className = 'hover:bg-gray-800/40 transition';
+
+    // 1. Target
+    const tdUser = document.createElement('td');
+    tdUser.className = 'p-3 font-mono font-bold text-red-400';
+    tdUser.textContent = '@' + target;
+
+    // 2. Status
+    const tdStatus = document.createElement('td');
+    tdStatus.className = 'p-3';
+    const badge = document.createElement('span');
+    badge.className = 'px-2 py-0.5 rounded-full bg-red-950/80 border border-red-700/60 text-red-300 text-[10px] font-bold';
+    badge.textContent = currentLang === 'ar' ? 'محظور من التتبع' : 'Blocked from Tracking';
+    tdStatus.appendChild(badge);
+
+    // 3. Unban Action
+    const tdAction = document.createElement('td');
+    tdAction.className = 'p-3';
+    const unbanBtn = document.createElement('button');
+    unbanBtn.className = 'px-3 py-1 rounded-lg bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-600/50 text-emerald-300 font-bold text-xs transition active:scale-95 flex items-center gap-1';
+    unbanBtn.textContent = currentLang === 'ar' ? '✅ إلغاء الحظر' : '✅ Unban';
+    unbanBtn.onclick = () => handleAdminUnban(target);
+    tdAction.appendChild(unbanBtn);
+
+    tr.appendChild(tdUser);
+    tr.appendChild(tdStatus);
+    tr.appendChild(tdAction);
+
+    DOM.bannedTableBody.appendChild(tr);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Action Handlers: Kick, Ban, Unban, Toggle, Broadcast, Clear
+// ---------------------------------------------------------------------------
+async function handleAdminKick(username) {
+  const token = sessionStorage.getItem('tt_admin_token');
+  if (!token) return;
+  if (!confirm(currentLang === 'ar' ? `هل أنت متأكد من قطع اتصال جلسة @${username} فوراً؟` : `Kick tracking session for @${username}?`)) return;
+
+  try {
+    const res = await fetch('/api/admin/kick', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, token })
+    });
+    const data = await res.json();
+    if (res.ok && data.status === 'ok') {
+      toast(currentLang === 'ar' ? `🔴 تم قطع اتصال جلسة @${username} بنجاح` : `🔴 Session for @${username} terminated`, 'info');
+      await loadAdminStats();
+    } else {
+      toast('Failed to kick session: ' + (data.message || 'error'), 'error');
+    }
+  } catch (err) {
+    console.error('Kick error:', err);
+  }
+}
+
+async function handleAdminBan(username) {
+  const token = sessionStorage.getItem('tt_admin_token');
+  if (!token) return;
+  if (!confirm(currentLang === 'ar' ? `هل تريد حظر @${username} ومنع أي شخص من تتبعه؟` : `Ban @${username} from being tracked?`)) return;
+
+  try {
+    const res = await fetch('/api/admin/ban', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, token })
+    });
+    const data = await res.json();
+    if (res.ok && data.status === 'ok') {
+      toast(currentLang === 'ar' ? `🚫 تم حظر @${username} بنجاح` : `🚫 Account @${username} banned`, 'warning');
+      await loadAdminStats();
+    } else {
+      toast('Failed to ban: ' + (data.message || 'error'), 'error');
+    }
+  } catch (err) {
+    console.error('Ban error:', err);
+  }
+}
+
+async function handleAdminUnban(username) {
+  const token = sessionStorage.getItem('tt_admin_token');
+  if (!token) return;
+
+  try {
+    const res = await fetch('/api/admin/unban', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, token })
+    });
+    const data = await res.json();
+    if (res.ok && data.status === 'ok') {
+      toast(currentLang === 'ar' ? `✅ تم إلغاء حظر @${username}` : `✅ Unbanned @${username}`, 'success');
+      await loadAdminStats();
+    } else {
+      toast('Failed to unban: ' + (data.message || 'error'), 'error');
+    }
+  } catch (err) {
+    console.error('Unban error:', err);
+  }
+}
+
+async function handleToggleTracking() {
+  const token = sessionStorage.getItem('tt_admin_token');
+  if (!token) return;
+  const newSetting = !currentTrackingEnabled;
+
+  try {
+    const res = await fetch('/api/admin/toggle-tracking', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: newSetting, token })
+    });
+    const data = await res.json();
+    if (res.ok && data.status === 'ok') {
+      currentTrackingEnabled = !!data.tracking_enabled;
+      updateTrackingSwitchUI(currentTrackingEnabled);
+      toast(currentTrackingEnabled 
+        ? (currentLang === 'ar' ? '🟢 تم تفعيل التتبع لجميع المستخدمين' : '🟢 Global tracking enabled') 
+        : (currentLang === 'ar' ? '🔴 تم تعطيل التتبع مؤقتاً (وضع الصيانة)' : '🔴 Global tracking frozen (Maintenance)'),
+        'info'
+      );
+    }
+  } catch (err) {
+    console.error('Toggle tracking error:', err);
+  }
+}
+
+async function handleSendBroadcast() {
+  const token = sessionStorage.getItem('tt_admin_token');
+  if (!token) return;
+  const msg = DOM.broadcastMsgInput ? DOM.broadcastMsgInput.value.trim() : '';
+  if (!msg) {
+    toast(currentLang === 'ar' ? 'يرجى كتابة نص الإشعار' : 'Please type announcement text', 'warning');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/admin/broadcast', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, token })
+    });
+    const data = await res.json();
+    if (res.ok && data.status === 'ok') {
+      toast(currentLang === 'ar' ? `📢 تم إرسال الإشعار بنجاح إلى (${data.recipients_count}) جلسة متصلة` : `📢 Broadcast sent to (${data.recipients_count}) sessions`, 'success');
+      if (DOM.broadcastMsgInput) DOM.broadcastMsgInput.value = '';
+      if (DOM.broadcastResult) {
+        DOM.broadcastResult.textContent = currentLang === 'ar' ? `تم تسليم الإشعار بنجاح إلى ${data.recipients_count} مستخدم متصل.` : `Delivered to ${data.recipients_count} active users.`;
+        DOM.broadcastResult.classList.remove('hidden');
+        setTimeout(() => DOM.broadcastResult?.classList.add('hidden'), 5000);
+      }
+    }
+  } catch (err) {
+    console.error('Broadcast error:', err);
+  }
+}
+
+async function handleClearHistory() {
+  const token = sessionStorage.getItem('tt_admin_token');
+  if (!token) return;
+  if (!confirm(currentLang === 'ar' ? 'هل تريد مسح سجلات التتبع السابقة المكتملة؟' : 'Clear completed tracking history?')) return;
+
+  try {
+    const res = await fetch('/api/admin/clear-history', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    });
+    const data = await res.json();
+    if (res.ok && data.status === 'ok') {
+      toast(currentLang === 'ar' ? '🗑️ تم مسح السجل المكتمل بنجاح' : '🗑️ Completed history cleared', 'info');
+      await loadAdminStats();
+    }
+  } catch (err) {
+    console.error('Clear history error:', err);
+  }
 }
 
 function startAdminRefresh() {
@@ -1351,7 +1653,6 @@ async function handleAdminLogout() {
 DOM.startBtn.addEventListener('click', () => {
   const username = DOM.usernameInput.value.trim();
   if (!username) {
-    const t = I18N[currentLang] || I18N.ar;
     toast(currentLang === 'ar' ? 'يرجى إدخال اسم مستخدم تيك توك' : 'Please enter a TikTok @username', 'warning');
     DOM.usernameInput.focus();
     return;
@@ -1426,6 +1727,60 @@ if (DOM.adminPasswordInput) DOM.adminPasswordInput.addEventListener('keydown', e
 if (DOM.adminRefreshBtn) DOM.adminRefreshBtn.addEventListener('click', loadAdminStats);
 if (DOM.adminLogoutBtn) DOM.adminLogoutBtn.addEventListener('click', handleAdminLogout);
 
+// Admin Control Toolbar triggers
+if (DOM.btnToggleTracking) DOM.btnToggleTracking.addEventListener('click', handleToggleTracking);
+if (DOM.btnClearHistory) DOM.btnClearHistory.addEventListener('click', handleClearHistory);
+
+// Admin Tabs Triggers
+if (DOM.tabBtnSessions) DOM.tabBtnSessions.addEventListener('click', () => switchAdminTab('sessions'));
+if (DOM.tabBtnBanned) DOM.tabBtnBanned.addEventListener('click', () => switchAdminTab('banned'));
+if (DOM.tabBtnBroadcast) DOM.tabBtnBroadcast.addEventListener('click', () => switchAdminTab('broadcast'));
+
+// Banned Manager Triggers
+if (DOM.btnSubmitBan) DOM.btnSubmitBan.addEventListener('click', () => {
+  const target = DOM.bannedInputTarget ? DOM.bannedInputTarget.value.trim() : '';
+  if (target) {
+    handleAdminBan(target);
+    DOM.bannedInputTarget.value = '';
+  }
+});
+if (DOM.bannedInputTarget) DOM.bannedInputTarget.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && DOM.btnSubmitBan) DOM.btnSubmitBan.click();
+});
+
+// Broadcast Trigger
+if (DOM.btnSubmitBroadcast) DOM.btnSubmitBroadcast.addEventListener('click', handleSendBroadcast);
+
+// ---------------------------------------------------------------------------
+// Secret Owner Entry Triggers (إظهار اللوحة للمالك فقط)
+// ---------------------------------------------------------------------------
+// 1. Triple-click on the top TT Logo
+let logoClicks = 0;
+let logoClickTimer = null;
+if (DOM.appLogo) {
+  DOM.appLogo.addEventListener('click', () => {
+    logoClicks++;
+    if (logoClicks >= 3) {
+      logoClicks = 0;
+      clearTimeout(logoClickTimer);
+      openAdminModal();
+      toast(currentLang === 'ar' ? '🔐 تم فتح وصول المالك إلى لوحة الإدارة' : '🔐 Owner admin panel unlocked', 'info');
+    } else {
+      clearTimeout(logoClickTimer);
+      logoClickTimer = setTimeout(() => { logoClicks = 0; }, 1200);
+    }
+  });
+}
+
+// 2. Keyboard shortcut: Ctrl + Shift + A or Alt + A
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) ||
+      (e.altKey && (e.key === 'A' || e.key === 'a'))) {
+    e.preventDefault();
+    openAdminModal();
+  }
+});
+
 // Close on Escape key
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
@@ -1440,4 +1795,15 @@ document.addEventListener('keydown', e => {
 applyLanguage(currentLang);
 applyTheme(currentTheme);
 setStatus('idle', I18N[currentLang]?.statusIdle || 'Idle');
-console.log('🎯 TikTok Live Analytics Tracker loaded with Sidebar, Themes, and Admin Dashboard.');
+
+// Check if authenticated owner from previous session
+if (sessionStorage.getItem('tt_admin_token')) {
+  if (DOM.adminSidebarSection) DOM.adminSidebarSection.classList.remove('hidden');
+}
+
+// Direct URL entry: /admin or ?admin=1
+if (window.location.pathname.endsWith('/admin') || window.location.search.includes('admin=1')) {
+  openAdminModal();
+}
+
+console.log('🎯 TikTok Live Analytics Tracker loaded with Owner Controls & Security.');
