@@ -184,8 +184,9 @@ def cmd_stop() -> None:
     print("[i] إيقاف خادم Uvicorn على المنفذ 8000...")
     free_port(8000)
 
-    print("[i] إيقاف نفق الاتصال Localtunnel...")
+    print("[i] إيقاف نفق الاتصال (Cloudflare / Localtunnel)...")
     try:
+        subprocess.call("taskkill /F /IM cloudflared.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         subprocess.call("taskkill /F /IM node.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except Exception:
         pass

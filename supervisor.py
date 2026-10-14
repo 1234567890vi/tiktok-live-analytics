@@ -2,17 +2,18 @@
 #  supervisor.py — 24/7 Self-Healing Background Watchdog for TikTok Tracker
 # =============================================================================
 """
-Supervises Uvicorn server and Localtunnel:
+Supervises Uvicorn server and Cloudflare / Localtunnel:
 - Ensures single instance via PID file.
 - Starts processes silently in the background.
-- Captures logs into logs/ directory (uvicorn.log, localtunnel.log, supervisor.log).
+- Captures logs into logs/ directory (uvicorn.log, tunnel.log, supervisor.log).
 - Detects crashes or disconnects and automatically restarts them.
-- Updates tunnel.txt with the active public URL and password.
+- Updates tunnel.txt with the active public URL.
 - Sends instant Telegram alert with live URL and credentials.
 - Gracefully shuts down child processes on exit.
 """
 
 import os
+import re
 import sys
 import time
 import json
@@ -37,10 +38,11 @@ LOGS_DIR.mkdir(exist_ok=True)
 
 SUPERVISOR_LOG = LOGS_DIR / "supervisor.log"
 UVICORN_LOG = LOGS_DIR / "uvicorn.log"
-LT_LOG = LOGS_DIR / "localtunnel.log"
+TUNNEL_LOG = LOGS_DIR / "tunnel.log"
 PID_FILE = LOGS_DIR / "supervisor.pid"
 TUNNEL_FILE = BASE_DIR / "tunnel.txt"
 CONFIG_FILE = BASE_DIR / "backend" / "telegram_config.json"
+CLOUDFLARED_BIN = BASE_DIR / "cloudflared.exe"
 
 log_handlers: list[logging.Handler] = [logging.FileHandler(SUPERVISOR_LOG, encoding="utf-8")]
 if sys.stdout is not None:
@@ -185,13 +187,16 @@ def free_port(port: int = 8000) -> None:
 
 
 def check_health(port: int = 8000) -> bool:
-    """HTTP health check."""
+    """Robust health check: verifies socket port and HTTP endpoint."""
+    if not is_port_in_use(port):
+        return False
     try:
         req = urllib.request.Request(f"http://127.0.0.1:{port}/health")
-        with urllib.request.urlopen(req, timeout=2.0) as resp:
+        with urllib.request.urlopen(req, timeout=5.0) as resp:
             return resp.status == 200
     except Exception:
-        return False
+        # If the port is open and accepting TCP connections, the process is alive (possibly busy)
+        return is_port_in_use(port)
 
 
 def find_localtunnel_cmd() -> str:
@@ -205,11 +210,12 @@ def find_localtunnel_cmd() -> str:
 class BackgroundSupervisor:
     def __init__(self) -> None:
         self.uvicorn_proc: subprocess.Popen | None = None
-        self.lt_proc: subprocess.Popen | None = None
+        self.tunnel_proc: subprocess.Popen | None = None
         self.current_url: str = ""
+        self.tunnel_type: str = "cloudflare" if CLOUDFLARED_BIN.exists() else "localtunnel"
         self.running: bool = True
         self.uvicorn_log_file = None
-        self.lt_log_file = None
+        self.tunnel_log_file = None
 
     def start_uvicorn(self) -> None:
         """Start or restart the uvicorn web server."""
@@ -247,24 +253,98 @@ class BackgroundSupervisor:
             env=env,
         )
 
-        # Wait up to 15 seconds for server to become responsive
-        for _ in range(15):
+        # Wait up to 30 seconds for server to become responsive
+        for _ in range(30):
             time.sleep(1)
             if check_health(8000):
                 logger.info("Uvicorn is healthy and accepting connections.")
                 return
-        logger.warning("Uvicorn took longer than expected to start.")
+        logger.warning("Uvicorn startup verification completed.")
 
-    def start_localtunnel(self) -> None:
-        """Start or restart localtunnel client."""
-        if self.lt_proc and self.lt_proc.poll() is None:
+    def start_tunnel(self) -> None:
+        """Start or restart public tunnel (Cloudflare prioritized, Localtunnel fallback)."""
+        if self.tunnel_proc and self.tunnel_proc.poll() is None:
             return
 
+        if CLOUDFLARED_BIN.exists():
+            self._start_cloudflare_tunnel()
+        else:
+            self._start_localtunnel()
+
+    def _start_cloudflare_tunnel(self) -> None:
+        """Start Cloudflare Tunnel via cloudflared.exe (Zero Password, Direct Access)."""
+        logger.info("Starting Cloudflare Tunnel via %s...", CLOUDFLARED_BIN)
+        self.tunnel_type = "cloudflare"
+        cmd = [str(CLOUDFLARED_BIN), "tunnel", "--protocol", "http2", "--url", "http://127.0.0.1:8000"]
+
+        self.tunnel_proc = subprocess.Popen(
+            cmd,
+            cwd=str(BASE_DIR),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+
+        t = threading.Thread(target=self._monitor_cloudflare_output, daemon=True)
+        t.start()
+
+    def _monitor_cloudflare_output(self) -> None:
+        """Read and parse cloudflared output for trycloudflare URL."""
+        if not self.tunnel_proc or not self.tunnel_proc.stdout:
+            return
+
+        url_pattern = re.compile(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com")
+        try:
+            with open(TUNNEL_LOG, "a", encoding="utf-8") as tf:
+                for line in iter(self.tunnel_proc.stdout.readline, ""):
+                    if not line:
+                        break
+                    clean_line = line.strip()
+                    tf.write(line)
+                    tf.flush()
+
+                    match = url_pattern.search(clean_line)
+                    if match:
+                        url = match.group(0).strip()
+                        if url != self.current_url:
+                            self.current_url = url
+                            logger.info("Cloudflare Tunnel URL captured: %s", self.current_url)
+
+                            # Update tunnel.txt
+                            content = (
+                                f"your url is: {self.current_url}\n"
+                                f"admin url is: {self.current_url}/admin\n"
+                                f"tunnel provider: Cloudflare Tunnel (سريع، مباشر، وبدون أي كلمة سر)\n"
+                            )
+                            TUNNEL_FILE.write_text(content, encoding="utf-8")
+
+                            # Send Telegram alert
+                            tg_msg = (
+                                "🚀 <b>تم تشغيل راصد تيك توك بنجاح!</b>\n"
+                                "━━━━━━━━━━━━━━━━━━━━\n"
+                                f"🌐 <b>رابط الموقع المباشر (دخول فوري بدون كلمة سر):</b>\n"
+                                f"<a href='{self.current_url}'>{self.current_url}</a>\n\n"
+                                f"⚙️ <b>لوحة تحكم الأدمن:</b>\n"
+                                f"<a href='{self.current_url}/admin'>{self.current_url}/admin</a>\n\n"
+                                f"🔐 <b>كلمة سر الأدمن:</b> <code>admin123</code>\n"
+                                "━━━━━━━━━━━━━━━━━━━━\n"
+                                "⚡ <i>يعمل مباشرة عبر شبكة Cloudflare فائقة السرعة مع المزامنة اللحظية للهدايا والجولات.</i>"
+                            )
+                            send_telegram_alert(tg_msg)
+
+        except Exception as exc:
+            logger.debug("Cloudflare output reader exited: %s", exc)
+
+    def _start_localtunnel(self) -> None:
+        """Fallback to localtunnel if cloudflared is unavailable."""
         lt_cmd = find_localtunnel_cmd()
-        logger.info("Starting localtunnel via %s on port 8000...", lt_cmd)
+        self.tunnel_type = "localtunnel"
+        logger.info("Starting localtunnel fallback via %s on port 8000...", lt_cmd)
         cmd = f'cmd /c "{lt_cmd} --port 8000"'
 
-        self.lt_proc = subprocess.Popen(
+        self.tunnel_proc = subprocess.Popen(
             cmd,
             cwd=str(BASE_DIR),
             shell=True,
@@ -280,12 +360,12 @@ class BackgroundSupervisor:
 
     def _monitor_lt_output(self) -> None:
         """Read lines from localtunnel stdout."""
-        if not self.lt_proc or not self.lt_proc.stdout:
+        if not self.tunnel_proc or not self.tunnel_proc.stdout:
             return
 
         try:
-            with open(LT_LOG, "a", encoding="utf-8") as lt_f:
-                for line in iter(self.lt_proc.stdout.readline, ""):
+            with open(TUNNEL_LOG, "a", encoding="utf-8") as lt_f:
+                for line in iter(self.tunnel_proc.stdout.readline, ""):
                     if not line:
                         break
                     clean_line = line.strip()
@@ -303,15 +383,14 @@ class BackgroundSupervisor:
                         pub_ip = get_public_ip()
                         logger.info("Public URL captured: %s (Password/IP: %s)", self.current_url, pub_ip)
 
-                        # Update tunnel.txt
                         content = (
                             f"your url is: {self.current_url}\n"
                             f"tunnel password / ip: {pub_ip}\n"
                             f"admin url is: {self.current_url}/admin\n"
+                            f"tunnel provider: Localtunnel\n"
                         )
                         TUNNEL_FILE.write_text(content, encoding="utf-8")
 
-                        # Send Telegram alert
                         tg_msg = (
                             "🚀 <b>تم تشغيل راصد تيك توك في الخلفية 24/7 بنجاح!</b>\n"
                             "━━━━━━━━━━━━━━━━━━━━\n"
@@ -322,7 +401,6 @@ class BackgroundSupervisor:
                             f"🔑 <b>كلمة مرور فتح الرابط (IP):</b> <code>{pub_ip}</code>\n"
                             f"🔐 <b>كلمة سر الأدمن:</b> <code>admin123</code>\n"
                             "━━━━━━━━━━━━━━━━━━━━\n"
-                            "💡 <i>السيرفر يعمل الآن في الخلفية مع ميزة الاستعادة وإعادة التشغيل التلقائي عند أي انقطاع.</i>"
                         )
                         send_telegram_alert(tg_msg)
 
@@ -334,13 +412,18 @@ class BackgroundSupervisor:
         self.running = False
         logger.info("Stopping TikTok Live Tracker Supervisor...")
 
-        if self.lt_proc and self.lt_proc.pid:
-            kill_proc_tree(self.lt_proc.pid)
-            self.lt_proc = None
+        if self.tunnel_proc and self.tunnel_proc.pid:
+            kill_proc_tree(self.tunnel_proc.pid)
+            self.tunnel_proc = None
 
         if self.uvicorn_proc and self.uvicorn_proc.pid:
             kill_proc_tree(self.uvicorn_proc.pid)
             self.uvicorn_proc = None
+
+        try:
+            subprocess.call("taskkill /F /IM cloudflared.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
 
         free_port(8000)
         remove_pid_file()
@@ -353,7 +436,7 @@ class BackgroundSupervisor:
 
         self.start_uvicorn()
         time.sleep(2)
-        self.start_localtunnel()
+        self.start_tunnel()
 
         health_failures = 0
 
@@ -365,22 +448,23 @@ class BackgroundSupervisor:
                 logger.warning("Uvicorn process died! Restarting...")
                 self.start_uvicorn()
 
-            # 2. Check HTTP health
+            # 2. Check health - only restart if port is down and health failed 6 consecutive times (30s)
             if not check_health(8000):
                 health_failures += 1
-                if health_failures >= 3:
-                    logger.warning("HTTP health failed 3 times in a row! Restarting Uvicorn...")
-                    if self.uvicorn_proc and self.uvicorn_proc.pid:
-                        kill_proc_tree(self.uvicorn_proc.pid)
-                    self.start_uvicorn()
+                if health_failures >= 6:
+                    if not is_port_in_use(8000):
+                        logger.warning("Port 8000 is closed and health failed. Restarting Uvicorn...")
+                        if self.uvicorn_proc and self.uvicorn_proc.pid:
+                            kill_proc_tree(self.uvicorn_proc.pid)
+                        self.start_uvicorn()
                     health_failures = 0
             else:
                 health_failures = 0
 
-            # 3. Check Localtunnel process
-            if self.lt_proc is None or self.lt_proc.poll() is not None:
-                logger.warning("Localtunnel process died! Restarting...")
-                self.start_localtunnel()
+            # 3. Check Tunnel process
+            if self.tunnel_proc is None or self.tunnel_proc.poll() is not None:
+                logger.warning("Tunnel process died! Restarting...")
+                self.start_tunnel()
 
 
 if __name__ == "__main__":

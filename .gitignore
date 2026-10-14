@@ -50,3 +50,4 @@ logs/
 *.pid
 tunnel.txt
 backend/telegram_config.json
+cloudflared.exe
