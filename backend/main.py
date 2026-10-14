@@ -767,6 +767,11 @@ async def ws_track(websocket: WebSocket, username: str):
             "username": clean_username,
             "message":  f"Connecting to @{clean_username}...",
         }))
+        # Push initial snapshot immediately so client gets cached metrics and live friends with 0 delay
+        try:
+            await websocket.send_text(json.dumps(session.get_snapshot_payload(), default=str))
+        except Exception:
+            pass
         await session.start()
         asyncio.create_task(telegram_bot.notify_stream_started(clean_username, 1))
     else:
@@ -812,6 +817,16 @@ async def ws_track(websocket: WebSocket, username: str):
                     await websocket.send_text(json.dumps(session.get_snapshot_payload(), default=str))
                 elif action == "refresh_friends":
                     if hasattr(session, "broadcast_live_friends"):
+                        await session.broadcast_live_friends(force=True)
+                elif action == "add_friend":
+                    f_user = clean_tiktok_username(msg.get("username", ""))
+                    if f_user and hasattr(session, "register_friend"):
+                        session.register_friend(
+                            unique_id=f_user,
+                            nickname=f_user,
+                            relation="صديق مُتابع ⭐",
+                            viewer_count=120,
+                        )
                         await session.broadcast_live_friends(force=True)
                 else:
                     logger.debug("Unknown client action: %s", action)

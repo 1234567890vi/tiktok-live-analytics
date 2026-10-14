@@ -734,7 +734,25 @@
             0 متصل
           </span>
         </div>
-        <div class="flex items-center gap-2">
+        <!-- Add custom friend input + action buttons -->
+        <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <div class="relative flex items-center">
+            <input
+              id="addFriendInput"
+              type="text"
+              placeholder="أضف صديق @username..."
+              class="bg-dark-800/90 text-xs text-white placeholder-gray-500 px-3 py-1.5 rounded-lg border border-white/10 focus:border-emerald-500 focus:outline-none w-40 sm:w-48 transition dir-ltr"
+            />
+            <button
+              id="addFriendBtn"
+              class="mr-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1.5 rounded-lg font-bold transition flex items-center gap-1 cursor-pointer active:scale-95"
+              title="إضافة صديق أو صانع محتوى للمراقبة المباشرة"
+            >
+              <span>➕</span>
+              <span>إضافة</span>
+            </button>
+          </div>
+
           <button id="refreshFriendsBtn" class="text-xs bg-dark-700/80 hover:bg-dark-600 text-gray-300 hover:text-white px-3 py-1.5 rounded-lg border border-white/10 transition flex items-center gap-1.5 active:scale-95 cursor-pointer" title="تحديث قائمة بثوث الأصدقاء">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>

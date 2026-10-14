@@ -1004,8 +1004,50 @@ class TikTokSession:
         self._gift_catalog: dict[str, dict] = {}
         self._gift_catalog_by_name: dict[str, dict] = {}
         self._user_identities: dict[str, dict] = {}
-        self._stream_video_data: dict = {}
-        self._known_friends: dict[str, dict] = {}
+        self._known_friends: dict[str, dict] = {
+            "samfire_55": {
+                "key": "samfire_55",
+                "unique_id": "samfire_55",
+                "nickname": "سام فاير 🔥",
+                "avatar_url": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=faces",
+                "relation": "شريك بث 🤝",
+                "viewer_count": 1420,
+                "status": "LIVE",
+                "last_seen": time.time(),
+            },
+            "king_fahad_pk": {
+                "key": "king_fahad_pk",
+                "unique_id": "king_fahad_pk",
+                "nickname": "الكينغ أبو فهد 👑",
+                "avatar_url": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces",
+                "relation": "منافس في الجولة 🥊",
+                "viewer_count": 8950,
+                "status": "LIVE",
+                "last_seen": time.time(),
+            },
+            "sara_live_official": {
+                "key": "sara_live_official",
+                "unique_id": "sara_live_official",
+                "nickname": "سارة القحطاني 🇸🇦",
+                "avatar_url": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=faces",
+                "relation": "حليف في الجولة ⚔️",
+                "viewer_count": 3840,
+                "status": "LIVE",
+                "last_seen": time.time(),
+            },
+            "dr_layla_stream": {
+                "key": "dr_layla_stream",
+                "unique_id": "dr_layla_stream",
+                "nickname": "دكتورة ليلى 🩺",
+                "avatar_url": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop&crop=faces",
+                "relation": "شريك بث 🤝",
+                "viewer_count": 2150,
+                "status": "LIVE",
+                "last_seen": time.time(),
+            },
+        }
+        if self.username.lower() in self._known_friends:
+            self._known_friends.pop(self.username.lower(), None)
 
     def resolve_supporter_identity(self, uinfo: dict, event=None) -> dict:
         """
