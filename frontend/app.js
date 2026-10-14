@@ -240,7 +240,18 @@ function addGift(data) {
   const giftName = txn.gift_name     || 'Gift';
   const iconUrl  = txn.gift_icon_url || '';
   const combo    = data.repeat_count || txn.repeat_count || 1;
-  const diamonds = txn.total_value   || (txn.diamond_unit_cost ? txn.diamond_unit_cost * combo : 0);
+  const unitDiamonds = (data.diamond_unit_cost !== undefined && data.diamond_unit_cost !== null)
+    ? data.diamond_unit_cost
+    : (txn.diamond_unit_cost || (combo > 0 && txn.total_value ? Math.round(txn.total_value / combo) : (txn.total_value || 0)));
+
+  const totalComboDiamonds = (data.combo_diamonds !== undefined && data.combo_diamonds !== null)
+    ? data.combo_diamonds
+    : (unitDiamonds * combo);
+
+  const usdEst = (data.combo_usd !== undefined && data.combo_usd !== null)
+    ? Number(data.combo_usd).toFixed(2)
+    : (totalComboDiamonds * 0.005).toFixed(2);
+
   const isStreak = !!data.streak_active;
 
   const card = document.createElement('div');
@@ -281,24 +292,32 @@ function addGift(data) {
 
   senderRow.append(sender, handle);
 
-  const nameLine = document.createElement('div');
-  nameLine.className   = 'gift-name';
-  nameLine.innerHTML   = `${giftName} <span style="color:#fbbf24;font-weight:700;">💎 ${fmt(diamonds)}</span>`;
-
   // Recipient Team Badge (معه أو ضده)
   if (data.recipient_side === 'opponent') {
     const recBadge = document.createElement('span');
     recBadge.className = 'gift-recipient-badge badge-opponent';
     recBadge.textContent = `🔴 للخصم (@${data.recipient_name || 'الخصم'})`;
-    nameLine.appendChild(recBadge);
+    senderRow.appendChild(recBadge);
   } else if (data.recipient_side === 'host' || data.is_battle_gift) {
     const recBadge = document.createElement('span');
     recBadge.className = 'gift-recipient-badge badge-host';
     recBadge.textContent = `🔵 لفريقنا (@${data.recipient_name || 'فريقنا'})`;
-    nameLine.appendChild(recBadge);
+    senderRow.appendChild(recBadge);
   }
 
-  info.append(senderRow, nameLine);
+  const nameLine = document.createElement('div');
+  nameLine.className   = 'gift-name';
+  nameLine.textContent = giftName;
+
+  const detailsLine = document.createElement('div');
+  detailsLine.className = 'gift-details';
+  detailsLine.innerHTML = `
+    <span class="gift-unit-pill" title="سعر الهدية الواحدة">💎 ${fmt(unitDiamonds)}</span>
+    ${combo > 1 ? `<span class="gift-total-pill" title="إجمالي الكومبو">المجموع: 💎 ${fmt(totalComboDiamonds)}</span>` : ''}
+    <span class="gift-usd-pill" title="القيمة التقريبية بالدولار">≈ $${usdEst}</span>
+  `;
+
+  info.append(senderRow, nameLine, detailsLine);
 
   // Combo counter
   const comboDiv = document.createElement('div');

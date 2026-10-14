@@ -28,6 +28,42 @@ from TikTokLive.events import (
 
 from backend.config import DIAMOND_TO_USD_RATE, NET_PAYOUT_RATIO
 
+# Comprehensive fallback diamond prices for well-known TikTok gifts
+COMMON_TIKTOK_GIFTS: dict[str, int] = {
+    "rose": 1,
+    "heart me": 1,
+    "tiktok": 1,
+    "gg": 1,
+    "ice cream cone": 1,
+    "finger heart": 5,
+    "panda": 5,
+    "mic": 5,
+    "doughnut": 30,
+    "leon the kitten": 34,
+    "paper crane": 99,
+    "cap and mustache": 99,
+    "confetti": 100,
+    "sunglasses": 199,
+    "love bang": 199,
+    "corgi": 299,
+    "boxing gloves": 299,
+    "swan": 699,
+    "train": 899,
+    "fireworks": 1088,
+    "whale diving": 2150,
+    "jet": 4888,
+    "private jet": 4888,
+    "interstellar": 10000,
+    "falcon": 10999,
+    "planet": 15000,
+    "tiktok shuttle": 20000,
+    "level ship": 21000,
+    "phoenix": 25999,
+    "lion": 29999,
+    "pegasus": 39999,
+    "tiktok universe": 34999,
+}
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -160,6 +196,7 @@ except ModuleNotFoundError:
                 "gift_id": gid, "gift_name": gname, "gift_icon_url": gicon,
                 "diamond_unit_cost": udiam, "repeat_count": rc,
                 "is_streak_ending": not streak, "total_value": val,
+                "combo_diamonds": udiam * rc,
             }
 
             class _T:
@@ -545,6 +582,8 @@ class TikTokSession:
         self._streamer_unique_id = ""
         self._streamer_nickname  = ""
         self._streamer_avatar    = ""
+        self._gift_catalog: dict[str, dict] = {}
+        self._gift_catalog_by_name: dict[str, dict] = {}
 
     # ------------------------------------------------------------------
     # Public API
@@ -681,6 +720,34 @@ class TikTokSession:
             except Exception as e:
                 logger.debug("Optional initial room_info fetch: %s", e)
 
+            # Preload full TikTok gift catalog (700+ gifts with exact diamond prices and icons)
+            try:
+                gift_res = await client._web.fetch_gift_list(event.room_id)
+                if gift_res and isinstance(gift_res, dict):
+                    raw_gifts = gift_res.get("gifts", [])
+                    for g in raw_gifts:
+                        gid = str(g.get("id", ""))
+                        gname = str(g.get("name", "")).strip()
+                        if gid:
+                            img_obj = g.get("image") or g.get("icon")
+                            icon_url = ""
+                            if isinstance(img_obj, dict):
+                                urls = img_obj.get("url_list", [])
+                                if urls and len(urls) > 0:
+                                    icon_url = urls[0]
+                            entry = {
+                                "id": gid,
+                                "name": gname,
+                                "diamond_count": int(g.get("diamond_count", 0) or 0),
+                                "icon_url": icon_url,
+                            }
+                            self._gift_catalog[gid] = entry
+                            if gname:
+                                self._gift_catalog_by_name[gname.lower()] = entry
+                    logger.info("Loaded %d official TikTok gifts into catalog for @%s", len(self._gift_catalog), self.username)
+            except Exception as e:
+                logger.debug("Optional gift list fetch error: %s", e)
+
             await self.send_snapshot()
 
         # ---- Disconnect ----
@@ -787,9 +854,29 @@ class TikTokSession:
             gift_icon = _extract_avatar(gift) or _extract_avatar(_safe(gift, "image"))
 
             unit_diamonds = int(_safe(gift, "diamond_count", default=0) or _safe(event, "fan_ticket_count", default=0))
+
+            # Fallback to preloaded official TikTok catalog if diamond_count or name is missing
+            cached_gift = self._gift_catalog.get(gift_id, {})
+            if not cached_gift and gift_name:
+                cached_gift = self._gift_catalog_by_name.get(gift_name.lower().strip(), {})
+
+            if unit_diamonds <= 0 and cached_gift:
+                unit_diamonds = cached_gift.get("diamond_count", 0)
+            if (gift_name in ("Unknown Gift", "", "None") or not gift_name) and cached_gift:
+                gift_name = cached_gift.get("name", gift_name)
+            if not gift_icon and cached_gift:
+                gift_icon = cached_gift.get("icon_url", "")
+
+            # Static fallback for top known TikTok gifts if still 0
+            if unit_diamonds <= 0 and gift_name:
+                unit_diamonds = COMMON_TIKTOK_GIFTS.get(gift_name.lower().strip(), 0)
+
             repeat_count  = int(_safe(event, "repeat_count", default=1) or 1)
             repeat_end    = int(_safe(event, "repeat_end", default=0))
             streak_active = (repeat_end == 0)
+
+            combo_diamonds = unit_diamonds * repeat_count
+            combo_usd = round(combo_diamonds * DIAMOND_TO_USD_RATE, 2)
 
             room_fan_tickets = int(_safe(event, "room_fan_ticket_count", default=0))
 
@@ -851,16 +938,19 @@ class TikTokSession:
             await self._send({
                 "type": "gift",
                 "data": {
-                    "user":           uinfo,
-                    "transaction":    txn_dict,
-                    "streak_active":  streak_active,
-                    "repeat_count":   repeat_count,
-                    "total_diamonds": total_diamonds,
-                    "estimated_usd":  estimated_usd,
-                    "net_payout_usd": net_payout,
-                    "recipient_side": recipient_side,
-                    "recipient_name": recipient_name,
-                    "is_battle_gift": is_pk,
+                    "user":              uinfo,
+                    "transaction":       txn_dict,
+                    "streak_active":     streak_active,
+                    "repeat_count":      repeat_count,
+                    "diamond_unit_cost": unit_diamonds,
+                    "combo_diamonds":    combo_diamonds,
+                    "combo_usd":         combo_usd,
+                    "total_diamonds":    total_diamonds,
+                    "estimated_usd":     estimated_usd,
+                    "net_payout_usd":    net_payout,
+                    "recipient_side":    recipient_side,
+                    "recipient_name":    recipient_name,
+                    "is_battle_gift":    is_pk,
                 },
                 "leaderboard": leaderboard,
             })
@@ -963,7 +1053,13 @@ class TikTokSession:
             gift_id    = int(_safe(event, "gift_id", default=0) or 0)
             diam_count = int(_safe(event, "total_diamond_count", default=0) or 0)
             from_uid   = str(_safe(event, "from_user_id", default="0") or "0")
-            if gift_id > 0 and diam_count > 0 and from_uid != "0":
+            if gift_id > 0 and from_uid != "0":
+                cached_pk_gift = self._gift_catalog.get(str(gift_id), {})
+                if diam_count <= 0 and cached_pk_gift:
+                    diam_count = cached_pk_gift.get("diamond_count", 0)
+                pk_gift_name = cached_pk_gift.get("name", "PK Battle Gift") if cached_pk_gift else "PK Battle Gift"
+                gift_icon = _extract_avatar(_safe(event, "gift_icon_image")) or (cached_pk_gift.get("icon_url", "") if cached_pk_gift else "")
+
                 sender_nick = "داعـم"
                 sender_av   = ""
                 for c in (host_mvps + opp_mvps):
@@ -971,7 +1067,6 @@ class TikTokSession:
                         sender_nick = c.get("nickname") or "داعـم"
                         sender_av   = c.get("avatar_url") or ""
                         break
-                gift_icon = _extract_avatar(_safe(event, "gift_icon_image"))
                 await self._send({
                     "type": "gift",
                     "data": {
@@ -983,7 +1078,7 @@ class TikTokSession:
                         },
                         "transaction": {
                             "gift_id": str(gift_id),
-                            "gift_name": "PK Gift",
+                            "gift_name": pk_gift_name,
                             "gift_icon_url": gift_icon,
                             "diamond_unit_cost": diam_count,
                             "repeat_count": int(_safe(event, "repeat_count", default=1) or 1),
@@ -992,6 +1087,9 @@ class TikTokSession:
                         },
                         "streak_active": False,
                         "repeat_count": int(_safe(event, "repeat_count", default=1) or 1),
+                        "diamond_unit_cost": diam_count,
+                        "combo_diamonds": diam_count,
+                        "combo_usd": round(diam_count * DIAMOND_TO_USD_RATE, 2),
                         "total_diamonds": self._engine.get_total_diamonds(),
                         "estimated_usd": round(self._engine.get_total_diamonds() * DIAMOND_TO_USD_RATE, 4),
                         "net_payout_usd": round(self._engine.get_total_diamonds() * DIAMOND_TO_USD_RATE * NET_PAYOUT_RATIO, 4),

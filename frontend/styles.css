@@ -196,6 +196,51 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
   min-width: 48px;
 }
 
+.gift-details {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+  font-size: 0.72rem;
+}
+.gift-unit-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.28);
+  color: #fbbf24;
+  font-weight: 700;
+  font-size: 0.72rem;
+}
+.gift-total-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: rgba(236, 72, 153, 0.12);
+  border: 1px solid rgba(236, 72, 153, 0.28);
+  color: #f472b6;
+  font-weight: 700;
+  font-size: 0.72rem;
+}
+.gift-usd-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: rgba(52, 211, 153, 0.12);
+  border: 1px solid rgba(52, 211, 153, 0.28);
+  color: #34d399;
+  font-weight: 700;
+  font-size: 0.72rem;
+}
+
 /* ── Leaderboard Entry ────────────────────────────────────────── */
 .lb-entry {
   display: flex;
