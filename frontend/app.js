@@ -27,6 +27,7 @@ let comboTimer      = null;
 let currentUsername = '';
 let lastPkStatus    = 'IDLE';
 let lastRoundNum    = 0;
+let lastBattleId    = '';
 
 // ---------------------------------------------------------------------------
 // Pure Web Audio Synthesizer (Zero External Dependencies, Instant Audio)
@@ -848,10 +849,10 @@ let pkTimerEndTimestamp = 0;
 let pkTimerTotalSeconds = 300;
 let pkTimerPhase = 'BATTLE'; // 'BATTLE' | 'PUNISH' | 'ENDED'
 
-function startPkCountdown(seconds, phase = 'BATTLE') {
+function startPkCountdown(seconds, phase = 'BATTLE', totalSec = 300, exactEndMs = 0) {
   if (pkTimerInterval) clearInterval(pkTimerInterval);
-  pkTimerTotalSeconds = seconds > 0 ? seconds : 300;
-  pkTimerEndTimestamp = Date.now() + (pkTimerTotalSeconds * 1000);
+  pkTimerTotalSeconds = totalSec > 0 ? totalSec : (seconds > 0 ? seconds : 300);
+  pkTimerEndTimestamp = exactEndMs > 0 ? exactEndMs : (Date.now() + (seconds * 1000));
   pkTimerPhase = phase;
 
   if (DOM.pkRoundTimerBadge) {
@@ -881,10 +882,15 @@ function updatePkTimerDisplay() {
 
   if (DOM.pkRoundTimerPhase) {
     if (pkTimerPhase === 'PUNISH') {
-      DOM.pkRoundTimerPhase.textContent = 'وقت الحكم:';
+      DOM.pkRoundTimerPhase.textContent = currentLang === 'ar' ? 'وقت الحكم:' : 'Punish Time:';
       if (DOM.pkRoundTimerIcon) DOM.pkRoundTimerIcon.textContent = '⏱️';
     } else {
-      DOM.pkRoundTimerPhase.textContent = 'وقت الجولة:';
+      const durMin = Math.round(pkTimerTotalSeconds / 60);
+      if (currentLang === 'ar') {
+        DOM.pkRoundTimerPhase.textContent = durMin > 0 ? `وقت الجولة (${durMin}د):` : 'وقت الجولة:';
+      } else {
+        DOM.pkRoundTimerPhase.textContent = durMin > 0 ? `Round (${durMin}m):` : 'Round Time:';
+      }
       if (DOM.pkRoundTimerIcon) DOM.pkRoundTimerIcon.textContent = remainingSec <= 15 ? '🔥' : '⏳';
     }
   }
@@ -907,7 +913,13 @@ function updatePkTimerDisplay() {
 
   // 15-second warning alert
   if (remainingSec === 15 && pkTimerPhase === 'BATTLE') {
-    toast('🔥 آخر 15 ثانية في الجولة! احشدوا الدعم والتكبيس الآن! ⚡', 'warning', 4000);
+    toast(
+      currentLang === 'ar'
+        ? '🔥 آخر 15 ثانية في الجولة! احشدوا الدعم والتكبيس الآن! ⚡'
+        : '🔥 Final 15 seconds in the round! Send gifts & tap fast! ⚡',
+      'warning',
+      4000
+    );
   }
 
   if (remainingSec <= 0) {
@@ -1550,12 +1562,18 @@ function updatePK(pkData, eventType) {
   const hostWins     = pkData.host_wins || 0;
   const oppWins      = pkData.opponent_wins || 0;
   const roundNum     = pkData.round_number || 1;
+  const battleId     = pkData.battle_id || '';
 
-  // Instant Round Start Detection & Synchronization
+  // Instant Round Start Detection & Synchronization (بدون أي تأخير)
+  const isBattleIdNew    = !!(battleId && lastBattleId && battleId !== lastBattleId);
+  const isBecomingActive = (lastPkStatus !== 'ACTIVE' && (status === 'ACTIVE' || isActive));
+  const isRoundNumBumped = ((status === 'ACTIVE' || isActive) && roundNum > lastRoundNum && lastRoundNum !== 0);
+
   const isNewRound =
     (eventType === 'start') ||
-    (lastPkStatus !== 'ACTIVE' && (status === 'ACTIVE' || isActive)) ||
-    ((status === 'ACTIVE' || isActive) && roundNum > lastRoundNum && lastRoundNum !== 0);
+    isBattleIdNew ||
+    isBecomingActive ||
+    isRoundNumBumped;
 
   if (isNewRound) {
     playBattleStartSound();
@@ -1566,9 +1584,20 @@ function updatePK(pkData, eventType) {
       setTimeout(() => DOM.pkSection?.classList.remove('round-start-flash'), 2000);
       try { DOM.pkSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (_) {}
     }
-    toast(`⚔️ بدأت جولة جديدة الآن! (الجولة ${roundNum}) 🔥 احشدوا الدعم!`, 'warning', 6000);
+    const durMin = Math.round((pkData.duration || 300) / 60);
+    const durLabel = durMin > 0 ? (currentLang === 'ar' ? ` (${durMin} دقائق)` : ` (${durMin}m)`) : '';
+    toast(
+      currentLang === 'ar'
+        ? `⚔️ بدأت الجولة ${roundNum} الآن!${durLabel} 🔥 احشدوا الدعم والتكبيس!`
+        : `⚔️ Round ${roundNum} started!${durLabel} 🔥 Send gifts & tap!`,
+      'warning',
+      6000
+    );
   }
 
+  if (battleId) {
+    lastBattleId = battleId;
+  }
   lastPkStatus = status;
   lastRoundNum = roundNum;
 
@@ -1582,35 +1611,42 @@ function updatePK(pkData, eventType) {
   // Status Badge
   if (DOM.pkStatusBadge) {
     if (status === 'ACTIVE' || (isActive && status !== 'PUNISH')) {
-      DOM.pkStatusBadge.textContent = '🔴 جولة جارية';
+      DOM.pkStatusBadge.textContent = currentLang === 'ar' ? '🔴 جولة جارية' : '🔴 Battle Active';
       DOM.pkStatusBadge.className   = 'px-3 py-1 rounded-full text-xs font-bold bg-red-950 text-red-300 border border-red-700 animate-pulse';
       DOM.pkSection?.classList.add('pk-active');
     } else if (status === 'PUNISH') {
-      DOM.pkStatusBadge.textContent = '⏱️ وقت الحكم';
+      DOM.pkStatusBadge.textContent = currentLang === 'ar' ? '⏱️ وقت الحكم' : '⏱️ Punish Time';
       DOM.pkStatusBadge.className   = 'px-3 py-1 rounded-full text-xs font-bold bg-amber-950 text-amber-300 border border-amber-700 animate-pulse';
       DOM.pkSection?.classList.add('pk-active');
     } else if (status === 'ENDED' || eventType === 'ended') {
-      DOM.pkStatusBadge.textContent = '🏆 انتهت الجولة';
+      DOM.pkStatusBadge.textContent = currentLang === 'ar' ? '🏆 انتهت الجولة' : '🏆 Round Ended';
       DOM.pkStatusBadge.className   = 'px-3 py-1 rounded-full text-xs font-bold bg-emerald-950 text-emerald-300 border border-emerald-700';
       DOM.pkSection?.classList.remove('pk-active');
     } else {
-      DOM.pkStatusBadge.textContent = '⏸️ في انتظار جولة';
+      DOM.pkStatusBadge.textContent = currentLang === 'ar' ? '⏸️ في انتظار جولة' : '⏸️ Waiting Battle';
       DOM.pkStatusBadge.className   = 'px-3 py-1 rounded-full text-xs font-bold bg-gray-800 text-gray-400 border border-gray-700';
       DOM.pkSection?.classList.remove('pk-active');
     }
   }
 
-  // Synchronize PK Round Countdown Timer (مزامنة عداد وقت الجولة)
+  // Synchronize PK Round Countdown Timer (مزامنة عداد وقت الجولة فائق الدقة)
   if (status === 'ACTIVE' || (isActive && status !== 'PUNISH')) {
     const dur = pkData.duration || 300;
-    const rem = (pkData.remaining_seconds != null && pkData.remaining_seconds > 0) ? pkData.remaining_seconds : dur;
+    const rem = (pkData.remaining_seconds != null && pkData.remaining_seconds >= 0) ? pkData.remaining_seconds : dur;
+    const serverEndTime = (pkData.end_time && pkData.end_time > 0) ? Math.round(pkData.end_time * 1000) : 0;
+
     if (isNewRound || !pkTimerInterval || pkTimerPhase !== 'BATTLE') {
-      startPkCountdown(rem, 'BATTLE');
+      startPkCountdown(rem, 'BATTLE', dur, serverEndTime);
+    } else if (serverEndTime > 0 && Math.abs(pkTimerEndTimestamp - serverEndTime) > 2000) {
+      // Automatic drift correction with server clock
+      pkTimerEndTimestamp = serverEndTime;
+      pkTimerTotalSeconds = dur;
+      updatePkTimerDisplay();
     }
   } else if (status === 'PUNISH') {
     const rem = (pkData.remaining_seconds != null && pkData.remaining_seconds > 0) ? pkData.remaining_seconds : 120;
     if (!pkTimerInterval || pkTimerPhase !== 'PUNISH') {
-      startPkCountdown(rem, 'PUNISH');
+      startPkCountdown(rem, 'PUNISH', 120);
     }
   } else if (status === 'ENDED' || eventType === 'ended') {
     stopPkCountdown('ENDED');

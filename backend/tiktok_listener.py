@@ -341,14 +341,20 @@ except ModuleNotFoundError:
             opponent_armies: list | None = None,
             duration: int | None = None,
             start_time: float | None = None,
+            end_time: float | None = None,
+            remaining_seconds: int | None = None,
         ):
             was_active = self._pk.get("is_active", False)
+            prev_bid = self._pk.get("battle_id", "")
             host_wins    = self._pk.get("host_wins", 0)
             opponent_wins = self._pk.get("opponent_wins", 0)
             round_number  = self._pk.get("round_number", 1)
 
-            # Transition from active to ended: auto-tally winner
-            if was_active and (status == "ENDED" or not active):
+            # Detect round transition
+            is_new_round = bool(bid and prev_bid and bid != prev_bid and active)
+            if is_new_round:
+                round_number += 1
+            elif was_active and (status == "ENDED" or not active):
                 if hs > os_:
                     host_wins += 1
                 elif os_ > hs:
@@ -360,18 +366,27 @@ except ModuleNotFoundError:
             prev_host_armies = self._pk.get("host_armies", [])
             prev_opp_armies = self._pk.get("opponent_armies", [])
 
+            now_ts = time.time()
             # Battle timing logic
-            if active and not was_active:
-                cur_start = start_time or time.time()
-            elif active and start_time:
-                cur_start = start_time
+            if active and (not was_active or is_new_round):
+                cur_start = start_time if (start_time and start_time > 0) else now_ts
+                cur_dur   = duration if (duration and duration > 0) else 300
+                cur_end   = end_time if (end_time and end_time > 0) else (cur_start + cur_dur)
             elif active:
-                cur_start = self._pk.get("start_time", 0.0) or time.time()
+                cur_start = start_time if (start_time and start_time > 0) else (self._pk.get("start_time", 0.0) or now_ts)
+                cur_dur   = duration if (duration and duration > 0) else self._pk.get("duration", 300)
+                cur_end   = end_time if (end_time and end_time > 0) else (self._pk.get("end_time", 0.0) or (cur_start + cur_dur))
             else:
                 cur_start = 0.0
+                cur_dur   = duration if (duration and duration > 0) else self._pk.get("duration", 300)
+                cur_end   = 0.0
 
-            cur_dur = duration if (duration and duration > 0) else self._pk.get("duration", 300)
-            rem_sec = max(0, int(cur_dur - (time.time() - cur_start))) if (active and cur_start > 0) else 0
+            if remaining_seconds is not None and remaining_seconds >= 0:
+                rem_sec = remaining_seconds
+            elif active and cur_end > 0:
+                rem_sec = max(0, int(cur_end - now_ts))
+            else:
+                rem_sec = 0
 
             self._pk = {
                 "is_active": active,
@@ -391,6 +406,7 @@ except ModuleNotFoundError:
                 "opponent_armies": opponent_armies if opponent_armies is not None else prev_opp_armies,
                 "duration": cur_dur,
                 "start_time": cur_start,
+                "end_time": cur_end,
                 "remaining_seconds": rem_sec,
             }
 
@@ -881,6 +897,75 @@ def _aggregate_team_armies(anchors: list, armies_dict: dict):
 
     all_contributors.sort(key=lambda x: x["score"], reverse=True)
     return team_score, all_contributors[:3]
+
+
+def _extract_battle_timing(event, current_pk: dict | None = None) -> tuple[int, float, float, int]:
+    """
+    Extract precise round duration, start timestamp, end timestamp, and remaining seconds.
+    Directly decodes TikTok's high-precision millisecond epoch timestamps from BattleSetting.
+    Returns: (duration_seconds, start_timestamp, end_timestamp, remaining_seconds)
+    """
+    b_settings = _safe(event, "battle_settings")
+    now_ts = time.time()
+
+    # 1. Extract raw fields from battle_settings or event top-level
+    st_raw = int(
+        _safe(b_settings, "start_time_ms", default=0)
+        or _safe(event, "start_time_ms", default=0)
+        or _safe(b_settings, "start_time", default=0)
+        or _safe(event, "start_time", default=0)
+        or 0
+    )
+    et_raw = int(
+        _safe(b_settings, "end_time_ms", default=0)
+        or _safe(event, "end_time_ms", default=0)
+        or _safe(b_settings, "end_time", default=0)
+        or _safe(event, "end_time", default=0)
+        or 0
+    )
+    dur_raw = int(
+        _safe(b_settings, "duration", default=0)
+        or _safe(event, "duration", default=0)
+        or 0
+    )
+    extra_sec = int(_safe(b_settings, "extra_duration_second", default=0) or 0)
+
+    # 2. Normalize milliseconds to seconds
+    start_ts = (st_raw / 1000.0) if st_raw > 10_000_000_000 else float(st_raw)
+    end_ts = ((et_raw / 1000.0) + extra_sec) if et_raw > 10_000_000_000 else (float(et_raw) + extra_sec if et_raw > 0 else 0.0)
+    dur = (dur_raw + extra_sec) if dur_raw > 0 else 0
+
+    # 3. If end_time is provided by TikTok server, duration and remaining seconds are exact
+    if end_ts > 0:
+        rem_sec = max(0, int(end_ts - now_ts))
+        if dur <= 0:
+            if start_ts > 0 and end_ts > start_ts:
+                dur = int(end_ts - start_ts)
+            else:
+                dur = max(300, rem_sec)
+        if start_ts <= 0:
+            start_ts = end_ts - dur
+        return dur, start_ts, end_ts, rem_sec
+
+    # 4. If start_time and duration are known
+    if start_ts > 0 and dur > 0:
+        end_ts = start_ts + dur
+        rem_sec = max(0, int(end_ts - now_ts))
+        return dur, start_ts, end_ts, rem_sec
+
+    # 5. Fallback to existing active session timing if same battle
+    if current_pk and current_pk.get("is_active") and current_pk.get("start_time", 0) > 0:
+        c_start = current_pk["start_time"]
+        c_dur = dur if dur > 0 else current_pk.get("duration", 300)
+        c_end = current_pk.get("end_time", 0.0) or (c_start + c_dur)
+        rem_sec = max(0, int(c_end - now_ts))
+        return c_dur, c_start, c_end, rem_sec
+
+    # 6. Default new round fallback
+    dur = dur if dur > 0 else 300
+    start_ts = now_ts
+    end_ts = start_ts + dur
+    return dur, start_ts, end_ts, dur
 
 
 # ---------------------------------------------------------------------------
@@ -1615,6 +1700,11 @@ class TikTokSession:
         @client.on(LinkMicBattleEvent)
         async def on_pk_battle(event: LinkMicBattleEvent):
             battle_id = str(_safe(event, "battle_id", default=""))
+            curr_pk = self._engine.get_pk_state()
+            curr_pk_dict = curr_pk.to_dict() if hasattr(curr_pk, "to_dict") else curr_pk.__dict__
+            prev_bid = curr_pk_dict.get("battle_id", "")
+            was_active = curr_pk_dict.get("is_active", False)
+
             host_anchors, opp_anchors, b_type = _parse_battle_anchors_and_teams(
                 event, self.username, self._streamer_user_id, self._streamer_avatar
             )
@@ -1627,7 +1717,9 @@ class TikTokSession:
             # Determine action / status
             act = _safe(event, "action", default=4)
             act_str = str(act).upper()
-            if act == 4 or "OPEN" in act_str or act_str == "4":
+            is_new_battle = bool(battle_id and prev_bid and battle_id != prev_bid)
+
+            if act in (4, 7) or "OPEN" in act_str or "ACCEPT" in act_str or act_str in ("4", "7") or is_new_battle or (not was_active and battle_id):
                 status = "ACTIVE"
                 is_active = True
                 event_tag = "start"
@@ -1635,7 +1727,7 @@ class TikTokSession:
                 status = "PUNISH"
                 is_active = True
                 event_tag = "punish"
-            elif act in (3, 6, 11) or any(x in act_str for x in ("CANCEL", "CUT_SHORT", "LEAVE")):
+            elif act in (2, 3, 6, 8, 9, 10, 11) or any(x in act_str for x in ("CANCEL", "CUT_SHORT", "LEAVE", "REJECT")):
                 status = "ENDED"
                 is_active = False
                 event_tag = "ended"
@@ -1647,9 +1739,7 @@ class TikTokSession:
             host_name = host_anchors[0].get("unique_id", self.username) if host_anchors else self.username
             opp_name  = opp_anchors[0].get("unique_id", "opponent") if opp_anchors else "opponent"
 
-            duration = int(_safe(event, "duration", default=0) or _safe(_safe(event, "battle_settings"), "duration", default=0) or 300)
-            if duration <= 0:
-                duration = 300
+            duration, start_ts, end_ts, rem_sec = _extract_battle_timing(event, curr_pk_dict)
 
             self._engine.update_pk_battle(
                 bid=battle_id,
@@ -1665,6 +1755,9 @@ class TikTokSession:
                 host_armies=host_mvps,
                 opponent_armies=opp_mvps,
                 duration=duration,
+                start_time=start_ts,
+                end_time=end_ts,
+                remaining_seconds=rem_sec,
             )
 
             pk = self._engine.get_pk_state()
@@ -1680,6 +1773,9 @@ class TikTokSession:
 
             curr_pk = self._engine.get_pk_state()
             curr_pk_dict = curr_pk.to_dict() if hasattr(curr_pk, "to_dict") else curr_pk.__dict__
+            prev_bid = curr_pk_dict.get("battle_id", "")
+            was_active = curr_pk_dict.get("is_active", False)
+
             host_anchors = curr_pk_dict.get("host_anchors", [])
             opp_anchors  = curr_pk_dict.get("opponent_anchors", [])
 
@@ -1695,8 +1791,13 @@ class TikTokSession:
             opp_score  = max(opp_score, curr_pk_dict.get("opponent_points", 0))
 
             is_finished = bool(_safe(event, "is_finished", default=False))
-            status = "ENDED" if is_finished else "ACTIVE"
+            status = "ENDED" if is_finished else ("PUNISH" if curr_pk_dict.get("status") == "PUNISH" else "ACTIVE")
             is_active = not is_finished
+
+            is_new_battle = bool(battle_id and prev_bid and battle_id != prev_bid and is_active)
+            is_fresh_start = bool(not was_active and is_active and battle_id)
+
+            duration, start_ts, end_ts, rem_sec = _extract_battle_timing(event, curr_pk_dict)
 
             self._engine.update_pk_battle(
                 bid=battle_id,
@@ -1708,6 +1809,10 @@ class TikTokSession:
                 opponent_anchors=opp_anchors,
                 host_armies=host_mvps,
                 opponent_armies=opp_mvps,
+                duration=duration,
+                start_time=start_ts,
+                end_time=end_ts,
+                remaining_seconds=rem_sec,
             )
 
             pk = self._engine.get_pk_state()
@@ -1777,10 +1882,11 @@ class TikTokSession:
                     "leaderboard": [(s.to_dict() if hasattr(s, "to_dict") else s) for s in self._engine.get_top_supporters(10)],
                 })
 
+            event_tag = "ended" if is_finished else ("start" if (is_new_battle or is_fresh_start) else "update")
             await self._send({
                 "type":  "pk_battle",
                 "data":  pk_dict,
-                "event": "ended" if is_finished else "update",
+                "event": event_tag,
             })
 
         # ---- PK Punishment Finish ----
