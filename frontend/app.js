@@ -153,6 +153,12 @@ const DOM = {
   broadcastMsgInput:   $('broadcastMsgInput'),
   btnSubmitBroadcast:  $('btnSubmitBroadcast'),
   broadcastResult:     $('broadcastResult'),
+  tabBtnApiSettings:   $('tabBtnApiSettings'),
+  tabViewApiSettings:  $('tabViewApiSettings'),
+  badgeSignKeyStatus:  $('badgeSignKeyStatus'),
+  inputSignApiKey:     $('inputSignApiKey'),
+  btnSaveSignApiKey:   $('btnSaveSignApiKey'),
+  currentSignKeyText:  $('currentSignKeyText'),
 };
 
 // ---------------------------------------------------------------------------
@@ -759,6 +765,7 @@ function connectWs(username) {
 
       case 'reconnecting':
         setStatus('connecting', `🔄 ${msg.message || 'Reconnecting…'}`);
+        toast(msg.message || 'جاري محاولة الاتصال...', 'warning', 3500);
         break;
 
       case 'connected':
@@ -771,17 +778,25 @@ function connectWs(username) {
         break;
 
       case 'disconnected':
-        setStatus('offline', 'Disconnected');
+        setStatus('offline', msg.message || 'Disconnected');
         DOM.stopBtn.classList.add('hidden');
         DOM.startBtn.classList.remove('hidden');
-        toast(`🔴 Stream ended for @${msg.username}`, 'warning');
+        toast(`🔴 ${msg.message || 'Stream ended'}`, 'warning', 6000);
+        if (ws) {
+          try { ws.close(); } catch (_) {}
+          ws = null;
+        }
         break;
 
       case 'error':
-        setStatus('offline', 'Error');
+        setStatus('offline', msg.message || 'Error');
         DOM.stopBtn.classList.add('hidden');
         DOM.startBtn.classList.remove('hidden');
-        toast(`❌ ${msg.message}: ${msg.detail || ''}`, 'error', 7000);
+        toast(`⚠️ ${msg.message}${msg.detail ? ': ' + msg.detail : ''}`, 'error', 9000);
+        if (ws) {
+          try { ws.close(); } catch (_) {}
+          ws = null;
+        }
         break;
 
       case 'snapshot':
@@ -1225,10 +1240,12 @@ function switchAdminTab(tab) {
   const isSessions = tab === 'sessions';
   const isBanned   = tab === 'banned';
   const isBcast    = tab === 'broadcast';
+  const isApi      = tab === 'api_settings';
 
   if (DOM.tabViewSessions) DOM.tabViewSessions.classList.toggle('hidden', !isSessions);
   if (DOM.tabViewBanned) DOM.tabViewBanned.classList.toggle('hidden', !isBanned);
   if (DOM.tabViewBroadcast) DOM.tabViewBroadcast.classList.toggle('hidden', !isBcast);
+  if (DOM.tabViewApiSettings) DOM.tabViewApiSettings.classList.toggle('hidden', !isApi);
 
   const activeTabClass = 'px-4 py-2.5 text-xs font-bold border-b-2 border-purple-500 text-purple-300 transition flex items-center gap-2';
   const inactiveTabClass = 'px-4 py-2.5 text-xs font-bold border-b-2 border-transparent text-gray-400 hover:text-gray-200 transition flex items-center gap-2';
@@ -1236,6 +1253,7 @@ function switchAdminTab(tab) {
   if (DOM.tabBtnSessions) DOM.tabBtnSessions.className = isSessions ? activeTabClass : inactiveTabClass;
   if (DOM.tabBtnBanned) DOM.tabBtnBanned.className = isBanned ? activeTabClass : inactiveTabClass;
   if (DOM.tabBtnBroadcast) DOM.tabBtnBroadcast.className = isBcast ? activeTabClass : inactiveTabClass;
+  if (DOM.tabBtnApiSettings) DOM.tabBtnApiSettings.className = isApi ? activeTabClass : inactiveTabClass;
 }
 
 async function handleAdminLogin() {
@@ -1300,6 +1318,21 @@ async function loadAdminStats() {
 
       // Render banned targets
       renderBannedTable(data.banned_targets || []);
+
+      // Render Sign API status
+      if (DOM.badgeSignKeyStatus) {
+        if (data.has_sign_api_key) {
+          DOM.badgeSignKeyStatus.textContent = 'مضبوط ✅';
+          DOM.badgeSignKeyStatus.className = 'text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 font-bold';
+        } else {
+          DOM.badgeSignKeyStatus.textContent = 'غير مضبوط ⚠️';
+          DOM.badgeSignKeyStatus.className = 'text-[10px] px-1.5 py-0.2 rounded-full bg-amber-950/80 text-amber-300 border border-amber-700/60 font-bold';
+        }
+      }
+      if (DOM.currentSignKeyText) {
+        DOM.currentSignKeyText.textContent = data.has_sign_api_key ? `مفعّل (${data.sign_api_key_masked || 'Active'})` : 'غير مضبوط (يستخدم الحساب المشترك العام)';
+        DOM.currentSignKeyText.className = data.has_sign_api_key ? 'font-mono text-emerald-400 font-bold' : 'font-mono text-amber-400';
+      }
     }
   } catch (err) {
     console.error('Failed to load admin stats:', err);
@@ -1616,6 +1649,30 @@ async function handleClearHistory() {
   }
 }
 
+async function handleSaveSignApiKey() {
+  const token = sessionStorage.getItem('tt_admin_token');
+  if (!token) return;
+  const key = DOM.inputSignApiKey ? DOM.inputSignApiKey.value.trim() : '';
+  try {
+    const res = await fetch('/api/admin/set-sign-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sign_api_key: key, token })
+    });
+    const data = await res.json();
+    if (res.ok && data.status === 'ok') {
+      toast(currentLang === 'ar' ? '🔑 تم حفظ وتحديث مفتاح التوقيع بنجاح!' : '🔑 Sign API key updated successfully!', 'success');
+      if (DOM.inputSignApiKey) DOM.inputSignApiKey.value = '';
+      await loadAdminStats();
+    } else {
+      toast('Failed to save key: ' + (data.message || 'error'), 'error');
+    }
+  } catch (err) {
+    console.error('Save sign key error:', err);
+    toast('Error saving key', 'error');
+  }
+}
+
 function startAdminRefresh() {
   stopAdminRefresh();
   adminRefreshInterval = setInterval(() => {
@@ -1735,6 +1792,11 @@ if (DOM.btnClearHistory) DOM.btnClearHistory.addEventListener('click', handleCle
 if (DOM.tabBtnSessions) DOM.tabBtnSessions.addEventListener('click', () => switchAdminTab('sessions'));
 if (DOM.tabBtnBanned) DOM.tabBtnBanned.addEventListener('click', () => switchAdminTab('banned'));
 if (DOM.tabBtnBroadcast) DOM.tabBtnBroadcast.addEventListener('click', () => switchAdminTab('broadcast'));
+if (DOM.tabBtnApiSettings) DOM.tabBtnApiSettings.addEventListener('click', () => switchAdminTab('api_settings'));
+if (DOM.btnSaveSignApiKey) DOM.btnSaveSignApiKey.addEventListener('click', handleSaveSignApiKey);
+if (DOM.inputSignApiKey) DOM.inputSignApiKey.addEventListener('keydown', e => {
+  if (e.key === 'Enter') handleSaveSignApiKey();
+});
 
 // Banned Manager Triggers
 if (DOM.btnSubmitBan) DOM.btnSubmitBan.addEventListener('click', () => {

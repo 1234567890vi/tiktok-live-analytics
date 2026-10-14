@@ -262,6 +262,10 @@
             <button id="tabBtnBroadcast" class="px-4 py-2.5 text-xs font-bold border-b-2 border-transparent text-gray-400 hover:text-gray-200 transition flex items-center gap-2">
               <span>📢</span> <span id="tabTitleBroadcast">إرسال إشعار جماعي</span>
             </button>
+            <button id="tabBtnApiSettings" class="px-4 py-2.5 text-xs font-bold border-b-2 border-transparent text-gray-400 hover:text-gray-200 transition flex items-center gap-2">
+              <span>🔑</span> <span id="tabTitleApiSettings">مفتاح التوقيع (Sign API)</span>
+              <span id="badgeSignKeyStatus" class="text-[10px] px-1.5 py-0.2 rounded-full bg-gray-800 text-gray-400 border border-gray-700">غير مضبوط</span>
+            </button>
           </div>
 
           <!-- ══════ TAB 1: SESSIONS & LIVE USER TRACKING ══════ -->
@@ -408,6 +412,47 @@
                 <span>إرسال الإشعار لجميع المستخدمين الآن</span>
               </button>
               <div id="broadcastResult" class="text-xs text-emerald-400 hidden"></div>
+          <!-- ══════ TAB 4: SIGN API KEY SETTINGS ══════ -->
+          <div id="tabViewApiSettings" class="hidden space-y-4">
+            <div class="glass-card p-5 space-y-4 max-w-xl">
+              <div class="flex items-center gap-3">
+                <div class="p-2.5 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/30 text-lg">🔑</div>
+                <div>
+                  <h4 class="text-sm font-bold text-white">إعداد مفتاح مزود التوقيع (EulerStream API Key)</h4>
+                  <p class="text-xs text-gray-400">لتفادي حظر الـ IP المشترك وضمان تتبع مباشر بدون انقطاع</p>
+                </div>
+              </div>
+              
+              <div class="text-xs text-gray-300 leading-relaxed p-3 rounded-lg bg-gray-900/60 border border-gray-800">
+                <span>تعتمد تيك توك على تشفير وتوقيع حزم الاتصال (Webcast Signature). للحصول على حد مكثف واتصال دائم، يمكنك إنشاء حساب والحصول على </span>
+                <strong class="text-purple-400">مفتاح API مجاني</strong>
+                <span> من </span>
+                <a href="https://www.eulerstream.com/pricing" target="_blank" rel="noopener" class="underline text-blue-400 hover:text-blue-300 font-bold">eulerstream.com/pricing</a>
+                <span> وإضافته هنا:</span>
+              </div>
+
+              <div class="space-y-2">
+                <label class="text-xs font-semibold text-gray-300">مفتاح SIGN_API_KEY:</label>
+                <div class="flex gap-2">
+                  <input
+                    type="password"
+                    id="inputSignApiKey"
+                    placeholder="e.g. eul_live_xxxxxxxxxxxxxxxx"
+                    class="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-500 font-mono focus:outline-none focus:border-purple-500 transition"
+                  />
+                  <button
+                    id="btnSaveSignApiKey"
+                    class="bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 px-4 rounded-xl text-xs transition active:scale-95 shadow flex items-center gap-1.5 flex-shrink-0"
+                  >
+                    <span>💾</span>
+                    <span>حفظ المفتاح</span>
+                  </button>
+                </div>
+                <div id="signKeyStatusMsg" class="text-xs font-medium text-gray-400 flex items-center gap-2 pt-1">
+                  <span>الحالة الحالية:</span>
+                  <span id="currentSignKeyText" class="font-mono text-amber-400">جاري الفحص...</span>
+                </div>
+              </div>
             </div>
           </div>
 

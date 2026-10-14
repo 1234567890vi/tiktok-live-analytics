@@ -31,3 +31,6 @@ MAX_SESSIONS: int = int(os.getenv("MAX_SESSIONS", "10"))
 
 # Re-connection retry attempts on disconnect
 RECONNECT_ATTEMPTS: int = 3
+
+# Optional EulerStream Sign API Key for high-concurrency TikTok Webcast signing
+SIGN_API_KEY: str = os.getenv("SIGN_API_KEY", "")

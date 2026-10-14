@@ -196,6 +196,9 @@ async def admin_stats(request: Request, token: str = ""):
                 row["total_diamonds"] = getattr(sess._engine, "get_total_diamonds", lambda: 0)()
         history_copy.append(row)
 
+    current_sign_key = os.getenv("SIGN_API_KEY", "")
+    masked_key = (current_sign_key[:4] + "..." + current_sign_key[-4:]) if len(current_sign_key) >= 8 else ("***" if current_sign_key else "")
+
     return {
         "status": "ok",
         "server_uptime_seconds": uptime,
@@ -205,7 +208,28 @@ async def admin_stats(request: Request, token: str = ""):
         "search_history": history_copy,
         "tracking_enabled": _tracking_enabled,
         "banned_targets": sorted(list(_banned_targets)),
+        "has_sign_api_key": bool(current_sign_key),
+        "sign_api_key_masked": masked_key,
     }
+
+
+@app.post("/api/admin/set-sign-key")
+async def admin_set_sign_key(request: Request, data: dict):
+    """Set or update EulerStream SIGN_API_KEY dynamically."""
+    tok = _get_admin_token(request, data)
+    if not tok or tok not in _admin_tokens:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
+
+    new_key = str(data.get("sign_api_key", "")).strip()
+    os.environ["SIGN_API_KEY"] = new_key
+    try:
+        from TikTokLive.client.web.web_settings import WebDefaults
+        WebDefaults.tiktok_sign_api_key = new_key if new_key else None
+    except Exception as e:
+        logger.warning("Could not set WebDefaults sign key: %s", e)
+
+    logger.info("Admin updated EulerStream SIGN_API_KEY (has_key=%s)", bool(new_key))
+    return {"status": "ok", "has_sign_api_key": bool(new_key)}
 
 
 @app.post("/api/admin/kick")

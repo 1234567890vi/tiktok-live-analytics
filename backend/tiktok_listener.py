@@ -12,8 +12,19 @@ import sys
 import time
 import types
 from typing import Callable, Awaitable
+import os
 
 from TikTokLive import TikTokLiveClient
+from TikTokLive.client.web.web_settings import WebDefaults
+from TikTokLive.client.errors import (
+    UserOfflineError,
+    UserNotFoundError,
+    SignatureRateLimitError,
+    SignAPIError,
+    WebcastBlockedError,
+    WebcastBlocked200Error,
+    InitialCursorMissingError,
+)
 from TikTokLive.events import (
     ConnectEvent,
     DisconnectEvent,
@@ -26,7 +37,10 @@ from TikTokLive.events import (
     LinkMicBattlePunishFinishEvent,
 )
 
-from backend.config import DIAMOND_TO_USD_RATE, NET_PAYOUT_RATIO
+from backend.config import DIAMOND_TO_USD_RATE, NET_PAYOUT_RATIO, SIGN_API_KEY
+
+if SIGN_API_KEY:
+    WebDefaults.tiktok_sign_api_key = SIGN_API_KEY
 
 # Comprehensive fallback diamond prices for well-known TikTok gifts
 COMMON_TIKTOK_GIFTS: dict[str, int] = {
@@ -646,11 +660,72 @@ class TikTokSession:
     # ------------------------------------------------------------------
 
     async def _run_client(self) -> None:
-        backoff = 2
+        max_retries = 3
+        retry_count = 0
+        backoff = 3
+
+        # 1. Quick pre-check: verify whether user is active before full connection
+        try:
+            logger.info("Checking live status for @%s...", self.username)
+            is_live = await self._client.is_live()
+            if not is_live:
+                logger.info("@%s is not currently LIVE.", self.username)
+                await self._send({
+                    "type": "error",
+                    "code": "USER_OFFLINE",
+                    "message": "الحساب ليس في بث مباشر حالياً",
+                    "detail": f"المستخدم @{self.username} غير متصل ببث مباشر (LIVE) الآن. يرجى التأكد من أن صاحب الحساب يبث حالياً.",
+                })
+                self._running = False
+                return
+        except UserNotFoundError:
+            logger.info("User @%s not found on TikTok.", self.username)
+            await self._send({
+                "type": "error",
+                "code": "USER_NOT_FOUND",
+                "message": "الحساب غير موجود",
+                "detail": f"لم يتم العثور على الحساب @{self.username} على تيك توك. يرجى التحقق من صحة الاسم.",
+            })
+            self._running = False
+            return
+        except (SignatureRateLimitError, SignAPIError) as exc:
+            err_str = str(exc)
+            if "rate_limit" in err_str.lower() or "too many connections" in err_str.lower():
+                logger.warning("Sign rate limit hit during is_live for @%s: %s", self.username, exc)
+                await self._send({
+                    "type": "error",
+                    "code": "RATE_LIMIT",
+                    "message": "تم بلوغ الحد المسموح للتوقيع (Sign Rate Limit)",
+                    "detail": "تم تجاوز عدد الاتصالات في الخطة المجانية لمزود التوقيع (EulerStream). يمكنك إدخال مفتاح API مجاني (SIGN_API_KEY) من eulerstream.com في لوحة الأدمن للمتابعة دون انقطاع.",
+                })
+                self._running = False
+                return
+        except Exception as exc:
+            err_str = str(exc).lower()
+            if "not capable of going live" in err_str or "never gone live" in err_str:
+                await self._send({
+                    "type": "error",
+                    "code": "USER_NOT_LIVE_CAPABLE",
+                    "message": "الحساب غير مؤهل للبث المباشر أو غير موجود",
+                    "detail": f"الحساب @{self.username} لم يسبق له البث المباشر على تيك توك أو غير متاح.",
+                })
+                self._running = False
+                return
+            if "rate_limit" in err_str:
+                await self._send({
+                    "type": "error",
+                    "code": "RATE_LIMIT",
+                    "message": "تم بلوغ الحد المسموح للتوقيع (Sign Rate Limit)",
+                    "detail": "تم تجاوز عدد الاتصالات المسموح بها في مزود التوقيع السحابي. يرجى إضافة SIGN_API_KEY مجاني من eulerstream.com عبر لوحة الأدمن.",
+                })
+                self._running = False
+                return
+            logger.warning("Pre-check is_live for @%s: %s. Attempting connect...", self.username, exc)
+
+        # 2. Main connection loop with bounded retries
         while self._running:
             try:
-                logger.info("Connecting to @%s (backoff=%ds)...", self.username, backoff)
-                # Use connect() with process_connect_events=True — blocks while stream is running
+                logger.info("Connecting to @%s (retry %d/%d)...", self.username, retry_count, max_retries)
                 await self._client.connect(
                     process_connect_events=True,
                     fetch_room_info=True,
@@ -660,35 +735,111 @@ class TikTokSession:
                 if not self._running:
                     break
 
-                # If connect() completes cleanly while self._running is True, the connection dropped
-                logger.info("Connection dropped for @%s, auto-reconnecting...", self.username)
+                # If connect() completes cleanly while self._running is True, the stream ended
+                logger.info("Live stream ended for @%s", self.username)
                 await self._send({
-                    "type": "reconnecting",
+                    "type": "disconnected",
                     "username": self.username,
-                    "message": "Connection lost. Reconnecting to live...",
+                    "message": f"انتهى البث المباشر للحساب @{self.username}",
                 })
-                await asyncio.sleep(backoff)
-                self._client = TikTokLiveClient(unique_id=f"@{self.username}")
-                self._register_handlers()
+                break
 
             except asyncio.CancelledError:
                 break
+
+            except UserOfflineError:
+                logger.info("@%s is offline.", self.username)
+                await self._send({
+                    "type": "error",
+                    "code": "USER_OFFLINE",
+                    "message": "الحساب ليس في بث مباشر حالياً",
+                    "detail": f"صاحب الحساب @{self.username} ليس في بث مباشر الآن.",
+                })
+                break
+
+            except UserNotFoundError:
+                logger.info("@%s not found.", self.username)
+                await self._send({
+                    "type": "error",
+                    "code": "USER_NOT_FOUND",
+                    "message": "الحساب غير موجود",
+                    "detail": f"لم يتم العثور على الحساب @{self.username}.",
+                })
+                break
+
+            except (SignatureRateLimitError, SignAPIError) as exc:
+                err_str = str(exc)
+                logger.warning("Sign error for @%s: %s", self.username, err_str)
+                is_rate_limit = "rate_limit" in err_str.lower() or "too many connections" in err_str.lower()
+                await self._send({
+                    "type": "error",
+                    "code": "RATE_LIMIT" if is_rate_limit else "SIGN_ERROR",
+                    "message": "حد مزود التوقيع السحابي (EulerStream Rate Limit)" if is_rate_limit else "خطأ في مزود التوقيع",
+                    "detail": (
+                        "تم تجاوز عدد الاتصالات على الـ IP المشترك لمزود التوقيع (EulerStream). "
+                        "يرجى الحصول على مفتاح API مجاني (SIGN_API_KEY) من موقع eulerstream.com وإضافته في لوحة الأدمن."
+                    ) if is_rate_limit else f"تعذر استكمال التوقيع: {err_str}",
+                })
+                break
+
             except Exception as exc:
                 if not self._running:
                     break
-                logger.warning(
-                    "TikTokLive error for @%s: %s. Reconnecting in %ds...",
-                    self.username, exc, backoff
-                )
-                await self._send({
-                    "type": "reconnecting",
-                    "username": self.username,
-                    "message": f"Connection interrupted ({exc}). Reconnecting...",
-                })
-                await asyncio.sleep(backoff)
-                backoff = min(int(backoff * 1.5), 10)
-                self._client = TikTokLiveClient(unique_id=f"@{self.username}")
-                self._register_handlers()
+                err_str = str(exc)
+                err_lower = err_str.lower()
+                logger.warning("TikTokLive error for @%s: %s", self.username, err_str)
+
+                if "not capable of going live" in err_lower or "never gone live" in err_lower:
+                    await self._send({
+                        "type": "error",
+                        "code": "USER_NOT_LIVE_CAPABLE",
+                        "message": "الحساب غير مؤهل للبث المباشر أو غير موجود",
+                        "detail": f"الحساب @{self.username} لم يسبق له البث المباشر على تيك توك أو غير متاح.",
+                    })
+                    break
+
+                if "rate_limit" in err_lower or "eulerstream" in err_lower:
+                    await self._send({
+                        "type": "error",
+                        "code": "RATE_LIMIT",
+                        "message": "تم بلوغ الحد المسموح للتوقيع (Sign Rate Limit)",
+                        "detail": "تم تجاوز حد التوقيع المجاني من EulerStream. يرجى توفير SIGN_API_KEY مجاني من eulerstream.com في لوحة الأدمن.",
+                    })
+                    break
+
+                if "offline" in err_lower:
+                    await self._send({
+                        "type": "error",
+                        "code": "USER_OFFLINE",
+                        "message": "الحساب ليس في بث مباشر حالياً",
+                        "detail": f"المستخدم @{self.username} غير متصل ببث مباشر الآن.",
+                    })
+                    break
+
+                # Transient network or stream glitch: retry up to max_retries
+                if retry_count < max_retries:
+                    retry_count += 1
+                    logger.info("Retrying @%s (%d/%d) in %ds...", self.username, retry_count, max_retries, backoff)
+                    await self._send({
+                        "type": "reconnecting",
+                        "username": self.username,
+                        "retry_count": retry_count,
+                        "max_retries": max_retries,
+                        "message": f"انقطع الاتصال مؤقتاً. جاري إعادة المحاولة ({retry_count}/{max_retries})...",
+                    })
+                    await asyncio.sleep(backoff)
+                    backoff = min(backoff + 2, 10)
+                    self._client = TikTokLiveClient(unique_id=f"@{self.username}")
+                    self._register_handlers()
+                else:
+                    await self._send({
+                        "type": "error",
+                        "code": "CONNECTION_FAILED",
+                        "message": "تعذر الاتصال بالبث المباشر",
+                        "detail": f"فشلت محاولات الاتصال بحساب @{self.username} ({err_str}).",
+                    })
+                    break
+
         self._running = False
 
     def _register_handlers(self) -> None:
