@@ -121,39 +121,178 @@
       </div>
     </section>
 
-    <!-- ── PK BATTLE ARENA ───────────────────────────────────── -->
-    <section id="pkSection" class="glass-card p-5 space-y-3">
-      <div class="flex items-center justify-between">
-        <h2 class="text-base font-bold text-white flex items-center gap-2">
-          <span class="text-2xl">⚔️</span>
-          PK Battle Arena
-          <span class="text-xs text-gray-500 font-normal">تتبع الجولات</span>
-        </h2>
+    <!-- ── PK BATTLE ARENA (ساحة الجولات التفاعلية) ─────────────── -->
+    <section id="pkSection" class="glass-card p-5 space-y-4 relative overflow-hidden transition-all duration-500">
+      <!-- Arena Header -->
+      <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-gray-800/80">
         <div class="flex items-center gap-3">
-          <span id="pkStatusBadge" class="px-3 py-1 rounded-full text-xs font-bold bg-gray-700 text-gray-400">IDLE</span>
-          <span class="text-xs text-gray-500">Round <span id="pkRoundNum" class="text-white font-bold">1</span></span>
+          <div class="p-2.5 rounded-xl bg-gradient-to-br from-indigo-500/20 to-pink-500/20 border border-indigo-500/30 text-xl">
+            ⚔️
+          </div>
+          <div>
+            <h2 class="text-base font-black text-white flex items-center gap-2">
+              ساحة الجولة المباشرة
+              <span class="text-xs px-2 py-0.5 rounded bg-indigo-950/80 text-indigo-300 border border-indigo-700/50 font-mono" id="pkBattleType">1v1</span>
+            </h2>
+            <p class="text-xs text-gray-400">تتبع دقيق للمتنافسين (معه وضده)، الداعمين، ونقاط الجولة</p>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <span id="pkStatusBadge" class="px-3 py-1 rounded-full text-xs font-bold bg-gray-800 text-gray-400 border border-gray-700">
+            ⏸️ في انتظار جولة
+          </span>
+          <div class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-800/80 border border-gray-700 text-gray-300">
+            الجولة <span id="pkRoundNum" class="text-white font-bold">1</span>
+          </div>
+          <div class="px-3 py-1 rounded-full text-xs font-semibold bg-blue-950/60 border border-blue-800/60 text-blue-300">
+            🔵 فوزنا: <span id="pkHostWins" class="font-bold">0</span>
+          </div>
+          <div class="px-3 py-1 rounded-full text-xs font-semibold bg-red-950/60 border border-red-800/60 text-red-300">
+            🔴 الخصم: <span id="pkOppWins" class="font-bold">0</span>
+          </div>
         </div>
       </div>
 
-      <!-- VS Bar -->
-      <div class="space-y-2">
-        <div class="flex justify-between text-sm font-semibold">
-          <span class="text-blue-400" id="pkHostName">HOST</span>
-          <span class="text-gray-400 text-xs">VS</span>
-          <span class="text-red-400" id="pkOpponentName">OPPONENT</span>
-        </div>
-        <div class="relative h-6 bg-gray-800 rounded-full overflow-hidden">
-          <div id="pkHostBar"     class="absolute left-0  top-0 h-full bg-gradient-to-r from-blue-600 to-blue-400 transition-all duration-700 rounded-full" style="width:50%"></div>
-          <div id="pkOpponentBar" class="absolute right-0 top-0 h-full bg-gradient-to-l from-red-600  to-red-400  transition-all duration-700 rounded-full" style="width:50%"></div>
-          <div class="absolute inset-0 flex items-center justify-center">
-            <span class="text-xs font-black text-white drop-shadow">
-              <span id="pkHostScore">0</span> — <span id="pkOppScore">0</span>
+      <!-- Main Arena 2-Sided Clash Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-11 gap-3 items-stretch">
+        <!-- HOST TEAM (فريقنا - معه) [Cols 1-5] -->
+        <div class="md:col-span-5 p-4 rounded-2xl bg-gradient-to-br from-blue-950/40 via-blue-900/20 to-transparent border border-blue-600/30 shadow-[0_0_20px_rgba(37,99,235,0.1)] flex flex-col justify-between space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-extrabold uppercase tracking-wider text-blue-400 flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-blue-500 animate-ping"></span>
+              🔵 فريقنا (معه)
             </span>
+            <div class="text-[11px] text-blue-300/80 font-mono" id="pkHostSideLabel">المضيف وحلفاؤه</div>
+          </div>
+
+          <!-- Host & Teammate Anchors List -->
+          <div id="pkHostAnchorsContainer" class="flex flex-wrap items-center gap-3">
+            <!-- Host Card -->
+            <div class="flex items-center gap-3 bg-blue-950/70 border border-blue-700/40 rounded-xl p-2.5 flex-1 min-w-[150px]">
+              <div class="relative">
+                <img id="pkHostAvatar" class="w-12 h-12 rounded-full object-cover border-2 border-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.6)]" src="https://placehold.co/100x100/1e3a8a/white?text=Host" alt="Host" onerror="this.src='https://placehold.co/100x100/1e3a8a/white?text=Host'" />
+                <span class="absolute -top-1.5 -right-1 text-xs">👑</span>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="text-sm font-bold text-white truncate" id="pkHostNick">المضيف</div>
+                <div class="text-xs text-blue-300 font-mono truncate" id="pkHostName">@host</div>
+              </div>
+            </div>
+            <!-- Teammate Card (visible in 2v2) -->
+            <div id="pkTeammateCard" class="hidden flex items-center gap-3 bg-blue-950/70 border border-blue-700/40 rounded-xl p-2.5 flex-1 min-w-[150px]">
+              <div class="relative">
+                <img id="pkTeammateAvatar" class="w-12 h-12 rounded-full object-cover border-2 border-blue-400" src="https://placehold.co/100x100/1e3a8a/white?text=Ally" alt="Teammate" onerror="this.src='https://placehold.co/100x100/1e3a8a/white?text=Ally'" />
+                <span class="absolute -top-1.5 -right-1 text-xs">🤝</span>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="text-sm font-bold text-white truncate" id="pkTeammateNick">الحليف</div>
+                <div class="text-xs text-blue-300 font-mono truncate" id="pkTeammateName">@ally</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Host Score & Progress -->
+          <div class="flex items-baseline justify-between pt-1">
+            <span class="text-xs text-gray-400">نقاط فريقنا:</span>
+            <div class="text-2xl font-black text-blue-400 font-mono tracking-tight drop-shadow-[0_0_10px_rgba(59,130,246,0.5)]">
+              <span id="pkHostScore">0</span>
+              <span class="text-xs font-normal text-blue-300">نقطة</span>
+            </div>
+          </div>
+
+          <!-- Host Top Supporters (MVPs) -->
+          <div class="pt-2 border-t border-blue-900/40">
+            <div class="text-[11px] font-semibold text-blue-300 mb-1.5 flex items-center gap-1">
+              <span>🛡️ كبار الداعمين في الجولة (فريقنا):</span>
+            </div>
+            <div id="pkHostMvps" class="flex items-center gap-2 overflow-x-auto py-1">
+              <span class="text-xs text-gray-500 italic">في انتظار الداعمين...</span>
+            </div>
           </div>
         </div>
-        <div class="flex justify-between text-xs text-gray-400">
-          <span>W: <span id="pkHostWins" class="text-blue-400 font-bold">0</span></span>
-          <span>W: <span id="pkOppWins"  class="text-red-400  font-bold">0</span></span>
+
+        <!-- CENTER VS COLLISION [Col 6] -->
+        <div class="md:col-span-1 flex flex-col items-center justify-center py-2 space-y-2 text-center">
+          <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-red-600 via-amber-500 to-blue-600 flex items-center justify-center font-black text-white text-xs shadow-lg shadow-purple-900/50">
+            VS
+          </div>
+          <div id="pkScoreDiff" class="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-gray-800 text-gray-300 border border-gray-700 whitespace-nowrap">
+            تعادل ⚖️
+          </div>
+        </div>
+
+        <!-- OPPONENT TEAM (الخصم - ضده) [Cols 7-11] -->
+        <div class="md:col-span-5 p-4 rounded-2xl bg-gradient-to-br from-red-950/40 via-red-900/20 to-transparent border border-red-600/30 shadow-[0_0_20px_rgba(220,38,38,0.1)] flex flex-col justify-between space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-extrabold uppercase tracking-wider text-red-400 flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
+              🔴 الخصم (ضده)
+            </span>
+            <div class="text-[11px] text-red-300/80 font-mono" id="pkOppSideLabel">المنافسون</div>
+          </div>
+
+          <!-- Opponent Anchors List -->
+          <div id="pkOppAnchorsContainer" class="flex flex-wrap items-center gap-3">
+            <!-- Opponent 1 Card -->
+            <div class="flex items-center gap-3 bg-red-950/70 border border-red-700/40 rounded-xl p-2.5 flex-1 min-w-[150px]">
+              <div class="relative">
+                <img id="pkOppAvatar1" class="w-12 h-12 rounded-full object-cover border-2 border-red-500 shadow-[0_0_12px_rgba(239,68,68,0.6)]" src="https://placehold.co/100x100/991b1b/white?text=Rival" alt="Opponent 1" onerror="this.src='https://placehold.co/100x100/991b1b/white?text=Rival'" />
+                <span class="absolute -top-1.5 -right-1 text-xs">🎯</span>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="text-sm font-bold text-white truncate" id="pkOppNick1">الخصم</div>
+                <div class="text-xs text-red-300 font-mono truncate" id="pkOppName1">@opponent</div>
+              </div>
+            </div>
+            <!-- Opponent 2 Card (visible in 2v2) -->
+            <div id="pkOppCard2" class="hidden flex items-center gap-3 bg-red-950/70 border border-red-700/40 rounded-xl p-2.5 flex-1 min-w-[150px]">
+              <div class="relative">
+                <img id="pkOppAvatar2" class="w-12 h-12 rounded-full object-cover border-2 border-red-400" src="https://placehold.co/100x100/991b1b/white?text=Rival2" alt="Opponent 2" onerror="this.src='https://placehold.co/100x100/991b1b/white?text=Rival2'" />
+                <span class="absolute -top-1.5 -right-1 text-xs">🎯</span>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="text-sm font-bold text-white truncate" id="pkOppNick2">الخصم الثاني</div>
+                <div class="text-xs text-red-300 font-mono truncate" id="pkOppName2">@rival2</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Opponent Score & Progress -->
+          <div class="flex items-baseline justify-between pt-1">
+            <span class="text-xs text-gray-400">نقاط الخصم:</span>
+            <div class="text-2xl font-black text-red-400 font-mono tracking-tight drop-shadow-[0_0_10px_rgba(239,68,68,0.5)]">
+              <span id="pkOppScore">0</span>
+              <span class="text-xs font-normal text-red-300">نقطة</span>
+            </div>
+          </div>
+
+          <!-- Opponent Top Supporters (MVPs) -->
+          <div class="pt-2 border-t border-red-900/40">
+            <div class="text-[11px] font-semibold text-red-300 mb-1.5 flex items-center gap-1">
+              <span>⚔️ كبار الداعمين للخصم:</span>
+            </div>
+            <div id="pkOppMvps" class="flex items-center gap-2 overflow-x-auto py-1">
+              <span class="text-xs text-gray-500 italic">في انتظار الداعمين...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tug of War Progress Bar -->
+      <div class="space-y-1.5 pt-2">
+        <div class="flex justify-between text-xs font-bold font-mono">
+          <span class="text-blue-400" id="pkHostPct">50%</span>
+          <span class="text-gray-400 text-[11px] font-normal">مقياس النتيجة التنافسية</span>
+          <span class="text-red-400" id="pkOppPct">50%</span>
+        </div>
+        <div class="relative h-5 bg-gray-900 rounded-full overflow-hidden border border-gray-800 shadow-inner">
+          <div id="pkHostBar" class="absolute left-0 top-0 h-full bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-400 transition-all duration-500 rounded-l-full shadow-[0_0_12px_rgba(59,130,246,0.6)]" style="width:50%"></div>
+          <div id="pkOpponentBar" class="absolute right-0 top-0 h-full bg-gradient-to-l from-red-600 via-red-500 to-orange-400 transition-all duration-500 rounded-r-full shadow-[0_0_12px_rgba(239,68,68,0.6)]" style="width:50%"></div>
+          <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <span class="text-[11px] font-black text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
+              ⚡ تصادم النقاط ⚡
+            </span>
+          </div>
         </div>
       </div>
     </section>

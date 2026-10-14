@@ -346,10 +346,84 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
 .toast.error   { background: #7f1d1d; border: 1px solid #ef4444; color: #fecaca; }
 .toast.warning { background: #78350f; border: 1px solid #f59e0b; color: #fde68a; }
 
-/* ── PK Active glow ───────────────────────────────────────────── */
+/* ── PK Active glow & States ──────────────────────────────────── */
 #pkSection.pk-active {
-  border-color: rgba(239, 68, 68, 0.3);
-  box-shadow: 0 0 20px rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.4);
+  box-shadow: 0 0 30px rgba(239, 68, 68, 0.15);
+}
+#pkSection.pk-active #pkBattleType {
+  background: rgba(220, 38, 38, 0.3);
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.6);
+  animation: pulse 2s infinite;
+}
+
+/* ── PK MVP Contributor Pills ─────────────────────────────────── */
+.pk-mvp-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.7rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+.pk-mvp-pill:hover {
+  transform: translateY(-1px);
+  background: rgba(30, 41, 59, 0.9);
+}
+.pk-mvp-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+.pk-mvp-name {
+  font-weight: 700;
+  color: #f1f5f9;
+  max-width: 70px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pk-mvp-score {
+  font-weight: 800;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+.pk-mvp-score.host-score {
+  color: #60a5fa;
+}
+.pk-mvp-score.opp-score {
+  color: #f87171;
+}
+
+/* ── Gift Recipient Badges ────────────────────────────────────── */
+.gift-recipient-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  letter-spacing: 0.02em;
+  margin-top: 3px;
+  width: fit-content;
+}
+.gift-recipient-badge.badge-host {
+  background: rgba(37, 99, 235, 0.25);
+  color: #93c5fd;
+  border: 1px solid rgba(59, 130, 246, 0.5);
+  text-shadow: 0 0 6px rgba(59, 130, 246, 0.4);
+}
+.gift-recipient-badge.badge-opponent {
+  background: rgba(220, 38, 38, 0.25);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  text-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
 }
 
 /* ── Responsive ───────────────────────────────────────────────── */

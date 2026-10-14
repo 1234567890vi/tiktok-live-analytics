@@ -23,6 +23,7 @@ from TikTokLive.events import (
     RoomUserSeqEvent,
     LinkMicBattleEvent,
     LinkMicArmiesEvent,
+    LinkMicBattlePunishFinishEvent,
 )
 
 from backend.config import DIAMOND_TO_USD_RATE, NET_PAYOUT_RATIO
@@ -62,9 +63,25 @@ except ModuleNotFoundError:
             self._likers:     dict = {}
             self._supporters: dict = {}
             self._streaks:    dict = {}
-            self._pk:         dict = {}
             self._comment_buf: list = []
             self._like_times:  list = []
+            self._pk: dict = {
+                "is_active": False,
+                "status": "IDLE",            # ACTIVE | PUNISH | ENDED | IDLE
+                "battle_id": "",
+                "round_number": 1,
+                "host_wins": 0,
+                "opponent_wins": 0,
+                "host_points": 0,
+                "opponent_points": 0,
+                "host_username": host,
+                "opponent_username": "الخصم",
+                "battle_type": "1v1",
+                "host_anchors": [],
+                "opponent_anchors": [],
+                "host_armies": [],
+                "opponent_armies": [],
+            }
 
         def reset(self) -> None:
             self.__init__(self._host)
@@ -149,26 +166,55 @@ except ModuleNotFoundError:
                 def to_dict(self_): return txn  # noqa: N805
             return _T()
 
-        def update_pk_battle(self, bid, active, host, opp, hs, os_):
+        def update_pk_battle(
+            self,
+            bid: str = "",
+            active: bool = False,
+            host: str = "",
+            opp: str = "",
+            hs: int = 0,
+            os_: int = 0,
+            status: str = "IDLE",
+            battle_type: str = "1v1",
+            host_anchors: list | None = None,
+            opponent_anchors: list | None = None,
+            host_armies: list | None = None,
+            opponent_armies: list | None = None,
+        ):
             was_active = self._pk.get("is_active", False)
             host_wins    = self._pk.get("host_wins", 0)
             opponent_wins = self._pk.get("opponent_wins", 0)
             round_number  = self._pk.get("round_number", 1)
 
-            # Auto-tally wins on active → ended transition (same battle_id)
-            if was_active and not active and self._pk.get("battle_id") == bid:
-                if self._pk.get("host_points", 0) >= self._pk.get("opponent_points", 0):
+            # Transition from active to ended: auto-tally winner
+            if was_active and (status == "ENDED" or not active):
+                if hs > os_:
                     host_wins += 1
-                else:
+                elif os_ > hs:
                     opponent_wins += 1
                 round_number += 1
 
+            prev_host_anchors = self._pk.get("host_anchors", [])
+            prev_opp_anchors = self._pk.get("opponent_anchors", [])
+            prev_host_armies = self._pk.get("host_armies", [])
+            prev_opp_armies = self._pk.get("opponent_armies", [])
+
             self._pk = {
-                "is_active": active, "battle_id": bid,
-                "host_username": host, "opponent_username": opp,
-                "host_points": hs, "opponent_points": os_,
-                "host_wins": host_wins, "opponent_wins": opponent_wins,
+                "is_active": active,
+                "status": status,
+                "battle_id": bid or self._pk.get("battle_id", ""),
+                "host_username": host or self._pk.get("host_username", self._host),
+                "opponent_username": opp or self._pk.get("opponent_username", "الخصم"),
+                "host_points": hs,
+                "opponent_points": os_,
+                "host_wins": host_wins,
+                "opponent_wins": opponent_wins,
                 "round_number": round_number,
+                "battle_type": battle_type or self._pk.get("battle_type", "1v1"),
+                "host_anchors": host_anchors if host_anchors is not None else prev_host_anchors,
+                "opponent_anchors": opponent_anchors if opponent_anchors is not None else prev_opp_anchors,
+                "host_armies": host_armies if host_armies is not None else prev_host_armies,
+                "opponent_armies": opponent_armies if opponent_armies is not None else prev_opp_armies,
             }
 
         def get_top_supporters(self, limit: int = 10):
@@ -272,6 +318,212 @@ def _user_info(user) -> dict:
     }
 
 
+def _extract_avatar(obj) -> str:
+    """Extract avatar URL safely from any user or image proto object."""
+    if not obj:
+        return ""
+    if isinstance(obj, str) and obj.startswith("http"):
+        return obj
+    for attr in ("avatar_thumb", "avatar_medium", "avatar_large", "avatar", "image"):
+        sub = _safe(obj, attr)
+        if sub:
+            urls = _safe(sub, "url_list")
+            if urls and isinstance(urls, (list, tuple)) and len(urls) > 0:
+                return str(urls[0])
+            if isinstance(sub, str) and sub.startswith("http"):
+                return sub
+    urls = _safe(obj, "url_list")
+    if urls and isinstance(urls, (list, tuple)) and len(urls) > 0:
+        return str(urls[0])
+    return ""
+
+
+def _parse_anchor_user(wrapper, default_anchor_id: str = "") -> dict:
+    """Extract anchor details from BattleUserInfoWrapper or similar."""
+    key = str(_safe(wrapper, "key", default=default_anchor_id))
+    val = _safe(wrapper, "value", default=wrapper)
+    user = _safe(val, "user", default=val)
+
+    u_id = str(_safe(user, "id", default=key) or key)
+    unique_id = str(_safe(user, "display_id", default="") or _safe(user, "unique_id", default=""))
+    nickname = str(_safe(user, "nickname", default="") or unique_id or f"User_{u_id[:6] if u_id else 'pk'}")
+    avatar_url = _extract_avatar(user)
+
+    return {
+        "anchor_id": key or u_id,
+        "user_id": u_id,
+        "unique_id": unique_id,
+        "nickname": nickname,
+        "avatar_url": avatar_url,
+    }
+
+
+def _parse_battle_anchors_and_teams(
+    event, current_username: str, streamer_uid: str = "", streamer_avatar: str = ""
+):
+    """
+    Parses anchors_info and team_member from LinkMicBattleEvent.
+    Returns: (host_anchors, opponent_anchors, battle_type)
+    """
+    current_lower = current_username.lower().lstrip("@")
+    anchors_info = _safe(event, "anchors_info")
+    anchors = []
+
+    if anchors_info and isinstance(anchors_info, (list, tuple)):
+        for item in anchors_info:
+            anchors.append(_parse_anchor_user(item))
+    elif isinstance(anchors_info, dict):
+        for k, v in anchors_info.items():
+            class _W:
+                key = k
+                value = v
+            anchors.append(_parse_anchor_user(_W()))
+
+    # Check team_member
+    team_members = _safe(event, "team_member")
+    teams_dict = {}  # team_id -> list of user_ids (str)
+    if team_members and isinstance(team_members, (list, tuple)):
+        for tm in team_members:
+            tid = _safe(tm, "team_id", default=0)
+            uids = [str(x) for x in (_safe(tm, "user_id") or [])]
+            if uids:
+                teams_dict[tid] = uids
+
+    host_anchors = []
+    opponent_anchors = []
+
+    if teams_dict and len(teams_dict) >= 2:
+        # Find which team belongs to current_username / streamer_uid
+        host_team_id = None
+        for tid, uids in teams_dict.items():
+            for a in anchors:
+                if (a["user_id"] in uids or a["anchor_id"] in uids) and (
+                    a["unique_id"].lower() == current_lower
+                    or (streamer_uid and a["user_id"] == streamer_uid)
+                ):
+                    host_team_id = tid
+                    break
+            if host_team_id is not None:
+                break
+
+        if host_team_id is not None:
+            for a in anchors:
+                a_uids = teams_dict.get(host_team_id, [])
+                if a["user_id"] in a_uids or a["anchor_id"] in a_uids:
+                    a["is_host_side"] = True
+                    host_anchors.append(a)
+                else:
+                    a["is_host_side"] = False
+                    opponent_anchors.append(a)
+
+    # Fallback if no team_members or grouping failed
+    if not host_anchors and anchors:
+        for a in anchors:
+            if a["unique_id"].lower() == current_lower or (
+                streamer_uid and a["user_id"] == streamer_uid
+            ):
+                a["is_host_side"] = True
+                host_anchors.append(a)
+            else:
+                a["is_host_side"] = False
+                opponent_anchors.append(a)
+
+        # If still no host matched, assign first to host
+        if not host_anchors and opponent_anchors:
+            first = opponent_anchors.pop(0)
+            first["is_host_side"] = True
+            host_anchors.append(first)
+
+    # If anchors list was completely empty
+    if not host_anchors:
+        host_anchors = [{
+            "anchor_id": streamer_uid or "0",
+            "user_id": streamer_uid or "0",
+            "unique_id": current_username,
+            "nickname": current_username,
+            "avatar_url": streamer_avatar,
+            "is_host_side": True,
+        }]
+    if not opponent_anchors:
+        opponent_anchors = [{
+            "anchor_id": "opp",
+            "user_id": "opp",
+            "unique_id": "opponent",
+            "nickname": "الخصم",
+            "avatar_url": "",
+            "is_host_side": False,
+        }]
+
+    battle_type = "2v2" if (len(host_anchors) + len(opponent_anchors)) > 2 else "1v1"
+    return host_anchors, opponent_anchors, battle_type
+
+
+def _parse_armies_dict(armies_field) -> dict:
+    """Parses armies from LinkMicBattleEvent or LinkMicArmiesEvent into structured dict."""
+    armies_data = {}
+    if isinstance(armies_field, dict):
+        items = list(armies_field.items())
+    elif isinstance(armies_field, (list, tuple)):
+        items = []
+        for it in armies_field:
+            k = _safe(it, "key", default=None)
+            v = _safe(it, "value", default=it)
+            if k is not None:
+                items.append((k, v))
+            else:
+                anchor_id = str(_safe(v, "anchor_id_str", default="") or _safe(v, "anchor_id", default=""))
+                if anchor_id:
+                    items.append((anchor_id, v))
+    else:
+        items = []
+
+    for key, army_obj in items:
+        aid = str(key)
+        score = int(_safe(army_obj, "hostscore", default=0) or 0)
+        user_armies = _safe(army_obj, "user_armies") or []
+        contributors = []
+        if isinstance(user_armies, (list, tuple)):
+            for c in user_armies:
+                c_uid = str(_safe(c, "user_id", default="") or _safe(c, "user_id_str", default=""))
+                c_nick = str(_safe(c, "nickname", default="داعـم"))
+                c_score = int(_safe(c, "score", default=0) or 0)
+                c_diam = int(_safe(c, "diamond_score", default=0) or 0)
+                c_av = _extract_avatar(_safe(c, "avatar_thumb"))
+                contributors.append({
+                    "user_id": c_uid,
+                    "nickname": c_nick,
+                    "score": c_score,
+                    "diamond_score": c_diam,
+                    "avatar_url": c_av,
+                })
+        contributors.sort(key=lambda x: x["score"], reverse=True)
+        armies_data[aid] = {
+            "score": score,
+            "contributors": contributors,
+        }
+    return armies_data
+
+
+def _aggregate_team_armies(anchors: list, armies_dict: dict):
+    """Calculates total team score and top 3 contributors (MVPs)."""
+    team_score = 0
+    all_contributors = []
+    seen_users = set()
+
+    for a in anchors:
+        aid = a.get("anchor_id", "")
+        uid = a.get("user_id", "")
+        entry = armies_dict.get(aid) or armies_dict.get(uid) or {}
+        team_score += entry.get("score", 0)
+        for c in entry.get("contributors", []):
+            if c["user_id"] not in seen_users:
+                seen_users.add(c["user_id"])
+                all_contributors.append(c)
+
+    all_contributors.sort(key=lambda x: x["score"], reverse=True)
+    return team_score, all_contributors[:3]
+
+
 # ---------------------------------------------------------------------------
 # TikTokSession — wraps one live room tracking session
 # ---------------------------------------------------------------------------
@@ -289,6 +541,10 @@ class TikTokSession:
         self._client: TikTokLiveClient | None = None
         self._running   = False
         self._task: asyncio.Task | None = None
+        self._streamer_user_id   = ""
+        self._streamer_unique_id = ""
+        self._streamer_nickname  = ""
+        self._streamer_avatar    = ""
 
     # ------------------------------------------------------------------
     # Public API
@@ -400,10 +656,17 @@ class TikTokSession:
                 "room_id":  str(event.room_id),
             })
 
-            # Fetch initial room info safely (likes, viewer count, diamonds from start of live)
+            # Fetch initial room info safely
             try:
                 r_info = await client._web.fetch_room_info()
                 if r_info and isinstance(r_info, dict):
+                    owner = r_info.get("owner", {}) or {}
+                    if owner:
+                        self._streamer_user_id   = str(owner.get("id", "") or owner.get("id_str", ""))
+                        self._streamer_unique_id = str(owner.get("display_id", "") or self.username)
+                        self._streamer_nickname  = str(owner.get("nickname", "") or self.username)
+                        self._streamer_avatar    = _extract_avatar(owner)
+
                     init_likes = int(r_info.get("like_count", 0) or 0)
                     if init_likes > 0:
                         self._engine.set_total_likes(init_likes)
@@ -430,12 +693,10 @@ class TikTokSession:
         # ---- Viewer Count (RoomUserSeqEvent in TikTokLive v7) ----
         @client.on(RoomUserSeqEvent)
         async def on_viewers(event: RoomUserSeqEvent):
-            # TikTokLive v7: 'total' is the current live viewers count!
             viewers = int(_safe(event, "total", default=0) or _safe(event, "total_user", default=0))
             if viewers > 0:
                 self._engine.update_viewer_count(viewers)
 
-            # Process top contributors from room
             ranks = _safe(event, "ranks")
             if ranks and isinstance(ranks, (list, tuple)):
                 for contributor in ranks:
@@ -491,8 +752,6 @@ class TikTokSession:
         async def on_like(event: LikeEvent):
             user  = _safe(event, "user")
             uinfo = _user_info(user)
-            # count = likes sent in this click/burst
-            # total = cumulative likes in room since live stream started
             like_count       = int(_safe(event, "count", default=0))
             total_room_likes = int(_safe(event, "total", default=0))
 
@@ -525,22 +784,47 @@ class TikTokSession:
             gift      = _safe(event, "gift")
             gift_id   = str(_safe(event, "gift_id", default=0) or _safe(gift, "id", default="0"))
             gift_name = str(_safe(gift, "name", default="Unknown Gift"))
-            gift_icon = ""
-            icon_obj  = _safe(gift, "image")
-            if icon_obj:
-                icon_urls = _safe(icon_obj, "url_list")
-                if icon_urls and isinstance(icon_urls, (list, tuple)) and len(icon_urls) > 0:
-                    gift_icon = icon_urls[0]
+            gift_icon = _extract_avatar(gift) or _extract_avatar(_safe(gift, "image"))
 
             unit_diamonds = int(_safe(gift, "diamond_count", default=0) or _safe(event, "fan_ticket_count", default=0))
             repeat_count  = int(_safe(event, "repeat_count", default=1) or 1)
-
-            # repeat_end: 1 means streak ended, 0 means ongoing
-            repeat_end   = int(_safe(event, "repeat_end", default=0))
+            repeat_end    = int(_safe(event, "repeat_end", default=0))
             streak_active = (repeat_end == 0)
 
-            # Cumulative room fan tickets from start of live:
             room_fan_tickets = int(_safe(event, "room_fan_ticket_count", default=0))
+
+            # Determine recipient side during PK Battle
+            to_user = _safe(event, "to_user")
+            to_uid  = str(_safe(to_user, "id", default="") or _safe(event, "to_member_id_int", default=""))
+            to_uniq = str(_safe(to_user, "display_id", default="") or _safe(to_user, "unique_id", default=""))
+
+            pk_st = self._engine.get_pk_state()
+            pk_dict = pk_st.to_dict() if hasattr(pk_st, "to_dict") else pk_st.__dict__
+            is_pk = pk_dict.get("is_active", False)
+
+            recipient_side = "host"
+            recipient_name = self._streamer_nickname or self.username
+
+            if is_pk:
+                opps  = pk_dict.get("opponent_anchors", [])
+                hosts = pk_dict.get("host_anchors", [])
+                is_opp = False
+                for op in opps:
+                    if (to_uid and to_uid == op.get("user_id")) or (
+                        to_uniq and to_uniq.lower() == op.get("unique_id", "").lower()
+                    ):
+                        is_opp = True
+                        recipient_name = op.get("nickname") or op.get("unique_id") or "الخصم"
+                        break
+                if is_opp:
+                    recipient_side = "opponent"
+                else:
+                    for h in hosts:
+                        if (to_uid and to_uid == h.get("user_id")) or (
+                            to_uniq and to_uniq.lower() == h.get("unique_id", "").lower()
+                        ):
+                            recipient_name = h.get("nickname") or h.get("unique_id") or self.username
+                            break
 
             txn = self._engine.process_gift(
                 uinfo["user_id"], uinfo["unique_id"],
@@ -549,7 +833,6 @@ class TikTokSession:
                 unit_diamonds, repeat_count, streak_active,
             )
 
-            # If room_fan_ticket_count is available, synchronize total diamonds
             if room_fan_tickets > 0:
                 self._engine.set_total_diamonds(room_fan_tickets)
 
@@ -575,65 +858,168 @@ class TikTokSession:
                     "total_diamonds": total_diamonds,
                     "estimated_usd":  estimated_usd,
                     "net_payout_usd": net_payout,
+                    "recipient_side": recipient_side,
+                    "recipient_name": recipient_name,
+                    "is_battle_gift": is_pk,
                 },
                 "leaderboard": leaderboard,
             })
 
-        # ---- PK Battle Start ----
+        # ---- PK Battle Start / State Change ----
         @client.on(LinkMicBattleEvent)
         async def on_pk_battle(event: LinkMicBattleEvent):
             battle_id = str(_safe(event, "battle_id", default=""))
-            self._engine.update_pk_battle(
-                battle_id, True,
-                self.username, "opponent",
-                0, 0,
+            host_anchors, opp_anchors, b_type = _parse_battle_anchors_and_teams(
+                event, self.username, self._streamer_user_id, self._streamer_avatar
             )
+
+            armies_raw = _safe(event, "armies")
+            armies_dict = _parse_armies_dict(armies_raw)
+            host_score, host_mvps = _aggregate_team_armies(host_anchors, armies_dict)
+            opp_score, opp_mvps   = _aggregate_team_armies(opp_anchors, armies_dict)
+
+            # Determine action / status
+            act = _safe(event, "action", default=4)
+            act_str = str(act).upper()
+            if act == 4 or "OPEN" in act_str or act_str == "4":
+                status = "ACTIVE"
+                is_active = True
+            elif act == 5 or "FINISH" in act_str or act_str == "5":
+                status = "PUNISH"
+                is_active = True
+            elif act in (3, 6, 11) or any(x in act_str for x in ("CANCEL", "CUT_SHORT", "LEAVE")):
+                status = "ENDED"
+                is_active = False
+            else:
+                status = "ACTIVE" if battle_id else "IDLE"
+                is_active = bool(battle_id)
+
+            host_name = host_anchors[0].get("unique_id", self.username) if host_anchors else self.username
+            opp_name  = opp_anchors[0].get("unique_id", "opponent") if opp_anchors else "opponent"
+
+            self._engine.update_pk_battle(
+                bid=battle_id,
+                active=is_active,
+                host=host_name,
+                opp=opp_name,
+                hs=host_score,
+                os_=opp_score,
+                status=status,
+                battle_type=b_type,
+                host_anchors=host_anchors,
+                opponent_anchors=opp_anchors,
+                host_armies=host_mvps,
+                opponent_armies=opp_mvps,
+            )
+
             pk = self._engine.get_pk_state()
             pk_dict = pk.to_dict() if hasattr(pk, "to_dict") else pk.__dict__
-            await self._send({"type": "pk_battle", "data": pk_dict, "event": "start"})
+            event_tag = "start" if status == "ACTIVE" else ("ended" if status == "ENDED" else "update")
+            await self._send({"type": "pk_battle", "data": pk_dict, "event": event_tag})
 
-        # ---- PK Armies Update ----
+        # ---- PK Armies Live Points & Contributors Update ----
         @client.on(LinkMicArmiesEvent)
         async def on_pk_armies(event: LinkMicArmiesEvent):
-            battle_id = str(_safe(event, "battle_id", default=""))
-            armies    = _safe(event, "battle_groups")
+            battle_id  = str(_safe(event, "battle_id", default=""))
+            armies_raw = _safe(event, "armies")
+            armies_dict = _parse_armies_dict(armies_raw)
 
-            host_score     = 0
-            opponent_score = 0
-            host_name      = self.username
-            opponent_name  = "opponent"
+            curr_pk = self._engine.get_pk_state()
+            curr_pk_dict = curr_pk.to_dict() if hasattr(curr_pk, "to_dict") else curr_pk.__dict__
+            host_anchors = curr_pk_dict.get("host_anchors", [])
+            opp_anchors  = curr_pk_dict.get("opponent_anchors", [])
 
-            if armies and isinstance(armies, (list, tuple)):
-                if len(armies) >= 1:
-                    g0         = armies[0]
-                    host_score = int(_safe(g0, "points", default=0))
-                    members_0  = _safe(g0, "users")
-                    if members_0 and len(members_0) > 0:
-                        host_name = str(_safe(members_0[0], "unique_id", default=self.username))
-                if len(armies) >= 2:
-                    g1             = armies[1]
-                    opponent_score = int(_safe(g1, "points", default=0))
-                    members_1      = _safe(g1, "users")
-                    if members_1 and len(members_1) > 0:
-                        opponent_name = str(_safe(members_1[0], "unique_id", default="opponent"))
+            if not host_anchors or not opp_anchors:
+                host_anchors, opp_anchors, _ = _parse_battle_anchors_and_teams(
+                    event, self.username, self._streamer_user_id, self._streamer_avatar
+                )
+
+            host_score, host_mvps = _aggregate_team_armies(host_anchors, armies_dict)
+            opp_score, opp_mvps   = _aggregate_team_armies(opp_anchors, armies_dict)
+
+            host_score = max(host_score, curr_pk_dict.get("host_points", 0))
+            opp_score  = max(opp_score, curr_pk_dict.get("opponent_points", 0))
 
             is_finished = bool(_safe(event, "is_finished", default=False))
-            is_active   = not is_finished
+            status = "ENDED" if is_finished else "ACTIVE"
+            is_active = not is_finished
 
             self._engine.update_pk_battle(
-                battle_id, is_active,
-                host_name, opponent_name,
-                host_score, opponent_score,
+                bid=battle_id,
+                active=is_active,
+                hs=host_score,
+                os_=opp_score,
+                status=status,
+                host_anchors=host_anchors,
+                opponent_anchors=opp_anchors,
+                host_armies=host_mvps,
+                opponent_armies=opp_mvps,
             )
 
             pk = self._engine.get_pk_state()
             pk_dict = pk.to_dict() if hasattr(pk, "to_dict") else pk.__dict__
+
+            # Check if this armies event carried a battle gift alert
+            gift_id    = int(_safe(event, "gift_id", default=0) or 0)
+            diam_count = int(_safe(event, "total_diamond_count", default=0) or 0)
+            from_uid   = str(_safe(event, "from_user_id", default="0") or "0")
+            if gift_id > 0 and diam_count > 0 and from_uid != "0":
+                sender_nick = "داعـم"
+                sender_av   = ""
+                for c in (host_mvps + opp_mvps):
+                    if c.get("user_id") == from_uid:
+                        sender_nick = c.get("nickname") or "داعـم"
+                        sender_av   = c.get("avatar_url") or ""
+                        break
+                gift_icon = _extract_avatar(_safe(event, "gift_icon_image"))
+                await self._send({
+                    "type": "gift",
+                    "data": {
+                        "user": {
+                            "user_id": from_uid,
+                            "unique_id": "",
+                            "nickname": sender_nick,
+                            "avatar_url": sender_av,
+                        },
+                        "transaction": {
+                            "gift_id": str(gift_id),
+                            "gift_name": "PK Gift",
+                            "gift_icon_url": gift_icon,
+                            "diamond_unit_cost": diam_count,
+                            "repeat_count": int(_safe(event, "repeat_count", default=1) or 1),
+                            "is_streak_ending": True,
+                            "total_value": diam_count,
+                        },
+                        "streak_active": False,
+                        "repeat_count": int(_safe(event, "repeat_count", default=1) or 1),
+                        "total_diamonds": self._engine.get_total_diamonds(),
+                        "estimated_usd": round(self._engine.get_total_diamonds() * DIAMOND_TO_USD_RATE, 4),
+                        "net_payout_usd": round(self._engine.get_total_diamonds() * DIAMOND_TO_USD_RATE * NET_PAYOUT_RATIO, 4),
+                        "recipient_side": "host",
+                        "recipient_name": self.username,
+                        "is_battle_gift": True,
+                    },
+                    "leaderboard": [(s.to_dict() if hasattr(s, "to_dict") else s) for s in self._engine.get_top_supporters(10)],
+                })
 
             await self._send({
                 "type":  "pk_battle",
                 "data":  pk_dict,
                 "event": "ended" if is_finished else "update",
             })
+
+        # ---- PK Punishment Finish ----
+        @client.on(LinkMicBattlePunishFinishEvent)
+        async def on_pk_punish_finish(event: LinkMicBattlePunishFinishEvent):
+            bid = str(_safe(event, "battle_id", default=""))
+            self._engine.update_pk_battle(
+                bid=bid,
+                active=False,
+                status="ENDED",
+            )
+            pk = self._engine.get_pk_state()
+            pk_dict = pk.to_dict() if hasattr(pk, "to_dict") else pk.__dict__
+            await self._send({"type": "pk_battle", "data": pk_dict, "event": "ended"})
 
     async def _send(self, payload: dict) -> None:
         """Safely call the broadcast coroutine (swallows closed-socket errors)."""

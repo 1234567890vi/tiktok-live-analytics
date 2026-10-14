@@ -46,18 +46,36 @@ const DOM = {
   kpiNet:      $('kpiNet'),
   kpiComments: $('kpiComments'),
 
-  // PK
-  pkSection:      $('pkSection'),
-  pkStatusBadge:  $('pkStatusBadge'),
-  pkRoundNum:     $('pkRoundNum'),
-  pkHostName:     $('pkHostName'),
-  pkOpponentName: $('pkOpponentName'),
-  pkHostBar:      $('pkHostBar'),
-  pkOpponentBar:  $('pkOpponentBar'),
-  pkHostScore:    $('pkHostScore'),
-  pkOppScore:     $('pkOppScore'),
-  pkHostWins:     $('pkHostWins'),
-  pkOppWins:      $('pkOppWins'),
+  // PK Arena
+  pkSection:        $('pkSection'),
+  pkBattleType:     $('pkBattleType'),
+  pkStatusBadge:    $('pkStatusBadge'),
+  pkRoundNum:       $('pkRoundNum'),
+  pkHostWins:       $('pkHostWins'),
+  pkOppWins:        $('pkOppWins'),
+  pkHostAvatar:     $('pkHostAvatar'),
+  pkHostNick:       $('pkHostNick'),
+  pkHostName:       $('pkHostName'),
+  pkTeammateCard:   $('pkTeammateCard'),
+  pkTeammateAvatar: $('pkTeammateAvatar'),
+  pkTeammateNick:   $('pkTeammateNick'),
+  pkTeammateName:   $('pkTeammateName'),
+  pkHostScore:      $('pkHostScore'),
+  pkHostMvps:       $('pkHostMvps'),
+  pkScoreDiff:      $('pkScoreDiff'),
+  pkOppAvatar1:     $('pkOppAvatar1'),
+  pkOppNick1:       $('pkOppNick1'),
+  pkOppName1:       $('pkOppName1'),
+  pkOppCard2:       $('pkOppCard2'),
+  pkOppAvatar2:     $('pkOppAvatar2'),
+  pkOppNick2:       $('pkOppNick2'),
+  pkOppName2:       $('pkOppName2'),
+  pkOppScore:       $('pkOppScore'),
+  pkOppMvps:        $('pkOppMvps'),
+  pkHostBar:        $('pkHostBar'),
+  pkOpponentBar:    $('pkOpponentBar'),
+  pkHostPct:        $('pkHostPct'),
+  pkOppPct:         $('pkOppPct'),
 
   // Feeds
   commentsFeed:    $('commentsFeed'),
@@ -222,49 +240,72 @@ function addGift(data) {
   const giftName = txn.gift_name     || 'Gift';
   const iconUrl  = txn.gift_icon_url || '';
   const combo    = data.repeat_count || txn.repeat_count || 1;
-  const diamonds = txn.total_value   || 0;
+  const diamonds = txn.total_value   || (txn.diamond_unit_cost ? txn.diamond_unit_cost * combo : 0);
   const isStreak = !!data.streak_active;
 
   const card = document.createElement('div');
   card.className = `gift-card${isStreak ? ' streak-active' : ''}`;
 
-  // Icon
-  const iconDiv = document.createElement('div');
-  iconDiv.className = 'gift-icon';
+  // Avatar + mini gift icon
+  const avDiv = document.createElement('div');
+  avDiv.style.cssText = 'position:relative;flex-shrink:0;';
+
+  const userAv = avatarEl(user.avatar_url, user.nickname, 'comment-avatar');
+  userAv.style.cssText = 'width:38px;height:38px;border-radius:50%;object-fit:cover;border:1px solid rgba(255,255,255,0.2);';
+
   if (iconUrl) {
-    const img = document.createElement('img');
-    img.src = iconUrl;
-    img.alt = giftName;
-    img.onerror = () => { iconDiv.textContent = '🎁'; };
-    iconDiv.appendChild(img);
+    const giftMini = document.createElement('img');
+    giftMini.src = iconUrl;
+    giftMini.alt = giftName;
+    giftMini.style.cssText = 'position:absolute;bottom:-4px;right:-4px;width:20px;height:20px;object-fit:contain;filter:drop-shadow(0 0 4px rgba(0,0,0,0.8));';
+    giftMini.onerror = () => { giftMini.remove(); };
+    avDiv.append(userAv, giftMini);
   } else {
-    iconDiv.textContent = '🎁';
+    avDiv.appendChild(userAv);
   }
 
   // Info block
   const info = document.createElement('div');
   info.className = 'gift-info';
 
-  const sender = document.createElement('div');
+  const senderRow = document.createElement('div');
+  senderRow.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;';
+
+  const sender = document.createElement('span');
   sender.className   = 'gift-sender';
   sender.textContent = user.nickname || user.unique_id || 'Someone';
 
+  const handle = document.createElement('span');
+  handle.className   = 'comment-handle';
+  handle.textContent = user.unique_id ? `@${user.unique_id}` : '';
+
+  senderRow.append(sender, handle);
+
   const nameLine = document.createElement('div');
   nameLine.className   = 'gift-name';
-  nameLine.textContent = giftName;
+  nameLine.innerHTML   = `${giftName} <span style="color:#fbbf24;font-weight:700;">💎 ${fmt(diamonds)}</span>`;
 
-  const val = document.createElement('div');
-  val.className   = 'gift-value';
-  val.textContent = `💎 ${diamonds} diamonds`;
+  // Recipient Team Badge (معه أو ضده)
+  if (data.recipient_side === 'opponent') {
+    const recBadge = document.createElement('span');
+    recBadge.className = 'gift-recipient-badge badge-opponent';
+    recBadge.textContent = `🔴 للخصم (@${data.recipient_name || 'الخصم'})`;
+    nameLine.appendChild(recBadge);
+  } else if (data.recipient_side === 'host' || data.is_battle_gift) {
+    const recBadge = document.createElement('span');
+    recBadge.className = 'gift-recipient-badge badge-host';
+    recBadge.textContent = `🔵 لفريقنا (@${data.recipient_name || 'فريقنا'})`;
+    nameLine.appendChild(recBadge);
+  }
 
-  info.append(sender, nameLine, val);
+  info.append(senderRow, nameLine);
 
   // Combo counter
   const comboDiv = document.createElement('div');
   comboDiv.className   = 'gift-combo';
   comboDiv.textContent = `x${combo}`;
 
-  card.append(iconDiv, info, comboDiv);
+  card.append(avDiv, info, comboDiv);
 
   while (DOM.giftFeed.children.length >= MAX_GIFTS) {
     DOM.giftFeed.firstChild.remove();
@@ -272,7 +313,7 @@ function addGift(data) {
   DOM.giftFeed.prepend(card);
 
   giftCount++;
-  DOM.giftCount.textContent = `${giftCount} gifts`;
+  DOM.giftCount.textContent = `${fmt(giftCount)} gifts`;
 
   // Show combo burst popup for streaks >= 5
   if (combo >= 5) showComboBurst(giftName, iconUrl || '🎁', combo);
@@ -425,44 +466,161 @@ function renderLikers(fromSnapshot = null) {
 function updatePK(pkData, eventType) {
   if (!pkData) return;
 
-  const isActive     = pkData.is_active;
-  const hostName     = pkData.host_username     || 'HOST';
-  const opponentName = pkData.opponent_username || 'OPPONENT';
-  const hostScore    = pkData.host_points       || 0;
-  const oppScore     = pkData.opponent_points   || 0;
-  const hostWins     = pkData.host_wins         || 0;
-  const oppWins      = pkData.opponent_wins     || 0;
-  const roundNum     = pkData.round_number      || 1;
+  const isActive     = !!pkData.is_active;
+  const status       = pkData.status || (isActive ? 'ACTIVE' : 'IDLE');
+  const battleType   = pkData.battle_type || '1v1';
+  const hostScore    = pkData.host_points || 0;
+  const oppScore     = pkData.opponent_points || 0;
+  const hostWins     = pkData.host_wins || 0;
+  const oppWins      = pkData.opponent_wins || 0;
+  const roundNum     = pkData.round_number || 1;
 
-  DOM.pkHostName.textContent     = `@${hostName}`;
-  DOM.pkOpponentName.textContent = `@${opponentName}`;
-  DOM.pkHostScore.textContent    = fmt(hostScore);
-  DOM.pkOppScore.textContent     = fmt(oppScore);
-  DOM.pkHostWins.textContent     = hostWins;
-  DOM.pkOppWins.textContent      = oppWins;
-  DOM.pkRoundNum.textContent     = roundNum;
+  if (DOM.pkBattleType) DOM.pkBattleType.textContent = battleType;
+  if (DOM.pkRoundNum)   DOM.pkRoundNum.textContent   = roundNum;
+  if (DOM.pkHostWins)   DOM.pkHostWins.textContent   = hostWins;
+  if (DOM.pkOppWins)    DOM.pkOppWins.textContent    = oppWins;
+  if (DOM.pkHostScore)  DOM.pkHostScore.textContent  = fmt(hostScore);
+  if (DOM.pkOppScore)   DOM.pkOppScore.textContent   = fmt(oppScore);
 
+  // Status Badge
+  if (DOM.pkStatusBadge) {
+    if (status === 'ACTIVE' || (isActive && status !== 'PUNISH')) {
+      DOM.pkStatusBadge.textContent = '🔴 جولة جارية';
+      DOM.pkStatusBadge.className   = 'px-3 py-1 rounded-full text-xs font-bold bg-red-950 text-red-300 border border-red-700 animate-pulse';
+      DOM.pkSection?.classList.add('pk-active');
+    } else if (status === 'PUNISH') {
+      DOM.pkStatusBadge.textContent = '⏱️ وقت الحكم';
+      DOM.pkStatusBadge.className   = 'px-3 py-1 rounded-full text-xs font-bold bg-amber-950 text-amber-300 border border-amber-700 animate-pulse';
+      DOM.pkSection?.classList.add('pk-active');
+    } else if (status === 'ENDED' || eventType === 'ended') {
+      DOM.pkStatusBadge.textContent = '🏆 انتهت الجولة';
+      DOM.pkStatusBadge.className   = 'px-3 py-1 rounded-full text-xs font-bold bg-emerald-950 text-emerald-300 border border-emerald-700';
+      DOM.pkSection?.classList.remove('pk-active');
+    } else {
+      DOM.pkStatusBadge.textContent = '⏸️ في انتظار جولة';
+      DOM.pkStatusBadge.className   = 'px-3 py-1 rounded-full text-xs font-bold bg-gray-800 text-gray-400 border border-gray-700';
+      DOM.pkSection?.classList.remove('pk-active');
+    }
+  }
+
+  // Populate Host Side (معه)
+  const hostAnchors = pkData.host_anchors || [];
+  if (hostAnchors.length > 0) {
+    const h0 = hostAnchors[0];
+    if (DOM.pkHostNick)   DOM.pkHostNick.textContent   = h0.nickname || h0.unique_id || 'المضيف';
+    if (DOM.pkHostName)   DOM.pkHostName.textContent   = h0.unique_id ? `@${h0.unique_id}` : '';
+    if (DOM.pkHostAvatar && h0.avatar_url) DOM.pkHostAvatar.src = h0.avatar_url;
+
+    // Teammate (if 2v2)
+    if (hostAnchors.length > 1) {
+      const h1 = hostAnchors[1];
+      if (DOM.pkTeammateCard) DOM.pkTeammateCard.classList.remove('hidden');
+      if (DOM.pkTeammateNick) DOM.pkTeammateNick.textContent = h1.nickname || h1.unique_id || 'الحليف';
+      if (DOM.pkTeammateName) DOM.pkTeammateName.textContent = h1.unique_id ? `@${h1.unique_id}` : '';
+      if (DOM.pkTeammateAvatar && h1.avatar_url) DOM.pkTeammateAvatar.src = h1.avatar_url;
+    } else if (DOM.pkTeammateCard) {
+      DOM.pkTeammateCard.classList.add('hidden');
+    }
+  } else if (pkData.host_username) {
+    if (DOM.pkHostName) DOM.pkHostName.textContent = `@${pkData.host_username}`;
+    if (DOM.pkHostNick) DOM.pkHostNick.textContent = pkData.host_username;
+  }
+
+  // Populate Opponent Side (ضده)
+  const oppAnchors = pkData.opponent_anchors || [];
+  if (oppAnchors.length > 0) {
+    const op0 = oppAnchors[0];
+    if (DOM.pkOppNick1)   DOM.pkOppNick1.textContent   = op0.nickname || op0.unique_id || 'الخصم';
+    if (DOM.pkOppName1)   DOM.pkOppName1.textContent   = op0.unique_id ? `@${op0.unique_id}` : '';
+    if (DOM.pkOppAvatar1 && op0.avatar_url) DOM.pkOppAvatar1.src = op0.avatar_url;
+
+    // Opponent 2 (if 2v2)
+    if (oppAnchors.length > 1) {
+      const op1 = oppAnchors[1];
+      if (DOM.pkOppCard2)   DOM.pkOppCard2.classList.remove('hidden');
+      if (DOM.pkOppNick2)   DOM.pkOppNick2.textContent   = op1.nickname || op1.unique_id || 'الخصم الثاني';
+      if (DOM.pkOppName2)   DOM.pkOppName2.textContent   = op1.unique_id ? `@${op1.unique_id}` : '';
+      if (DOM.pkOppAvatar2 && op1.avatar_url) DOM.pkOppAvatar2.src = op1.avatar_url;
+    } else if (DOM.pkOppCard2) {
+      DOM.pkOppCard2.classList.add('hidden');
+    }
+  } else if (pkData.opponent_username) {
+    if (DOM.pkOppName1) DOM.pkOppName1.textContent = `@${pkData.opponent_username}`;
+    if (DOM.pkOppNick1) DOM.pkOppNick1.textContent = pkData.opponent_username;
+  }
+
+  // Render Host MVPs (كبار الداعمين لفريقنا)
+  renderPkMvps(DOM.pkHostMvps, pkData.host_armies, 'host-score');
+
+  // Render Opponent MVPs (كبار الداعمين للخصم)
+  renderPkMvps(DOM.pkOppMvps, pkData.opponent_armies, 'opp-score');
+
+  // Tug of war ratios & Score Diff
   const total   = (hostScore + oppScore) || 1;
-  const hostPct = Math.round((hostScore / total) * 100);
+  const hostPct = hostScore === 0 && oppScore === 0 ? 50 : Math.round((hostScore / total) * 100);
   const oppPct  = 100 - hostPct;
 
-  DOM.pkHostBar.style.width     = `${hostPct}%`;
-  DOM.pkOpponentBar.style.width = `${oppPct}%`;
+  if (DOM.pkHostBar)     DOM.pkHostBar.style.width     = `${hostPct}%`;
+  if (DOM.pkOpponentBar) DOM.pkOpponentBar.style.width = `${oppPct}%`;
+  if (DOM.pkHostPct)     DOM.pkHostPct.textContent     = `${hostPct}%`;
+  if (DOM.pkOppPct)      DOM.pkOppPct.textContent      = `${oppPct}%`;
 
-  if (isActive) {
-    DOM.pkStatusBadge.textContent = '🔴 LIVE';
-    DOM.pkStatusBadge.className   = 'px-3 py-1 rounded-full text-xs font-bold bg-red-900/60 text-red-300 animate-pulse';
-    DOM.pkSection.classList.add('pk-active');
-  } else {
-    DOM.pkStatusBadge.textContent = eventType === 'ended' ? '✅ ENDED' : 'IDLE';
-    DOM.pkStatusBadge.className   = 'px-3 py-1 rounded-full text-xs font-bold bg-gray-700 text-gray-400';
-    DOM.pkSection.classList.remove('pk-active');
+  if (DOM.pkScoreDiff) {
+    const diff = hostScore - oppScore;
+    if (diff > 0) {
+      DOM.pkScoreDiff.textContent = `+${fmt(diff)} متقدم 🔥`;
+      DOM.pkScoreDiff.className   = 'text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-blue-900/60 text-blue-300 border border-blue-600 whitespace-nowrap shadow-[0_0_8px_rgba(37,99,235,0.4)]';
+    } else if (diff < 0) {
+      DOM.pkScoreDiff.textContent = `${fmt(diff)} متأخر ⚠️`;
+      DOM.pkScoreDiff.className   = 'text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-red-900/60 text-red-300 border border-red-600 whitespace-nowrap shadow-[0_0_8px_rgba(220,38,38,0.4)]';
+    } else {
+      DOM.pkScoreDiff.textContent = 'تعادل ⚖️';
+      DOM.pkScoreDiff.className   = 'text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-gray-800 text-gray-300 border border-gray-700 whitespace-nowrap';
+    }
   }
 
-  if (eventType === 'ended') {
-    const winner = hostScore >= oppScore ? hostName : opponentName;
-    toast(`⚔️ PK Round ${roundNum} ended! Winner: @${winner}`, 'info', 5000);
+  if (eventType === 'ended' || status === 'ENDED') {
+    const winnerName = hostScore >= oppScore
+      ? (hostAnchors[0]?.nickname || pkData.host_username || 'فريقنا')
+      : (oppAnchors[0]?.nickname || pkData.opponent_username || 'الخصم');
+    toast(`⚔️ انتهت الجولة ${roundNum}! الفائز: ${winnerName}`, 'info', 6000);
   }
+}
+
+function renderPkMvps(container, armies, scoreClass) {
+  if (!container) return;
+  if (!armies || armies.length === 0) {
+    container.innerHTML = '<span class="text-xs text-gray-500 italic">في انتظار الداعمين...</span>';
+    return;
+  }
+  container.innerHTML = '';
+  const medals = ['🥇', '🥈', '🥉'];
+  armies.slice(0, 3).forEach((item, idx) => {
+    const pill = document.createElement('div');
+    pill.className = 'pk-mvp-pill';
+    pill.title = `${item.nickname || 'داعـم'}: ${item.score || 0} نقطة`;
+
+    const medal = document.createElement('span');
+    medal.className = 'text-[11px]';
+    medal.textContent = medals[idx] || `#${idx + 1}`;
+
+    const av = document.createElement('img');
+    av.className = 'pk-mvp-avatar';
+    av.src = item.avatar_url || 'https://placehold.co/50x50/334155/white?text=User';
+    av.alt = item.nickname || 'User';
+    av.onerror = () => { av.src = 'https://placehold.co/50x50/334155/white?text=User'; };
+
+    const name = document.createElement('span');
+    name.className = 'pk-mvp-name';
+    name.textContent = item.nickname || 'داعـم';
+
+    const score = document.createElement('span');
+    score.className = `pk-mvp-score ${scoreClass}`;
+    score.textContent = fmt(item.score || 0);
+
+    pill.append(medal, av, name, score);
+    container.appendChild(pill);
+  });
 }
 
 // ---------------------------------------------------------------------------
