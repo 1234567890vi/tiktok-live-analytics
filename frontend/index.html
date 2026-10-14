@@ -1,13 +1,26 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr">
+<html lang="ar" dir="rtl" class="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TikTok Live Analytics Tracker</title>
+  <title>راصد تيك توك المباشر — TikTok Live Analytics Tracker</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Cairo', 'Inter', 'system-ui', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
   <link rel="stylesheet" href="/static/styles.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
 </head>
 <body class="bg-gray-950 text-white font-sans min-h-screen">
 
@@ -163,6 +176,42 @@
        MAIN CONTENT
   ════════════════════════════════════════════════════════════════ -->
   <main class="max-w-screen-2xl mx-auto px-4 py-5 space-y-5">
+
+    <!-- ── ACTIVE STREAMS & DEMO QUICK LAUNCHER ─────────────── -->
+    <section class="glass-card p-3 sm:p-4 border border-pink-900/40 shadow-xl space-y-3">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <!-- Quick Stream Selector -->
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="flex items-center gap-1.5 text-xs font-bold text-gray-300">
+            <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
+            <span>بثوث مباشرة مقترحة (انقر للتتبع فوراً):</span>
+          </div>
+          <div class="flex flex-wrap items-center gap-1.5">
+            <button class="quick-stream-btn px-3 py-1.5 rounded-xl bg-gray-800/90 hover:bg-pink-950/60 border border-gray-700 hover:border-pink-500 text-xs font-bold text-white transition active:scale-95 flex items-center gap-1.5" data-user="aljazeera">
+              <span class="text-red-400">🔴</span> <span>الجزيرة مباشر (@aljazeera)</span>
+            </button>
+            <button class="quick-stream-btn px-3 py-1.5 rounded-xl bg-gray-800/90 hover:bg-pink-950/60 border border-gray-700 hover:border-pink-500 text-xs font-bold text-white transition active:scale-95 flex items-center gap-1.5" data-user="alhadath">
+              <span class="text-red-400">🔴</span> <span>الحدث (@alhadath)</span>
+            </button>
+            <button class="quick-stream-btn px-3 py-1.5 rounded-xl bg-gray-800/90 hover:bg-pink-950/60 border border-gray-700 hover:border-pink-500 text-xs font-bold text-white transition active:scale-95 flex items-center gap-1.5" data-user="alarabiya">
+              <span class="text-red-400">🔴</span> <span>العربية (@alarabiya)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Demo Mode Launcher -->
+        <div class="flex items-center gap-2">
+          <button id="btnDemoMode" class="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs transition active:scale-95 shadow-lg shadow-purple-600/30 flex items-center gap-2">
+            <span>🎮</span>
+            <span>تشغيل محاكاة تجريبية حية (Live Demo)</span>
+          </button>
+        </div>
+      </div>
+      <p class="text-[11px] text-gray-400 leading-relaxed border-t border-gray-800/80 pt-2 flex items-center gap-2">
+        <span>💡</span>
+        <span>لتتبع أي بث تيك توك نشط، اكتب المعرف الإنجليزي للحساب في شريط البحث بالأعلى، أو انقر على أحد البثوث المقترحة أو زر المحاكاة التجريبية أعلاه لترى المنصة تعمل فوراً بكل مزاياها.</span>
+      </p>
+    </section>
 
     <!-- ── KPI CARDS ─────────────────────────────────────────── -->
     <section class="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -418,8 +467,10 @@
           </div>
         </div>
         <div id="commentsFeed" class="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin">
-          <div class="flex items-center justify-center h-full text-gray-600 text-sm">
-            Comments will appear here...
+          <div class="flex flex-col items-center justify-center h-full text-center p-6 space-y-2 text-gray-400">
+            <div class="w-12 h-12 rounded-2xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-2xl border border-purple-500/20 shadow-inner">💬</div>
+            <div class="text-xs font-bold text-gray-200">في انتظار التعليقات المباشرة</div>
+            <div class="text-[11px] text-gray-500 max-w-[220px]">ستظهر تعليقات المشاهدين الحية ورسائل الدردشة هنا فور بدء التتبع</div>
           </div>
         </div>
       </div>
@@ -435,8 +486,10 @@
           <span id="giftCount" class="text-xs text-gray-400 font-mono">0 gifts</span>
         </div>
         <div id="giftFeed" class="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin">
-          <div class="flex items-center justify-center h-full text-gray-600 text-sm">
-            Gift alerts will appear here...
+          <div class="flex flex-col items-center justify-center h-full text-center p-6 space-y-2 text-gray-400">
+            <div class="w-12 h-12 rounded-2xl bg-yellow-500/10 text-yellow-400 flex items-center justify-center text-2xl border border-yellow-500/20 shadow-inner">🎁</div>
+            <div class="text-xs font-bold text-gray-200">في انتظار الهدايا والدعم</div>
+            <div class="text-[11px] text-gray-500 max-w-[220px]">ستظهر تنبيهات الهدايا وقيمتها بالألماسات والكومبو المتحرك هنا فور إرسالها</div>
           </div>
         </div>
       </div>
@@ -451,8 +504,10 @@
           </h2>
         </div>
         <div id="leaderboardList" class="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin">
-          <div class="flex items-center justify-center h-full text-gray-600 text-sm">
-            Leaderboard will update with gifts...
+          <div class="flex flex-col items-center justify-center h-full text-center p-6 space-y-2 text-gray-400">
+            <div class="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-2xl border border-amber-500/20 shadow-inner">🏆</div>
+            <div class="text-xs font-bold text-gray-200">قائمة كبار الداعمين</div>
+            <div class="text-[11px] text-gray-500 max-w-[220px]">يتم ترتيب الداعمين تلقائياً حسب إجمالي الألماسات المقدمة خلال البث</div>
           </div>
         </div>
 
@@ -482,7 +537,10 @@
         <span class="text-xs text-gray-500 font-normal">المعجبون</span>
       </h2>
       <div id="likersRow" class="flex gap-3 overflow-x-auto pb-1 scrollbar-thin">
-        <p class="text-gray-600 text-sm">Top likers will appear here...</p>
+        <div class="flex items-center gap-2 text-gray-500 text-xs py-2">
+          <span class="text-red-400/80">❤️</span>
+          <span>في انتظار نقرات الإعجاب المباشرة لتكريم الأكثر تفاعلاً...</span>
+        </div>
       </div>
     </section>
 

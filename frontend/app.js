@@ -719,6 +719,7 @@ function extractTikTokUsername(raw) {
 // WebSocket connection management
 // ---------------------------------------------------------------------------
 function connectWs(username) {
+  stopDemoSimulation();
   if (ws) {
     ws.close(1000, 'new session');
     ws = null;
@@ -854,6 +855,7 @@ function connectWs(username) {
 }
 
 function disconnectWs() {
+  stopDemoSimulation();
   if (ws) {
     const _ws = ws;     // capture before nulling
     ws = null;          // null first so onclose sees ws===null
@@ -1085,24 +1087,6 @@ function applyLanguage(lang) {
   if ($('labelAdmin')) $('labelAdmin').textContent = t.labelAdmin;
   if ($('descAdmin')) $('descAdmin').textContent = t.descAdmin;
   if ($('btnOpenAdminText')) $('btnOpenAdminText').textContent = t.openAdminBtn;
-
-  // Admin Modal Controls
-  if ($('admModalTitle')) $('admModalTitle').textContent = t.admTitle;
-  if ($('admModalSubtitle')) $('admModalSubtitle').textContent = t.admSubtitle;
-  if ($('admAuthTitle')) $('admAuthTitle').textContent = t.admAuthTitle;
-  if ($('admAuthSubtitle')) $('admAuthSubtitle').textContent = t.admAuthSubtitle;
-  if ($('admLabelActive')) $('admLabelActive').textContent = t.admActiveNow;
-  if ($('admLabelTotal')) $('admLabelTotal').textContent = t.admTotalVisits;
-  if ($('admLabelUptime')) $('admLabelUptime').textContent = t.admUptime;
-  if ($('admTableTitle')) $('admTableTitle').textContent = t.admTableTitle;
-  if ($('admBtnRefresh')) $('admBtnRefresh').textContent = t.refresh;
-  if ($('admBtnLogout')) $('admBtnLogout').textContent = t.logout;
-  if ($('thUser')) $('thUser').textContent = t.thUser;
-  if ($('thStatus')) $('thStatus').textContent = t.thStatus;
-  if ($('thStart')) $('thStart').textContent = t.thStart;
-  if ($('thDuration')) $('thDuration').textContent = t.thDuration;
-  if ($('thDiamonds')) $('thDiamonds').textContent = t.thDiamonds;
-
   // Active button styling
   if (DOM.langArBtn && DOM.langEnBtn) {
     if (lang === 'ar') {
@@ -1112,11 +1096,6 @@ function applyLanguage(lang) {
       DOM.langEnBtn.className = 'flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold border transition active:scale-95 bg-pink-600/20 border-pink-500 text-pink-300';
       DOM.langArBtn.className = 'flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold border transition active:scale-95 bg-gray-800/80 border-gray-700 text-gray-300 hover:bg-gray-800';
     }
-  }
-
-  // Re-render admin table if data is present
-  if (lastAdminData) {
-    renderAdminTable(lastAdminData);
   }
 }
 
@@ -1299,6 +1278,218 @@ document.addEventListener('keydown', e => {
 });
 
 // ---------------------------------------------------------------------------
+// Live Interactive Demo Mode (وضع المحاكاة التجريبية التفاعلي)
+// ---------------------------------------------------------------------------
+let isDemoMode = false;
+let demoTimer = null;
+let demoLikes = 14200;
+let demoViewers = 3120;
+let demoDiamonds = 5890;
+let demoHostScore = 2400;
+let demoOppScore = 1850;
+
+const DEMO_USERS = [
+  { name: 'محمد السعيد', handle: 'mohamed_saeed', avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=faces' },
+  { name: 'سارة الأحمد', handle: 'sara_ahmed', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=faces' },
+  { name: 'خالد الكويتي VIP', handle: 'khaled_q8', avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100&h=100&fit=crop&crop=faces' },
+  { name: 'Fatima Zahra 🇲🇦', handle: 'fz_morocco', avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=100&h=100&fit=crop&crop=faces' },
+  { name: 'عمر التميمي 🇸🇦', handle: 'omar_tamimi', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces' },
+  { name: 'Al-Anood 💎', handle: 'alanood_vip', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop&crop=faces' },
+  { name: 'أبو فهد العتيبي 🦁', handle: 'abu_fahad', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&crop=faces' },
+  { name: 'Jessica Miller', handle: 'jess_live', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=faces' }
+];
+
+const DEMO_COMMENTS = [
+  'ما شاء الله بث رائع ومميز! 🔥',
+  'أقوى دعم لأحلى مضيف 👏❤️',
+  'كفوووووو يا وحش استمر 💪',
+  'Great stream, keep it up! 🚀',
+  'منور البث يا بطل 🌟',
+  'شدوا الهمة في الجولة يا شباب ⚔️',
+  'تحياتي لك من السعودية 🇸🇦',
+  'أحلى تحية ومتابعة من المغرب 🇲🇦',
+  'روعة يا غالي متابعك من البداية 👑',
+  'تكبييييس يا جماعة لا يوقف التكبيس! 👆❤️',
+  'والله تستاهل كل خير 🌹',
+  'Awesome PK battle today! ⚡'
+];
+
+const DEMO_GIFTS = [
+  { name: 'Rose', diamonds: 1, icon: 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_rose.png~tplv-obj.png' },
+  { name: 'TikTok Heart', diamonds: 5, icon: 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_tiktok.png~tplv-obj.png' },
+  { name: 'Sunglasses', diamonds: 199, icon: 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_sunglasses.png~tplv-obj.png' },
+  { name: 'Galaxy', diamonds: 1000, icon: 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_galaxy.png~tplv-obj.png' },
+  { name: 'Fire', diamonds: 10, icon: 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_fire.png~tplv-obj.png' },
+  { name: 'Lion', diamonds: 29999, icon: 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_lion.png~tplv-obj.png' }
+];
+
+function startDemoSimulation() {
+  if (ws) {
+    ws.close(1000, 'starting demo');
+    ws = null;
+  }
+  isDemoMode = true;
+  DOM.usernameInput.value = 'demo_live_stream';
+  setStatus('online', currentLang === 'ar' ? '🟢 متصل (وضع المحاكاة التجريبية)' : '🟢 Online (Demo Simulation)');
+  DOM.startBtn.classList.add('hidden');
+  DOM.stopBtn.classList.remove('hidden');
+  DOM.roomInfo.classList.remove('hidden');
+  DOM.roomIdDisplay.textContent = 'DEMO-778899';
+
+  // Clear feed placeholders
+  DOM.commentsFeed.innerHTML = '';
+  DOM.giftFeed.innerHTML = '';
+  DOM.leaderboardList.innerHTML = '';
+  DOM.likersRow.innerHTML = '';
+  commentCount = 0;
+  giftCount = 0;
+  _likersData = {};
+  demoDiamonds = 5890;
+  demoLikes = 14200;
+  demoViewers = 3120;
+  demoHostScore = 2400;
+  demoOppScore = 1850;
+
+  toast(currentLang === 'ar' ? '🎮 تم تشغيل وضع المحاكاة التجريبية الحية!' : '🎮 Demo simulation mode activated!', 'success');
+
+  // Push an initial set of mock data
+  for (let i = 0; i < 3; i++) {
+    const user = DEMO_USERS[i % DEMO_USERS.length];
+    addComment({
+      user: { nickname: user.name, unique_id: user.handle, avatar_url: user.avatar },
+      comment: DEMO_COMMENTS[i % DEMO_COMMENTS.length],
+      is_moderator: i === 0,
+    });
+  }
+
+  // Update initial KPIs
+  bumpKpi(DOM.kpiViewers, demoViewers);
+  bumpKpi(DOM.kpiLikes, demoLikes);
+  bumpKpi(DOM.kpiDiamonds, demoDiamonds);
+  bumpKpi(DOM.kpiUsd, (demoDiamonds * 0.005).toFixed(2), fmtUsd);
+  bumpKpi(DOM.kpiNet, (demoDiamonds * 0.005 * 0.5).toFixed(2), fmtUsd);
+  DOM.lbTotalDiamonds.textContent = fmt(demoDiamonds);
+  DOM.lbGrossUsd.textContent = fmtUsd(demoDiamonds * 0.005);
+  DOM.lbNetUsd.textContent = fmtUsd(demoDiamonds * 0.005 * 0.5);
+
+  let tick = 0;
+  clearInterval(demoTimer);
+  demoTimer = setInterval(() => {
+    if (!isDemoMode) {
+      clearInterval(demoTimer);
+      return;
+    }
+    tick++;
+
+    // 1. Likes and viewers bump every tick
+    demoLikes += Math.floor(Math.random() * 25) + 10;
+    demoViewers += Math.floor(Math.random() * 11) - 5;
+    bumpKpi(DOM.kpiLikes, demoLikes);
+    bumpKpi(DOM.kpiViewers, Math.max(100, demoViewers));
+    if (DOM.kpiLps) DOM.kpiLps.textContent = (Math.random() * 8 + 12).toFixed(1);
+
+    // 2. Incoming comment every ~1.5s
+    if (tick % 2 === 0) {
+      const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
+      const c = DEMO_COMMENTS[Math.floor(Math.random() * DEMO_COMMENTS.length)];
+      addComment({
+        user: { nickname: u.name, unique_id: u.handle, avatar_url: u.avatar },
+        comment: c,
+        is_subscriber: Math.random() > 0.6,
+      });
+    }
+
+    // 3. Incoming gift every ~3s
+    if (tick % 3 === 0) {
+      const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
+      const g = DEMO_GIFTS[Math.floor(Math.random() * DEMO_GIFTS.length)];
+      const repeat = Math.floor(Math.random() * 5) + 1;
+      const addedDiamonds = g.diamonds * repeat;
+      demoDiamonds += addedDiamonds;
+
+      addGift({
+        user: { nickname: u.name, unique_id: u.handle, avatar_url: u.avatar },
+        transaction: {
+          gift_name: g.name,
+          gift_icon_url: g.icon,
+          diamond_unit_cost: g.diamonds,
+          repeat_count: repeat,
+          total_value: addedDiamonds,
+        },
+        recipient_side: Math.random() > 0.4 ? 'host' : 'opponent',
+        recipient_name: 'المضيف',
+      });
+
+      if (g.diamonds >= 100 || repeat >= 5) {
+        showComboBurst(g.name, g.icon, repeat);
+      }
+
+      // Update diamond KPIs
+      bumpKpi(DOM.kpiDiamonds, demoDiamonds);
+      bumpKpi(DOM.kpiUsd, (demoDiamonds * 0.005).toFixed(2), fmtUsd);
+      bumpKpi(DOM.kpiNet, (demoDiamonds * 0.005 * 0.5).toFixed(2), fmtUsd);
+      DOM.lbTotalDiamonds.textContent = fmt(demoDiamonds);
+      DOM.lbGrossUsd.textContent = fmtUsd(demoDiamonds * 0.005);
+      DOM.lbNetUsd.textContent = fmtUsd(demoDiamonds * 0.005 * 0.5);
+
+      // Update PK points
+      if (Math.random() > 0.35) {
+        demoHostScore += addedDiamonds;
+      } else {
+        demoOppScore += addedDiamonds;
+      }
+      updatePK({
+        is_active: true,
+        status: 'ACTIVE',
+        battle_type: '1v1',
+        round: 1,
+        host_points: demoHostScore,
+        opponent_points: demoOppScore,
+      }, 'points_update');
+    }
+
+    // 4. Random liker every 4 ticks
+    if (tick % 4 === 0) {
+      const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
+      updateLiker({
+        user_id: u.handle,
+        unique_id: u.handle,
+        nickname: u.name,
+        avatar_url: u.avatar,
+        like_count: Math.floor(Math.random() * 50) + 10,
+      });
+    }
+  }, 1000);
+}
+
+function stopDemoSimulation() {
+  if (isDemoMode) {
+    isDemoMode = false;
+    clearInterval(demoTimer);
+    demoTimer = null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Quick Stream & Demo Triggers
+// ---------------------------------------------------------------------------
+const btnDemoMode = $('btnDemoMode');
+if (btnDemoMode) {
+  btnDemoMode.addEventListener('click', startDemoSimulation);
+}
+
+document.querySelectorAll('.quick-stream-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const user = btn.getAttribute('data-user');
+    if (user) {
+      stopDemoSimulation();
+      DOM.usernameInput.value = user;
+      DOM.startBtn.click();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
 applyLanguage(currentLang);
@@ -1311,3 +1502,4 @@ if (sessionStorage.getItem('tt_admin_token')) {
 }
 
 console.log('🎯 TikTok Live Analytics Tracker initialized.');
+
