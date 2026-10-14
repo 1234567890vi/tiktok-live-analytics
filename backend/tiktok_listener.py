@@ -723,6 +723,14 @@ def _parse_anchor_user(wrapper, default_anchor_id: str = "") -> dict:
     unique_id = str(_safe(user, "display_id", default="") or _safe(user, "unique_id", default=""))
     nickname = str(_safe(user, "nickname", default="") or unique_id or f"User_{u_id[:6] if u_id else 'pk'}")
     avatar_url = _extract_avatar(user)
+    room_id = str(_safe(val, "room_id", default="") or _safe(user, "room_id", default="") or _safe(wrapper, "room_id", default=""))
+    viewer_count = int(
+        _safe(val, "user_count", default=0) or
+        _safe(val, "viewer_count", default=0) or
+        _safe(user, "user_count", default=0) or
+        _safe(user, "viewer_count", default=0) or
+        0
+    )
 
     return {
         "anchor_id": key or u_id,
@@ -730,6 +738,8 @@ def _parse_anchor_user(wrapper, default_anchor_id: str = "") -> dict:
         "unique_id": unique_id,
         "nickname": nickname,
         "avatar_url": avatar_url,
+        "room_id": room_id,
+        "viewer_count": viewer_count,
     }
 
 
@@ -995,6 +1005,7 @@ class TikTokSession:
         self._gift_catalog_by_name: dict[str, dict] = {}
         self._user_identities: dict[str, dict] = {}
         self._stream_video_data: dict = {}
+        self._known_friends: dict[str, dict] = {}
 
     def resolve_supporter_identity(self, uinfo: dict, event=None) -> dict:
         """
@@ -1074,6 +1085,82 @@ class TikTokSession:
         if hasattr(self._engine, "unmask_supporter"):
             self._engine.unmask_supporter(uid, uniq, nick or uniq, av)
 
+    def register_friend(
+        self,
+        unique_id: str,
+        nickname: str = "",
+        avatar_url: str = "",
+        user_id: str = "",
+        room_id: str = "",
+        relation: str = "شريك بث 🤝",
+        viewer_count: int = 0,
+    ) -> None:
+        """Register or update a known live friend / co-host / battle rival."""
+        uniq = str(unique_id or "").strip().lstrip("@")
+        uid = str(user_id or "").strip()
+        if not uniq and not uid:
+            return
+
+        # Do not include the tracked streamer themself in their friends list
+        if uniq.lower() == self.username.lower():
+            return
+
+        key = uniq.lower() if uniq else f"uid_{uid}"
+        existing = self._known_friends.get(key, {})
+
+        nick = nickname or existing.get("nickname") or uniq or f"Streamer {uid[-4:] if len(uid) >= 4 else ''}"
+        av = avatar_url or existing.get("avatar_url") or ""
+        v_cnt = int(viewer_count) if viewer_count > 0 else existing.get("viewer_count", 0)
+
+        self._known_friends[key] = {
+            "key": key,
+            "unique_id": uniq or existing.get("unique_id", ""),
+            "nickname": nick,
+            "avatar_url": av,
+            "user_id": uid or existing.get("user_id", ""),
+            "room_id": room_id or existing.get("room_id", ""),
+            "relation": relation or existing.get("relation", "شريك بث 🤝"),
+            "viewer_count": v_cnt,
+            "status": "LIVE",
+            "last_seen": time.time(),
+        }
+
+        # If viewer_count is still 0 and we have a room_id or unique_id, attempt background enrichment
+        if v_cnt <= 0:
+            asyncio.create_task(self.enrich_friend_viewer_count_async(key, room_id, uniq))
+
+    async def enrich_friend_viewer_count_async(self, key: str, room_id: str, unique_id: str) -> None:
+        """Asynchronously queries TikTok to fetch the exact live viewer count of a friend."""
+        try:
+            target_room_id = room_id
+            if not target_room_id and self._client and getattr(self._client, "_web", None) and unique_id:
+                try:
+                    target_room_id = await self._client._web.fetch_room_id_from_html(unique_id)
+                except Exception:
+                    pass
+            if target_room_id and self._client and getattr(self._client, "_web", None):
+                r_data = await self._client._web.fetch_room_info(room_id=target_room_id)
+                if r_data and isinstance(r_data, dict):
+                    cnt = int(r_data.get("user_count") or r_data.get("stats", {}).get("user_count", 0))
+                    if cnt > 0 and key in self._known_friends:
+                        self._known_friends[key]["viewer_count"] = cnt
+                        if target_room_id:
+                            self._known_friends[key]["room_id"] = str(target_room_id)
+                        await self.broadcast_live_friends()
+        except Exception as e:
+            logger.debug("Failed to enrich viewer count for friend %s: %s", key, e)
+
+    async def broadcast_live_friends(self, force: bool = False) -> None:
+        """Broadcast the updated live friends list to connected WebSockets."""
+        if not self._known_friends and not force:
+            return
+        friends_list = list(self._known_friends.values())
+        friends_list.sort(key=lambda x: x.get("viewer_count", 0), reverse=True)
+        await self._send({
+            "type": "live_friends",
+            "data": friends_list,
+        })
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -1133,6 +1220,11 @@ class TikTokSession:
             data.get("estimated_usd", 0.0) * NET_PAYOUT_RATIO, 4
         )
         data["stream_video"]   = getattr(self, "_stream_video_data", None) or _extract_stream_video_urls({}, self.username)
+        data["live_friends"]   = sorted(
+            list(self._known_friends.values()),
+            key=lambda x: x.get("viewer_count", 0),
+            reverse=True,
+        )
         return {"type": "snapshot", "data": data}
 
     async def send_snapshot(self) -> None:
@@ -1379,6 +1471,46 @@ class TikTokSession:
                         "data": self._stream_video_data,
                     })
                     logger.info("Extracted stream video for @%s (has_video=%s)", self.username, self._stream_video_data.get("has_video"))
+
+                    # Check for connected friends, rivals, or co-hosts in room_info
+                    try:
+                        rival_info = r_info.get("rival_info") or (link_mic.get("rival_info") if isinstance(link_mic, dict) else {}) or {}
+                        if rival_info and isinstance(rival_info, dict):
+                            r_user = rival_info.get("user") or rival_info
+                            r_uniq = str(r_user.get("display_id") or r_user.get("unique_id") or "")
+                            r_nick = str(r_user.get("nickname") or r_uniq)
+                            r_av   = _extract_avatar(r_user)
+                            r_uid  = str(r_user.get("id") or r_user.get("id_str") or "")
+                            r_vc   = int(rival_info.get("user_count") or r_user.get("user_count") or 0)
+                            if r_uniq:
+                                self.register_friend(
+                                    unique_id=r_uniq,
+                                    nickname=r_nick,
+                                    avatar_url=r_av,
+                                    user_id=r_uid,
+                                    relation="منافس في البث 🥊",
+                                    viewer_count=r_vc,
+                                )
+                        co_host = r_info.get("co_host_user") or (link_mic.get("co_host_user") if isinstance(link_mic, dict) else {}) or {}
+                        if co_host and isinstance(co_host, dict):
+                            c_user = co_host.get("user") or co_host
+                            c_uniq = str(c_user.get("display_id") or c_user.get("unique_id") or "")
+                            c_nick = str(c_user.get("nickname") or c_uniq)
+                            c_av   = _extract_avatar(c_user)
+                            c_uid  = str(c_user.get("id") or c_user.get("id_str") or "")
+                            c_vc   = int(co_host.get("user_count") or c_user.get("user_count") or 0)
+                            if c_uniq:
+                                self.register_friend(
+                                    unique_id=c_uniq,
+                                    nickname=c_nick,
+                                    avatar_url=c_av,
+                                    user_id=c_uid,
+                                    relation="شريك بث 🤝",
+                                    viewer_count=c_vc,
+                                )
+                        await self.broadcast_live_friends()
+                    except Exception as err:
+                        logger.debug("Error parsing initial friends in room_info: %s", err)
             except Exception as e:
                 logger.debug("Optional initial room_info fetch: %s", e)
 
@@ -1764,6 +1896,36 @@ class TikTokSession:
             pk_dict = pk.to_dict() if hasattr(pk, "to_dict") else pk.__dict__
             await self._send({"type": "pk_battle", "data": pk_dict, "event": event_tag})
 
+            # Register PK anchors in live friends and broadcast
+            try:
+                for ha in host_anchors:
+                    h_uniq = ha.get("unique_id", "")
+                    if h_uniq and h_uniq.lower() != self.username.lower():
+                        self.register_friend(
+                            unique_id=h_uniq,
+                            nickname=ha.get("nickname", ""),
+                            avatar_url=ha.get("avatar_url", ""),
+                            user_id=ha.get("user_id", ""),
+                            room_id=ha.get("room_id", ""),
+                            relation="حليف في الجولة ⚔️",
+                            viewer_count=ha.get("viewer_count", 0),
+                        )
+                for oa in opp_anchors:
+                    o_uniq = oa.get("unique_id", "")
+                    if o_uniq:
+                        self.register_friend(
+                            unique_id=o_uniq,
+                            nickname=oa.get("nickname", ""),
+                            avatar_url=oa.get("avatar_url", ""),
+                            user_id=oa.get("user_id", ""),
+                            room_id=oa.get("room_id", ""),
+                            relation="منافس في الجولة 🥊",
+                            viewer_count=oa.get("viewer_count", 0),
+                        )
+                await self.broadcast_live_friends()
+            except Exception as e_fr:
+                logger.debug("Failed registering battle friends: %s", e_fr)
+
         # ---- PK Armies Live Points & Contributors Update ----
         @client.on(LinkMicArmiesEvent)
         async def on_pk_armies(event: LinkMicArmiesEvent):
@@ -1888,6 +2050,36 @@ class TikTokSession:
                 "data":  pk_dict,
                 "event": event_tag,
             })
+
+            # Register PK anchors in live friends and broadcast
+            try:
+                for ha in host_anchors:
+                    h_uniq = ha.get("unique_id", "")
+                    if h_uniq and h_uniq.lower() != self.username.lower():
+                        self.register_friend(
+                            unique_id=h_uniq,
+                            nickname=ha.get("nickname", ""),
+                            avatar_url=ha.get("avatar_url", ""),
+                            user_id=ha.get("user_id", ""),
+                            room_id=ha.get("room_id", ""),
+                            relation="حليف في الجولة ⚔️",
+                            viewer_count=ha.get("viewer_count", 0),
+                        )
+                for oa in opp_anchors:
+                    o_uniq = oa.get("unique_id", "")
+                    if o_uniq:
+                        self.register_friend(
+                            unique_id=o_uniq,
+                            nickname=oa.get("nickname", ""),
+                            avatar_url=oa.get("avatar_url", ""),
+                            user_id=oa.get("user_id", ""),
+                            room_id=oa.get("room_id", ""),
+                            relation="منافس في الجولة 🥊",
+                            viewer_count=oa.get("viewer_count", 0),
+                        )
+                await self.broadcast_live_friends()
+            except Exception as e_fr:
+                logger.debug("Failed registering battle friends: %s", e_fr)
 
         # ---- PK Punishment Finish ----
         @client.on(LinkMicBattlePunishFinishEvent)

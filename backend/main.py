@@ -810,6 +810,9 @@ async def ws_track(websocket: WebSocket, username: str):
                     break
                 elif action == "snapshot":
                     await websocket.send_text(json.dumps(session.get_snapshot_payload(), default=str))
+                elif action == "refresh_friends":
+                    if hasattr(session, "broadcast_live_friends"):
+                        await session.broadcast_live_friends(force=True)
                 else:
                     logger.debug("Unknown client action: %s", action)
 

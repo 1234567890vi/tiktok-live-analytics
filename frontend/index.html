@@ -717,6 +717,43 @@
       </div>
     </section>
 
+    <!-- ── LIVE FRIENDS & CO-HOSTS (بثوث الأصدقاء والشركاء المباشرة) ──────────────────────── -->
+    <section id="liveFriendsSection" class="glass-card p-4 mt-6">
+      <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div class="flex items-center gap-2.5">
+          <span class="relative flex h-3 w-3">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+          </span>
+          <h2 class="font-bold text-sm sm:text-base flex items-center gap-2 text-white">
+            <span class="text-emerald-400">🟢</span>
+            <span>بثوث الأصدقاء والشركاء الحالية</span>
+            <span class="text-xs font-normal text-gray-400 hidden sm:inline">(Live Friends &amp; Co-Hosts)</span>
+          </h2>
+          <span id="liveFriendsCountBadge" class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs px-2.5 py-0.5 rounded-full font-bold">
+            0 متصل
+          </span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="refreshFriendsBtn" class="text-xs bg-dark-700/80 hover:bg-dark-600 text-gray-300 hover:text-white px-3 py-1.5 rounded-lg border border-white/10 transition flex items-center gap-1.5 active:scale-95 cursor-pointer" title="تحديث قائمة بثوث الأصدقاء">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+            <span>تحديث</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Live Friends Cards Grid -->
+      <div id="liveFriendsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
+        <div class="col-span-full py-8 text-center text-gray-400 text-xs flex flex-col items-center justify-center gap-2">
+          <span class="text-3xl opacity-60">👥</span>
+          <span class="font-medium text-gray-300">في انتظار رصد الأصدقاء والشركاء والمنافسين المتصلين في بثوث مباشرة...</span>
+          <span class="text-[11px] text-gray-500">يتم التعرف تلقائياً على الشركاء وخصوم الجولات (1v1 و 2v2) وحسابات الدويتو المباشرة</span>
+        </div>
+      </div>
+    </section>
+
   </main>
 
   <!-- ════════════════════════════════════════════════════════════════

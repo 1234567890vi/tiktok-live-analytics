@@ -296,6 +296,10 @@ const DOM = {
   splitViewText:       $('splitViewText'),
   leaderboardList:     $('leaderboardList'),
   likersRow:           $('likersRow'),
+  liveFriendsSection:    $('liveFriendsSection'),
+  liveFriendsGrid:       $('liveFriendsGrid'),
+  liveFriendsCountBadge: $('liveFriendsCountBadge'),
+  refreshFriendsBtn:     $('refreshFriendsBtn'),
   commentCount:        $('commentCount'),
   giftCount:           $('giftCount'),
   toggleScrollBtn:     $('toggleScrollBtn'),
@@ -1549,6 +1553,134 @@ function renderLikers(fromSnapshot = null) {
 }
 
 // ---------------------------------------------------------------------------
+// Live Friends & Co-Hosts Controller (بثوث الأصدقاء والشركاء المباشرة)
+// ---------------------------------------------------------------------------
+let currentLiveFriends = [];
+
+function renderLiveFriends(friendsList) {
+  if (!DOM.liveFriendsGrid) return;
+  currentLiveFriends = Array.isArray(friendsList) ? friendsList : [];
+
+  if (DOM.liveFriendsCountBadge) {
+    const count = currentLiveFriends.length;
+    DOM.liveFriendsCountBadge.textContent = `${count} متصل`;
+    if (count > 0) {
+      DOM.liveFriendsCountBadge.className = 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs px-2.5 py-0.5 rounded-full font-bold shadow-sm';
+    } else {
+      DOM.liveFriendsCountBadge.className = 'bg-gray-800 text-gray-400 border border-white/10 text-xs px-2.5 py-0.5 rounded-full font-medium';
+    }
+  }
+
+  if (currentLiveFriends.length === 0) {
+    DOM.liveFriendsGrid.innerHTML = `
+      <div class="col-span-full py-8 text-center text-gray-400 text-xs flex flex-col items-center justify-center gap-2">
+        <span class="text-3xl opacity-60">👥</span>
+        <span class="font-medium text-gray-300">في انتظار رصد الأصدقاء والشركاء والمنافسين المتصلين في بثوث مباشرة...</span>
+        <span class="text-[11px] text-gray-500">يتم التعرف تلقائياً على الشركاء وخصوم الجولات (1v1 و 2v2) وحسابات الدويتو المباشرة</span>
+      </div>
+    `;
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+
+  currentLiveFriends.forEach(friend => {
+    const card = document.createElement('div');
+    card.className = 'friend-live-card';
+
+    const uniqueId = escapeHtml(friend.unique_id || '');
+    const nickname = escapeHtml(friend.nickname || uniqueId || 'صديق البث');
+    const relation = escapeHtml(friend.relation || 'شريك بث 🤝');
+    const avatarUrl = friend.avatar_url || 'https://www.tiktok.com/favicon.ico';
+    const viewerCount = Number(friend.viewer_count || 0);
+
+    let relBadgeClass = 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30';
+    if (relation.includes('منافس') || relation.includes('خصم')) {
+      relBadgeClass = 'bg-rose-500/15 text-rose-400 border-rose-500/30';
+    } else if (relation.includes('حليف') || relation.includes('جولة')) {
+      relBadgeClass = 'bg-blue-500/15 text-blue-400 border-blue-500/30';
+    }
+
+    card.innerHTML = `
+      <div class="flex items-center gap-3">
+        <div class="relative flex-shrink-0">
+          <div class="friend-live-ring">
+            <img src="${avatarUrl}" alt="${nickname}" class="w-12 h-12 rounded-full object-cover bg-dark-800" onerror="this.src='https://www.tiktok.com/favicon.ico'" />
+          </div>
+          <div class="friend-live-badge">
+            <span class="friend-live-dot"></span>
+            <span>LIVE</span>
+          </div>
+        </div>
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center justify-between gap-1 mb-0.5">
+            <h3 class="font-bold text-sm text-white truncate" title="${nickname}">${nickname}</h3>
+          </div>
+          <div class="text-xs text-gray-400 truncate dir-ltr text-right">@${uniqueId}</div>
+          <div class="mt-1">
+            <span class="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-md border ${relBadgeClass}">
+              ${relation}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="friend-viewers-box">
+        <div class="flex items-center gap-1.5 text-xs text-gray-300">
+          <span class="text-emerald-400 text-sm animate-pulse">👁️</span>
+          <span class="font-medium text-gray-300">المشاهدات المباشرة:</span>
+        </div>
+        <div class="flex items-baseline gap-1">
+          <span class="friend-viewers-count">${viewerCount.toLocaleString()}</span>
+          <span class="text-[10px] text-emerald-400/80 font-medium">مشاهد</span>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 pt-1 border-t border-white/5">
+        <button class="friend-track-btn flex-1" data-user="${uniqueId}" title="بدء تتبع بث هذا الصديق فوراً">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          <span>تتبع الآن</span>
+        </button>
+        <a href="https://www.tiktok.com/@${uniqueId}/live" target="_blank" rel="noopener noreferrer" class="friend-tiktok-btn" title="فتح البث في موقع تيك توك">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+          </svg>
+          <span>تيك توك</span>
+        </a>
+      </div>
+    `;
+
+    const trackBtn = card.querySelector('.friend-track-btn');
+    if (trackBtn) {
+      trackBtn.addEventListener('click', () => {
+        trackFriendLive(uniqueId);
+      });
+    }
+
+    fragment.appendChild(card);
+  });
+
+  DOM.liveFriendsGrid.innerHTML = '';
+  DOM.liveFriendsGrid.appendChild(fragment);
+}
+
+function trackFriendLive(username) {
+  if (!username) return;
+  stopDemoSimulation();
+  if (DOM.usernameInput) {
+    DOM.usernameInput.value = username.replace(/^@/, '');
+  }
+  if (DOM.startBtn) {
+    DOM.startBtn.click();
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  toast(`جاري بدء تتبع بث الصديق @${username}...`, 'info', 3000);
+}
+
+// ---------------------------------------------------------------------------
 // PK Battle
 // ---------------------------------------------------------------------------
 function updatePK(pkData, eventType) {
@@ -1801,6 +1933,7 @@ function applySnapshot(data) {
   if (data.pk_state)       updatePK(data.pk_state, 'snapshot');
   if (data.top_supporters) updateLeaderboard(data.top_supporters);
   if (data.top_likers)     renderLikers(data.top_likers);
+  if (data.live_friends)   renderLiveFriends(data.live_friends);
   if (data.stream_video)   loadVideoStream(data.stream_video);
 }
 
@@ -2392,6 +2525,12 @@ function connectWs(username) {
         toast(`📢 تنبيه من الإدارة: ${msg.message || ''}`, 'warning', 9000);
         break;
 
+      case 'live_friends':
+        if (Array.isArray(msg.data)) {
+          renderLiveFriends(msg.data);
+        }
+        break;
+
       default:
         console.debug('[WS] Unknown message type:', type, msg);
     }
@@ -2960,6 +3099,43 @@ function startDemoSimulation() {
   DOM.lbGrossUsd.textContent = fmtUsd(demoDiamonds * 0.005);
   DOM.lbNetUsd.textContent = fmtUsd(demoDiamonds * 0.005 * 0.5);
 
+  // Live Friends demo simulation
+  const demoFriends = [
+    {
+      unique_id: "sara_live_official",
+      nickname: "سارة القحطاني 🇸🇦",
+      avatar_url: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=faces",
+      viewer_count: 3840,
+      relation: "حليف في الجولة ⚔️",
+      status: "LIVE"
+    },
+    {
+      unique_id: "king_fahad_pk",
+      nickname: "الكينغ أبو فهد 👑",
+      avatar_url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces",
+      viewer_count: 9420,
+      relation: "منافس في الجولة 🥊",
+      status: "LIVE"
+    },
+    {
+      unique_id: "dr_layla_stream",
+      nickname: "دكتورة ليلى 🩺",
+      avatar_url: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop&crop=faces",
+      viewer_count: 1250,
+      relation: "شريك بث 🤝",
+      status: "LIVE"
+    },
+    {
+      unique_id: "captain_majed_live",
+      nickname: "كابتن ماجد ⚽",
+      avatar_url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&crop=faces",
+      viewer_count: 5680,
+      relation: "منافس في الجولة 🥊",
+      status: "LIVE"
+    }
+  ];
+  renderLiveFriends(demoFriends);
+
   let tick = 0;
   clearInterval(demoTimer);
   demoTimer = setInterval(() => {
@@ -2974,6 +3150,15 @@ function startDemoSimulation() {
     demoViewers += Math.floor(Math.random() * 11) - 5;
     bumpKpi(DOM.kpiLikes, demoLikes);
     bumpKpi(DOM.kpiViewers, Math.max(100, demoViewers));
+
+    // 1.5. Fluctuate demo friends live viewer counts every 3 ticks
+    if (tick % 3 === 0 && demoFriends) {
+      demoFriends.forEach(f => {
+        const delta = Math.floor(Math.random() * 45) - 20;
+        f.viewer_count = Math.max(80, f.viewer_count + delta);
+      });
+      renderLiveFriends(demoFriends);
+    }
     if (DOM.kpiLps) DOM.kpiLps.textContent = (Math.random() * 8 + 12).toFixed(1);
 
     // 2. Incoming comment every ~1.5s
@@ -3146,6 +3331,19 @@ document.querySelectorAll('.quick-stream-btn').forEach(btn => {
     }
   });
 });
+
+if (DOM.refreshFriendsBtn) {
+  DOM.refreshFriendsBtn.addEventListener('click', () => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ action: 'refresh_friends' }));
+      toast('جاري تحديث قائمة بثوث الأصدقاء...', 'info', 2000);
+    } else if (isDemoMode) {
+      toast('تم تحديث قائمة بثوث الأصدقاء الحالية!', 'success', 2000);
+    } else {
+      toast('يرجى بدء التتبع أولاً لتحديث الأصدقاء المتصلين', 'warning', 3000);
+    }
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Init
