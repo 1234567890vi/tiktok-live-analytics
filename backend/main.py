@@ -141,9 +141,15 @@ async def serve_index():
 
 @app.get("/admin", response_class=FileResponse)
 async def serve_admin_page():
-    """Direct route for the owner to access admin mode."""
-    index_path = FRONTEND_DIR / "index.html"
-    return FileResponse(str(index_path), media_type="text/html")
+    """Direct route for the owner to access admin control panel."""
+    admin_path = FRONTEND_DIR / "admin.html"
+    if not admin_path.exists():
+        return HTMLResponse(
+            "<h1>Admin page not found</h1>"
+            "<p>Place admin.html inside the <code>frontend/</code> directory.</p>",
+            status_code=404,
+        )
+    return FileResponse(str(admin_path), media_type="text/html")
 
 
 @app.get("/health")
