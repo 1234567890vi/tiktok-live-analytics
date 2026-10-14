@@ -1,16 +1,18 @@
 services:
   - type: web
     name: tiktok-live-analytics
-    env: python
+    runtime: docker
+    dockerfilePath: ./Dockerfile
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
-    healthCheckPath: /health
-    autoDeploy: true
+    region: frankfurt
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.9
-      - key: ADMIN_PASSWORD
-        value: admin123
+      - key: PORT
+        value: 8000
       - key: MAX_SESSIONS
-        value: 15
+        value: 100
+      - key: HOST
+        value: 0.0.0.0
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false

@@ -44,9 +44,9 @@ ENV/
 Thumbs.db
 desktop.ini
 
-# Logs
+# Logs and runtime
 *.log
-
-# Distribution / build
-build/
-dist/
+logs/
+*.pid
+tunnel.txt
+backend/telegram_config.json
