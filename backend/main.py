@@ -11,6 +11,7 @@ import logging
 import time
 import hmac
 import os
+import re
 import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -396,7 +397,25 @@ async def admin_logout(data: dict):
 # WebSocket — /ws/track/{username}
 # ---------------------------------------------------------------------------
 
-@app.websocket("/ws/track/{username}")
+def clean_tiktok_username(raw: str) -> str:
+    """Sanitize and extract TikTok username from handle, URL, or pasted text."""
+    if not raw:
+        return ""
+    # URL-decode in case it was encoded by browser in WebSocket path
+    from urllib.parse import unquote
+    s = unquote(str(raw))
+    # Strip directional unicode formatting marks and non-printable chars
+    s = re.sub(r"[\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]", "", s).strip()
+    # Check if full URL e.g. tiktok.com/@username/live or /@username
+    url_match = re.search(r"tiktok\.com/@([a-zA-Z0-9_.-]+)", s, re.IGNORECASE)
+    if url_match:
+        return url_match.group(1).rstrip("/")
+    # Remove leading @ and any trailing path or query
+    s = s.lstrip("@").split("?")[0].split("/")[0].strip()
+    return s
+
+
+@app.websocket("/ws/track/{username:path}")
 async def ws_track(websocket: WebSocket, username: str):
     """
     WebSocket endpoint that tracks a TikTok Live room.
@@ -419,13 +438,23 @@ async def ws_track(websocket: WebSocket, username: str):
       { "action": "snapshot"   }  — request an immediate snapshot
     """
     await websocket.accept()
-    clean_username = username.lstrip("@").strip()
+    clean_username = clean_tiktok_username(username)
 
     if not clean_username:
         await websocket.send_text(json.dumps({
             "type":    "error",
-            "message": "Invalid username",
-            "detail":  "Username cannot be empty.",
+            "message": "اسم المستخدم غير صالح",
+            "detail":  "يرجى إدخال اسم مستخدم صالح أو رابط البث المباشر لحساب تيك توك.",
+        }))
+        await websocket.close()
+        return
+
+    # Check if user accidentally entered Arabic characters (display name instead of handle)
+    if re.search(r"[\u0600-\u06FF]", clean_username):
+        await websocket.send_text(json.dumps({
+            "type":    "error",
+            "message": "اسم المستخدم يجب أن يكون بالإنجليزية",
+            "detail":  "يرجى إدخال اسم المعرّف الإنجليزي (@username المكتوب تحت الصورة الشخصية، مثل kingmauritan) وليس الاسم المعروض بالعربية.",
         }))
         await websocket.close()
         return

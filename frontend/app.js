@@ -736,6 +736,23 @@ function applySnapshot(data) {
 }
 
 // ---------------------------------------------------------------------------
+// Helper: Extract and sanitize TikTok username from handle, URL, or pasted text
+// ---------------------------------------------------------------------------
+function extractTikTokUsername(raw) {
+  if (!raw) return '';
+  // Strip unicode directional marks and invisible spaces
+  let s = String(raw).replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g, '').trim();
+  // Check if full TikTok URL (e.g. https://www.tiktok.com/@username/live)
+  const urlMatch = s.match(/tiktok\.com\/@([a-zA-Z0-9_.-]+)/i);
+  if (urlMatch && urlMatch[1]) {
+    return urlMatch[1].replace(/\/+$/, '');
+  }
+  // Remove leading @ and trailing path or query
+  s = s.replace(/^@+/, '').split('?')[0].split('/')[0].trim();
+  return s;
+}
+
+// ---------------------------------------------------------------------------
 // WebSocket connection management
 // ---------------------------------------------------------------------------
 function connectWs(username) {
@@ -744,9 +761,11 @@ function connectWs(username) {
     ws = null;
   }
 
-  currentUsername = username.replace(/^@/, '');
+  currentUsername = extractTikTokUsername(username);
+  if (!currentUsername) return;
+
   const url = `${WS_BASE}/ws/track/${encodeURIComponent(currentUsername)}`;
-  setStatus('connecting', `Connecting to @${currentUsername}…`);
+  setStatus('connecting', currentLang === 'ar' ? `جاري الاتصال بـ @${currentUsername}...` : `Connecting to @${currentUsername}…`);
 
   ws = new WebSocket(url);
 
@@ -1708,12 +1727,35 @@ async function handleAdminLogout() {
 // UI Event Listeners
 // ---------------------------------------------------------------------------
 DOM.startBtn.addEventListener('click', () => {
-  const username = DOM.usernameInput.value.trim();
-  if (!username) {
+  const rawInput = DOM.usernameInput.value.trim();
+  if (!rawInput) {
     toast(currentLang === 'ar' ? 'يرجى إدخال اسم مستخدم تيك توك' : 'Please enter a TikTok @username', 'warning');
     DOM.usernameInput.focus();
     return;
   }
+
+  const cleanUser = extractTikTokUsername(rawInput);
+  if (!cleanUser) {
+    toast(currentLang === 'ar' ? 'يرجى إدخال اسم مستخدم صالح' : 'Please enter a valid TikTok username', 'warning');
+    DOM.usernameInput.focus();
+    return;
+  }
+
+  // Check if user accidentally entered Arabic characters (display name instead of handle)
+  if (/[\u0600-\u06FF]/.test(cleanUser)) {
+    toast(
+      currentLang === 'ar'
+        ? '⚠️ تنبيه: يرجى إدخال اسم المعرّف الإنجليزي (المكتوب تحت الصورة الشخصية، مثل kingmauritan) وليس الاسم المعروض بالعربية.'
+        : '⚠️ Please enter the English TikTok @username, not the Arabic display name.',
+      'error',
+      8000
+    );
+    DOM.usernameInput.focus();
+    return;
+  }
+
+  // Reflect clean username in the UI input box
+  DOM.usernameInput.value = cleanUser;
 
   // Reset feeds
   DOM.commentsFeed.innerHTML    = '<div class="flex items-center justify-center h-full text-gray-600 text-sm">Loading...</div>';
@@ -1726,7 +1768,7 @@ DOM.startBtn.addEventListener('click', () => {
   DOM.commentCount.textContent = '0';
   DOM.giftCount.textContent    = '0 gifts';
 
-  connectWs(username);
+  connectWs(cleanUser);
 });
 
 DOM.stopBtn.addEventListener('click', () => {

@@ -614,7 +614,7 @@ class TikTokSession:
         self._running = True
         self._engine.reset()
 
-        self._client = TikTokLiveClient(unique_id=f"@{self.username}")
+        self._client = TikTokLiveClient(unique_id=self.username)
         self._register_handlers()
 
         # Run client in a background task so we don't block the WS loop
@@ -664,65 +664,8 @@ class TikTokSession:
         retry_count = 0
         backoff = 3
 
-        # 1. Quick pre-check: verify whether user is active before full connection
-        try:
-            logger.info("Checking live status for @%s...", self.username)
-            is_live = await self._client.is_live()
-            if not is_live:
-                logger.info("@%s is not currently LIVE.", self.username)
-                await self._send({
-                    "type": "error",
-                    "code": "USER_OFFLINE",
-                    "message": "الحساب ليس في بث مباشر حالياً",
-                    "detail": f"المستخدم @{self.username} غير متصل ببث مباشر (LIVE) الآن. يرجى التأكد من أن صاحب الحساب يبث حالياً.",
-                })
-                self._running = False
-                return
-        except UserNotFoundError:
-            logger.info("User @%s not found on TikTok.", self.username)
-            await self._send({
-                "type": "error",
-                "code": "USER_NOT_FOUND",
-                "message": "الحساب غير موجود",
-                "detail": f"لم يتم العثور على الحساب @{self.username} على تيك توك. يرجى التحقق من صحة الاسم.",
-            })
-            self._running = False
-            return
-        except (SignatureRateLimitError, SignAPIError) as exc:
-            err_str = str(exc)
-            if "rate_limit" in err_str.lower() or "too many connections" in err_str.lower():
-                logger.warning("Sign rate limit hit during is_live for @%s: %s", self.username, exc)
-                await self._send({
-                    "type": "error",
-                    "code": "RATE_LIMIT",
-                    "message": "تم بلوغ الحد المسموح للتوقيع (Sign Rate Limit)",
-                    "detail": "تم تجاوز عدد الاتصالات في الخطة المجانية لمزود التوقيع (EulerStream). يمكنك إدخال مفتاح API مجاني (SIGN_API_KEY) من eulerstream.com في لوحة الأدمن للمتابعة دون انقطاع.",
-                })
-                self._running = False
-                return
-        except Exception as exc:
-            err_str = str(exc).lower()
-            if "not capable of going live" in err_str or "never gone live" in err_str:
-                await self._send({
-                    "type": "error",
-                    "code": "USER_NOT_LIVE_CAPABLE",
-                    "message": "الحساب غير مؤهل للبث المباشر أو غير موجود",
-                    "detail": f"الحساب @{self.username} لم يسبق له البث المباشر على تيك توك أو غير متاح.",
-                })
-                self._running = False
-                return
-            if "rate_limit" in err_str:
-                await self._send({
-                    "type": "error",
-                    "code": "RATE_LIMIT",
-                    "message": "تم بلوغ الحد المسموح للتوقيع (Sign Rate Limit)",
-                    "detail": "تم تجاوز عدد الاتصالات المسموح بها في مزود التوقيع السحابي. يرجى إضافة SIGN_API_KEY مجاني من eulerstream.com عبر لوحة الأدمن.",
-                })
-                self._running = False
-                return
-            logger.warning("Pre-check is_live for @%s: %s. Attempting connect...", self.username, exc)
-
-        # 2. Main connection loop with bounded retries
+        # Connect directly to TikTok Live room — TikTokLive handles HTML scraping,
+        # room resolution, and raises UserOfflineError / UserNotFoundError accurately.
         while self._running:
             try:
                 logger.info("Connecting to @%s (retry %d/%d)...", self.username, retry_count, max_retries)
@@ -753,7 +696,7 @@ class TikTokSession:
                     "type": "error",
                     "code": "USER_OFFLINE",
                     "message": "الحساب ليس في بث مباشر حالياً",
-                    "detail": f"صاحب الحساب @{self.username} ليس في بث مباشر الآن.",
+                    "detail": f"صاحب الحساب @{self.username} ليس في بث مباشر (LIVE) الآن. يرجى التأكد من أن صاحب الحساب يبث حالياً.",
                 })
                 break
 
@@ -763,7 +706,7 @@ class TikTokSession:
                     "type": "error",
                     "code": "USER_NOT_FOUND",
                     "message": "الحساب غير موجود",
-                    "detail": f"لم يتم العثور على الحساب @{self.username}.",
+                    "detail": f"لم يتم العثور على الحساب @{self.username} على تيك توك. يرجى التأكد من كتابة اسم المعرف الفريد الإنجليزي (@username المكتوب تحت الصورة الشخصية) وليس الاسم المعروض.",
                 })
                 break
 
@@ -794,7 +737,7 @@ class TikTokSession:
                         "type": "error",
                         "code": "USER_NOT_LIVE_CAPABLE",
                         "message": "الحساب غير مؤهل للبث المباشر أو غير موجود",
-                        "detail": f"الحساب @{self.username} لم يسبق له البث المباشر على تيك توك أو غير متاح.",
+                        "detail": f"الحساب @{self.username} لم يسبق له البث المباشر على تيك توك أو غير متاح. تأكد من إدخال اسم المعرف الإنجليزي وليس الاسم المعروض.",
                     })
                     break
 
@@ -829,7 +772,7 @@ class TikTokSession:
                     })
                     await asyncio.sleep(backoff)
                     backoff = min(backoff + 2, 10)
-                    self._client = TikTokLiveClient(unique_id=f"@{self.username}")
+                    self._client = TikTokLiveClient(unique_id=self.username)
                     self._register_handlers()
                 else:
                     await self._send({
