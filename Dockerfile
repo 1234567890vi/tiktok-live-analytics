@@ -1,69 +1,33 @@
 # =============================================================================
-#  Dockerfile — Multi-stage build for TikTok Live Analytics Tracker
-#  Stage 1: Builder  — compiles the C++ pybind11 extension
-#  Stage 2: Runtime  — lean production image
+#  Dockerfile — Production deployment for TikTok Live Analytics Tracker
 # =============================================================================
-
-# ── Stage 1: Builder ─────────────────────────────────────────────────────────
-FROM python:3.11-slim AS builder
+FROM python:3.11-slim
 
 LABEL maintainer="TikTok Live Tracker"
-LABEL description="Real-Time TikTok Live Analytics — C++17 + Python + FastAPI"
-
-# Build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential \
-        cmake \
-        ninja-build \
-        git \
-        pkg-config \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /build
-
-# Install Python build tools first (layer caching)
-COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
- && pip install --no-cache-dir pybind11[global] cmake ninja \
- && pip install --no-cache-dir -r requirements.txt
-
-# Copy source
-COPY CMakeLists.txt setup.py ./
-COPY cpp_core/ cpp_core/
-
-# Build the C++ extension
-RUN pip install --no-cache-dir --no-deps -e . \
- && python -c "import tiktok_cpp_engine; print('✅ tiktok_cpp_engine built:', tiktok_cpp_engine.__version__)"
-
-# ── Stage 2: Runtime ─────────────────────────────────────────────────────────
-FROM python:3.11-slim AS runtime
+LABEL description="Real-Time TikTok Live Analytics — FastAPI & Pure-Python Engine"
 
 WORKDIR /app
 
-# Runtime system deps only
+# Install curl for healthchecks
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libstdc++6 \
-        libgomp1 \
+        curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy installed Python packages from builder
-COPY --from=builder /usr/local/lib/python3.11/ /usr/local/lib/python3.11/
-COPY --from=builder /usr/local/bin/ /usr/local/bin/
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Copy the compiled extension module (.so / .pyd)
-COPY --from=builder /build/tiktok_cpp_engine*.so ./
-COPY --from=builder /build/tiktok_cpp_engine*.pyd ./ 2>/dev/null || true
-
-# Copy application code
-COPY backend/  backend/
+# Copy application source code
+COPY backend/ backend/
 COPY frontend/ frontend/
 
-# Create non-root user for security
+# Create a non-root user for security
 RUN useradd --no-create-home --shell /bin/false appuser \
  && chown -R appuser:appuser /app
 USER appuser
 
-# Environment
+# Environment defaults
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PORT=8000 \
@@ -74,7 +38,7 @@ EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+    CMD curl -f "http://localhost:${PORT:-8000}/health" || exit 1
 
-# Launch (uses $PORT dynamically if set by cloud host like Render/Railway, defaulting to 8000)
+# Launch uvicorn listening on the dynamically assigned $PORT
 CMD ["sh", "-c", "exec uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --log-level info"]
