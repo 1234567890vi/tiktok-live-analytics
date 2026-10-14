@@ -473,6 +473,18 @@
           </div>
         </div>
         <div class="flex flex-wrap items-center gap-2">
+          <!-- PK Battle Round Countdown Timer (عداد وقت الجولة التفاعلي) -->
+          <div id="pkRoundTimerBadge" class="hidden flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-gray-900 via-gray-900/90 to-black border border-pink-500/50 shadow-[0_0_15px_rgba(236,72,153,0.35)] transition-all duration-300">
+            <span id="pkRoundTimerIcon" class="text-sm">⏳</span>
+            <div class="flex items-center gap-1.5 font-mono">
+              <span id="pkRoundTimerPhase" class="text-[11px] text-pink-300 font-sans font-bold">وقت الجولة:</span>
+              <span id="pkRoundTimerText" class="text-sm sm:text-base font-black text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]">05:00</span>
+            </div>
+            <div class="w-14 sm:w-20 h-1.5 bg-gray-800 rounded-full overflow-hidden border border-gray-700/60 hidden xs:block">
+              <div id="pkRoundTimerBar" class="h-full bg-gradient-to-r from-pink-500 to-cyan-400 transition-all duration-300 rounded-full" style="width: 100%"></div>
+            </div>
+          </div>
+
           <span id="pkStatusBadge" class="px-3 py-1 rounded-full text-xs font-bold bg-gray-800 text-gray-400 border border-gray-700">
             ⏸️ في انتظار جولة
           </span>
@@ -743,6 +755,59 @@
       <div id="comboGiftIcon" class="text-6xl mb-2">🎁</div>
       <div class="combo-count" id="comboCountDisplay">x99</div>
       <div class="combo-name text-white font-bold text-lg" id="comboGiftName">Rose</div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       AUTHENTIC FULL-SCREEN VISUAL FX CANVAS (تأثيرات الدعم البصرية الحقيقية)
+  ════════════════════════════════════════════════════════════════ -->
+  <canvas id="giftFxCanvas" class="fixed inset-0 pointer-events-none z-[80]"></canvas>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       AUTHENTIC THEATRICAL LEGENDARY GIFT OVERLAY (شاشة الدعم الأسطوري)
+  ════════════════════════════════════════════════════════════════ -->
+  <div id="legendaryGiftModal" class="hidden fixed inset-0 z-[90] flex items-center justify-center p-4 pointer-events-none transition-all duration-500">
+    <div class="absolute inset-0 bg-black/75 backdrop-blur-sm"></div>
+    <div class="relative z-10 flex flex-col items-center text-center max-w-md w-full transform scale-95 transition-all duration-500 legendary-enter">
+      <!-- Rotating Sunburst Rays -->
+      <div class="legendary-rays"></div>
+      <!-- Glowing Golden Aura Ring -->
+      <div class="legendary-aura"></div>
+      <!-- 3D Gift Hero Image -->
+      <div class="relative my-3">
+        <img id="legendaryGiftImg" class="w-36 h-36 sm:w-44 sm:h-44 object-contain drop-shadow-[0_0_35px_rgba(251,191,36,0.9)] animate-float" src="https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_lion.png~tplv-obj.png" alt="Legendary Gift" />
+        <div id="legendaryComboBadge" class="absolute -bottom-2 -right-2 px-3 py-1 rounded-full bg-gradient-to-r from-red-600 to-pink-600 text-white font-black text-lg border-2 border-yellow-300 shadow-xl">
+          x1
+        </div>
+      </div>
+      <!-- Supporter & Gift Details Card -->
+      <div class="w-full bg-gradient-to-b from-gray-900/95 via-gray-900/90 to-black/95 border-2 border-amber-400/80 rounded-2xl p-4 sm:p-5 shadow-[0_0_40px_rgba(245,158,11,0.5)] space-y-2.5">
+        <div class="flex items-center justify-center gap-2">
+          <span class="text-[11px] sm:text-xs px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold uppercase tracking-wider animate-pulse">
+            👑 دعم أسطوري خارق (Legendary Support)
+          </span>
+        </div>
+        <!-- Supporter Avatar & Name -->
+        <div class="flex items-center justify-center gap-3">
+          <div class="relative">
+            <img id="legendaryUserAvatar" class="w-12 h-12 rounded-full object-cover border-2 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.8)]" src="https://placehold.co/100x100/111827/white?text=VIP" alt="Supporter" />
+            <span class="absolute -top-2 -right-1 text-sm">👑</span>
+          </div>
+          <div class="text-right">
+            <div id="legendaryUserName" class="text-base sm:text-lg font-black text-white truncate max-w-[220px]">الداعم</div>
+            <div id="legendaryUserHandle" class="text-xs text-amber-300 font-mono">@user</div>
+          </div>
+        </div>
+        <!-- Gift Name & Diamond Price -->
+        <div class="border-t border-gray-800 pt-2 flex items-center justify-between px-2">
+          <span id="legendaryGiftName" class="text-sm sm:text-base font-bold text-gray-100">اسم الهدية</span>
+          <div class="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-950/80 border border-amber-500/50 text-amber-300 font-black text-xs sm:text-sm">
+            <span>💎</span>
+            <span id="legendaryGiftDiamonds">0</span>
+            <span class="text-[10px] text-gray-400 font-normal">ألماسة</span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 

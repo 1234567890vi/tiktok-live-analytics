@@ -193,6 +193,9 @@ except ModuleNotFoundError:
                 "opponent_anchors": [],
                 "host_armies": [],
                 "opponent_armies": [],
+                "duration": 300,
+                "start_time": 0.0,
+                "remaining_seconds": 300,
             }
 
         def reset(self) -> None:
@@ -336,6 +339,8 @@ except ModuleNotFoundError:
             opponent_anchors: list | None = None,
             host_armies: list | None = None,
             opponent_armies: list | None = None,
+            duration: int | None = None,
+            start_time: float | None = None,
         ):
             was_active = self._pk.get("is_active", False)
             host_wins    = self._pk.get("host_wins", 0)
@@ -355,6 +360,19 @@ except ModuleNotFoundError:
             prev_host_armies = self._pk.get("host_armies", [])
             prev_opp_armies = self._pk.get("opponent_armies", [])
 
+            # Battle timing logic
+            if active and not was_active:
+                cur_start = start_time or time.time()
+            elif active and start_time:
+                cur_start = start_time
+            elif active:
+                cur_start = self._pk.get("start_time", 0.0) or time.time()
+            else:
+                cur_start = 0.0
+
+            cur_dur = duration if (duration and duration > 0) else self._pk.get("duration", 300)
+            rem_sec = max(0, int(cur_dur - (time.time() - cur_start))) if (active and cur_start > 0) else 0
+
             self._pk = {
                 "is_active": active,
                 "status": status,
@@ -371,6 +389,9 @@ except ModuleNotFoundError:
                 "opponent_anchors": opponent_anchors if opponent_anchors is not None else prev_opp_anchors,
                 "host_armies": host_armies if host_armies is not None else prev_host_armies,
                 "opponent_armies": opponent_armies if opponent_armies is not None else prev_opp_armies,
+                "duration": cur_dur,
+                "start_time": cur_start,
+                "remaining_seconds": rem_sec,
             }
 
         def get_top_supporters(self, limit: int = 10):
@@ -1614,6 +1635,10 @@ class TikTokSession:
             host_name = host_anchors[0].get("unique_id", self.username) if host_anchors else self.username
             opp_name  = opp_anchors[0].get("unique_id", "opponent") if opp_anchors else "opponent"
 
+            duration = int(_safe(event, "duration", default=0) or _safe(_safe(event, "battle_settings"), "duration", default=0) or 300)
+            if duration <= 0:
+                duration = 300
+
             self._engine.update_pk_battle(
                 bid=battle_id,
                 active=is_active,
@@ -1627,6 +1652,7 @@ class TikTokSession:
                 opponent_anchors=opp_anchors,
                 host_armies=host_mvps,
                 opponent_armies=opp_mvps,
+                duration=duration,
             )
 
             pk = self._engine.get_pk_state()

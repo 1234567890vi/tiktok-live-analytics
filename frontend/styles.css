@@ -792,3 +792,184 @@ html.theme-oled #mainSidebar {
   border-left: 3px solid #10b981 !important;
   box-shadow: 0 0 15px rgba(16, 185, 129, 0.15) !important;
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   PK BATTLE ROUND COUNTDOWN TIMER STYLES
+══════════════════════════════════════════════════════════════════ */
+#pkRoundTimerBadge {
+  position: relative;
+  box-shadow: 0 0 12px rgba(236, 72, 153, 0.25);
+}
+
+#pkRoundTimerBadge.timer-normal {
+  border-color: rgba(236, 72, 153, 0.5);
+  box-shadow: 0 0 15px rgba(236, 72, 153, 0.3);
+}
+#pkRoundTimerBadge.timer-normal #pkRoundTimerText {
+  color: #fdf2f8;
+  text-shadow: 0 0 8px rgba(236, 72, 153, 0.6);
+}
+
+#pkRoundTimerBadge.timer-warning {
+  border-color: rgba(245, 158, 11, 0.8) !important;
+  box-shadow: 0 0 18px rgba(245, 158, 11, 0.45) !important;
+  animation: timer-pulse-warning 1s infinite alternate ease-in-out;
+}
+#pkRoundTimerBadge.timer-warning #pkRoundTimerText {
+  color: #fef3c7 !important;
+  text-shadow: 0 0 10px rgba(245, 158, 11, 0.8) !important;
+}
+#pkRoundTimerBadge.timer-warning #pkRoundTimerPhase {
+  color: #fde68a !important;
+}
+
+#pkRoundTimerBadge.timer-urgent {
+  border-color: rgba(239, 68, 68, 0.95) !important;
+  background: linear-gradient(135deg, rgba(153, 27, 27, 0.6), rgba(0, 0, 0, 0.95)) !important;
+  box-shadow: 0 0 25px rgba(239, 68, 68, 0.7), inset 0 0 12px rgba(239, 68, 68, 0.3) !important;
+  animation: timer-pulse-urgent 0.45s infinite alternate ease-in-out;
+}
+#pkRoundTimerBadge.timer-urgent #pkRoundTimerText {
+  color: #fee2e2 !important;
+  text-shadow: 0 0 14px rgba(239, 68, 68, 1) !important;
+}
+#pkRoundTimerBadge.timer-urgent #pkRoundTimerPhase {
+  color: #fca5a5 !important;
+}
+
+#pkRoundTimerBadge.timer-punish {
+  border-color: rgba(168, 85, 247, 0.7) !important;
+  box-shadow: 0 0 18px rgba(168, 85, 247, 0.4) !important;
+}
+#pkRoundTimerBadge.timer-punish #pkRoundTimerText {
+  color: #f3e8ff !important;
+  text-shadow: 0 0 10px rgba(168, 85, 247, 0.8) !important;
+}
+
+#pkRoundTimerBadge.timer-ended {
+  border-color: rgba(107, 114, 128, 0.5) !important;
+  box-shadow: none !important;
+  animation: none !important;
+}
+#pkRoundTimerBadge.timer-ended #pkRoundTimerText {
+  color: #9ca3af !important;
+  text-shadow: none !important;
+}
+
+@keyframes timer-pulse-warning {
+  0%   { transform: scale(1); }
+  100% { transform: scale(1.03); }
+}
+@keyframes timer-pulse-urgent {
+  0%   { transform: scale(1);    box-shadow: 0 0 15px rgba(239, 68, 68, 0.5); }
+  100% { transform: scale(1.06); box-shadow: 0 0 30px rgba(239, 68, 68, 0.95); }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   REAL GIFT IMAGES & VISUAL EFFECTS
+══════════════════════════════════════════════════════════════════ */
+.gift-card-real-img {
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.6));
+  transition: transform 0.25s ease-out;
+}
+.gift-card:hover .gift-card-real-img {
+  transform: scale(1.15) rotate(6deg);
+}
+
+.gift-card.vip-gift {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.18), rgba(239, 68, 68, 0.12), rgba(168, 85, 247, 0.12));
+  border: 1px solid rgba(251, 191, 36, 0.5);
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.25);
+}
+
+/* Floating gift flying upwards animation */
+@keyframes fly-gift-up {
+  0% {
+    transform: translate3d(0, 0, 0) scale(0.6);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+    transform: translate3d(0, -20px, 0) scale(1.1);
+  }
+  85% {
+    opacity: 1;
+    transform: translate3d(var(--tx, 0), var(--ty, -160px), 0) scale(1);
+  }
+  100% {
+    transform: translate3d(var(--tx, 0), var(--ty, -200px), 0) scale(0.8);
+    opacity: 0;
+  }
+}
+
+/* Screen rumble for epic/legendary gifts */
+.screen-rumble {
+  animation: screen-shake 0.35s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+@keyframes screen-shake {
+  10%, 90% { transform: translate3d(-1px, 0, 0); }
+  20%, 80% { transform: translate3d(2px, -1px, 0); }
+  30%, 50%, 70% { transform: translate3d(-3px, 2px, 0); }
+  40%, 60% { transform: translate3d(3px, -1px, 0); }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   AUTHENTIC THEATRICAL LEGENDARY GIFT MODAL
+══════════════════════════════════════════════════════════════════ */
+.legendary-rays {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 480px;
+  height: 480px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.35) 0%, rgba(245, 158, 11, 0.15) 35%, transparent 70%);
+  border-radius: 50%;
+  animation: rotate-rays 12s linear infinite;
+  pointer-events: none;
+  z-index: -1;
+}
+@keyframes rotate-rays {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to   { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+.legendary-aura {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 250px;
+  height: 250px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.5) 0%, rgba(239, 68, 68, 0.25) 50%, transparent 75%);
+  border-radius: 50%;
+  animation: pulse-aura 2s ease-in-out infinite alternate;
+  pointer-events: none;
+  z-index: -1;
+}
+@keyframes pulse-aura {
+  0%   { transform: translate(-50%, -50%) scale(0.9); opacity: 0.6; }
+  100% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+}
+
+.animate-float {
+  animation: float-3d 2.5s ease-in-out infinite alternate;
+}
+@keyframes float-3d {
+  0%   { transform: translateY(0px) rotate(-2deg); }
+  100% { transform: translateY(-12px) rotate(2deg); }
+}
+
+.legendary-enter {
+  animation: legendary-pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+@keyframes legendary-pop-in {
+  0%   { transform: scale(0.4) rotate(-8deg); opacity: 0; }
+  70%  { transform: scale(1.05) rotate(2deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+

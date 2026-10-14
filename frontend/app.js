@@ -132,6 +132,75 @@ function playItemCardSound() {
   }
 }
 
+// Sound 4: Mythical / Legendary Gift Roar & Fanfare (هزّة وزئير الدعم الأسطوري)
+function playLegendaryRoarSound() {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    // Sub-bass rumble
+    const subOsc = ctx.createOscillator();
+    const subGain = ctx.createGain();
+    subOsc.type = 'sawtooth';
+    subOsc.frequency.setValueAtTime(65.4, now); // C2
+    subOsc.frequency.exponentialRampToValueAtTime(130.8, now + 0.3);
+    subOsc.frequency.exponentialRampToValueAtTime(40, now + 0.9);
+    subGain.gain.setValueAtTime(0.001, now);
+    subGain.gain.exponentialRampToValueAtTime(0.32, now + 0.05);
+    subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
+    subOsc.connect(subGain);
+    subGain.connect(ctx.destination);
+    subOsc.start(now);
+    subOsc.stop(now + 1.0);
+
+    // Triumphant chord blast (Major triad + octave)
+    const chord = [261.63, 329.63, 392.00, 523.25, 659.25];
+    chord.forEach((f, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(f, now + 0.12 + (idx * 0.05));
+      gain.gain.setValueAtTime(0.001, now + 0.12 + (idx * 0.05));
+      gain.gain.exponentialRampToValueAtTime(0.18, now + 0.16 + (idx * 0.05));
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8 + (idx * 0.05));
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + 0.12 + (idx * 0.05));
+      osc.stop(now + 0.85 + (idx * 0.05));
+    });
+  } catch (err) {
+    console.debug('[Audio] Legendary roar error:', err);
+  }
+}
+
+// Sound 5: Coin Burst / Shimmering Chime (تساقط النقود والألماس)
+function playCoinShowerSound() {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const pitches = [1318.51, 1567.98, 1760.00, 2093.00, 2637.02];
+    for (let i = 0; i < 4; i++) {
+      const p = pitches[Math.floor(Math.random() * pitches.length)];
+      const delay = i * 0.04;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(p, now + delay);
+      gain.gain.setValueAtTime(0.001, now + delay);
+      gain.gain.exponentialRampToValueAtTime(0.09, now + delay + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.18);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + delay);
+      osc.stop(now + delay + 0.2);
+    }
+  } catch (err) {
+    console.debug('[Audio] Coin sound error:', err);
+  }
+}
+
 
 // ---------------------------------------------------------------------------
 // DOM refs — cached once on load
@@ -158,10 +227,15 @@ const DOM = {
   kpiComments: $('kpiComments'),
 
   // PK Arena
-  pkSection:        $('pkSection'),
-  pkBattleType:     $('pkBattleType'),
-  pkStatusBadge:    $('pkStatusBadge'),
-  pkRoundNum:       $('pkRoundNum'),
+  pkSection:         $('pkSection'),
+  pkBattleType:      $('pkBattleType'),
+  pkStatusBadge:     $('pkStatusBadge'),
+  pkRoundTimerBadge: $('pkRoundTimerBadge'),
+  pkRoundTimerIcon:  $('pkRoundTimerIcon'),
+  pkRoundTimerPhase: $('pkRoundTimerPhase'),
+  pkRoundTimerText:  $('pkRoundTimerText'),
+  pkRoundTimerBar:   $('pkRoundTimerBar'),
+  pkRoundNum:        $('pkRoundNum'),
   pkHostWins:       $('pkHostWins'),
   pkOppWins:        $('pkOppWins'),
   pkHostAvatar:     $('pkHostAvatar'),
@@ -267,6 +341,17 @@ const DOM = {
   btnLaunchDemoVideo:     $('btnLaunchDemoVideo'),
   videoSpyAlert:          $('videoSpyAlert'),
   videoSpyAlertText:      $('videoSpyAlertText'),
+
+  // Authentic Gift Visual Effects & Theatrical Modal
+  giftFxCanvas:          $('giftFxCanvas'),
+  legendaryGiftModal:    $('legendaryGiftModal'),
+  legendaryGiftImg:      $('legendaryGiftImg'),
+  legendaryComboBadge:   $('legendaryComboBadge'),
+  legendaryUserAvatar:   $('legendaryUserAvatar'),
+  legendaryUserName:     $('legendaryUserName'),
+  legendaryUserHandle:   $('legendaryUserHandle'),
+  legendaryGiftName:     $('legendaryGiftName'),
+  legendaryGiftDiamonds: $('legendaryGiftDiamonds'),
 };
 
 // ---------------------------------------------------------------------------
@@ -403,6 +488,379 @@ function flushBatchRenders() {
 }
 
 // ---------------------------------------------------------------------------
+// Verified High-Definition TikTok Gift Image Assets & 3D Renders Catalog
+// ---------------------------------------------------------------------------
+const TIKTOK_GIFT_ASSETS = {
+  // Legendary & Mythic (20,000+ Diamonds)
+  'lion': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_lion.png~tplv-obj.png',
+  'أسد': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_lion.png~tplv-obj.png',
+  'tiktok universe': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_universe.png~tplv-obj.png',
+  'universe': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_universe.png~tplv-obj.png',
+  'عالم تيك توك': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_universe.png~tplv-obj.png',
+  'كون تيك توك': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_universe.png~tplv-obj.png',
+  'يونيفيرس': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_universe.png~tplv-obj.png',
+  'falcon': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_falcon.png~tplv-obj.png',
+  'صقر': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_falcon.png~tplv-obj.png',
+  'dragon': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_dragon.png~tplv-obj.png',
+  'تنين': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_dragon.png~tplv-obj.png',
+  'phoenix': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_dragon.png~tplv-obj.png',
+  'عنقاء': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_dragon.png~tplv-obj.png',
+  'pegasus': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_pegasus.png~tplv-obj.png',
+  'بيغاسوس': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_pegasus.png~tplv-obj.png',
+  'castle': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_castle.png~tplv-obj.png',
+  'قلعة': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_castle.png~tplv-obj.png',
+
+  // Mega & Big Gifts (1,000 - 19,999 Diamonds)
+  'sports car': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_sports_car.png~tplv-obj.png',
+  'car': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_sports_car.png~tplv-obj.png',
+  'سيارة رياضية': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_sports_car.png~tplv-obj.png',
+  'سيارة': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_sports_car.png~tplv-obj.png',
+  'yacht': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_yacht.png~tplv-obj.png',
+  'luxury yacht': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_yacht.png~tplv-obj.png',
+  'يخت': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_yacht.png~tplv-obj.png',
+  'interstellar galaxy': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_galaxy.png~tplv-obj.png',
+  'interstellar': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_galaxy.png~tplv-obj.png',
+  'galaxy': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_galaxy.png~tplv-obj.png',
+  'مجرة': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_galaxy.png~tplv-obj.png',
+  'فضاء': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_galaxy.png~tplv-obj.png',
+  'غالاكسي': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_galaxy.png~tplv-obj.png',
+  'private jet': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_jet.png~tplv-obj.png',
+  'jet': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_jet.png~tplv-obj.png',
+  'طائرة خاصة': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_jet.png~tplv-obj.png',
+  'طائرة': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_jet.png~tplv-obj.png',
+  'diving whale': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_whale.png~tplv-obj.png',
+  'whale': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_whale.png~tplv-obj.png',
+  'حوت': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_whale.png~tplv-obj.png',
+  'fireworks': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_fireworks.png~tplv-obj.png',
+  'ألعاب نارية': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_fireworks.png~tplv-obj.png',
+  'ferris wheel': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_ferris_wheel.png~tplv-obj.png',
+  'عجلة الملاهي': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_ferris_wheel.png~tplv-obj.png',
+
+  // Medium Gifts (100 - 999 Diamonds)
+  'sunglasses': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_sunglasses.png~tplv-obj.png',
+  'glasses': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_sunglasses.png~tplv-obj.png',
+  'نظارات شمسية': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_sunglasses.png~tplv-obj.png',
+  'نظارات': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_sunglasses.png~tplv-obj.png',
+  'boxing gloves': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_boxing_gloves.png~tplv-obj.png',
+  'قفازات ملاكمة': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_boxing_gloves.png~tplv-obj.png',
+  'confetti': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_confetti.png~tplv-obj.png',
+  'احتفال': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_confetti.png~tplv-obj.png',
+  'crown': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_crown.png~tplv-obj.png',
+  'تاج': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_crown.png~tplv-obj.png',
+  'perfume': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_perfume.png~tplv-obj.png',
+  'عطر': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_perfume.png~tplv-obj.png',
+  'doughnut': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_doughnut.png~tplv-obj.png',
+  'donut': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_doughnut.png~tplv-obj.png',
+  'دونات': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_doughnut.png~tplv-obj.png',
+
+  // Standard Popular Gifts (1 - 99 Diamonds)
+  'rose': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_rose.png~tplv-obj.png',
+  'وردة': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_rose.png~tplv-obj.png',
+  'ورده': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_rose.png~tplv-obj.png',
+  'tiktok': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_tiktok.png~tplv-obj.png',
+  'تيك توك': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_tiktok.png~tplv-obj.png',
+  'heart me': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_tiktok.png~tplv-obj.png',
+  'heart': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_tiktok.png~tplv-obj.png',
+  'قلب': 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_tiktok.png~tplv-obj.png',
+};
+
+function getGiftAsset(name, fallbackUrl) {
+  if (fallbackUrl && typeof fallbackUrl === 'string' && fallbackUrl.startsWith('http')) {
+    return fallbackUrl;
+  }
+  const clean = String(name || '').toLowerCase().trim();
+  if (TIKTOK_GIFT_ASSETS[clean]) {
+    return TIKTOK_GIFT_ASSETS[clean];
+  }
+  for (const [k, v] of Object.entries(TIKTOK_GIFT_ASSETS)) {
+    if (clean.includes(k) || k.includes(clean)) {
+      return v;
+    }
+  }
+  return 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_rose.png~tplv-obj.png';
+}
+
+// ---------------------------------------------------------------------------
+// Full-Screen Canvas Visual FX Engine (Particle bursts, coins, confetti & gifts)
+// ---------------------------------------------------------------------------
+const GiftFxEngine = {
+  canvas: null,
+  ctx: null,
+  particles: [],
+  animId: null,
+  width: window.innerWidth,
+  height: window.innerHeight,
+
+  init() {
+    this.canvas = DOM.giftFxCanvas;
+    if (!this.canvas) return;
+    this.ctx = this.canvas.getContext('2d', { alpha: true });
+    this.resize();
+    window.addEventListener('resize', () => this.resize(), { passive: true });
+  },
+
+  resize() {
+    if (!this.canvas) return;
+    this.width = this.canvas.width = window.innerWidth;
+    this.height = this.canvas.height = window.innerHeight;
+  },
+
+  startLoop() {
+    if (this.animId) return;
+    this.animId = requestAnimationFrame(this.loop.bind(this));
+  },
+
+  loop() {
+    if (!this.ctx) return;
+    this.ctx.clearRect(0, 0, this.width, this.height);
+
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += p.gravity || 0.18;
+      p.rotation = (p.rotation || 0) + (p.rotSpeed || 0.05);
+      p.life -= p.decay || 0.015;
+
+      if (p.life <= 0 || p.y > this.height + 50) {
+        this.particles.splice(i, 1);
+        continue;
+      }
+
+      this.ctx.save();
+      this.ctx.globalAlpha = Math.max(0, Math.min(1, p.life));
+      this.ctx.translate(p.x, p.y);
+      this.ctx.rotate(p.rotation);
+
+      if (p.type === 'coin') {
+        this.ctx.fillStyle = '#f59e0b';
+        this.ctx.beginPath();
+        const spinW = Math.max(2, Math.abs(Math.cos(p.rotation) * p.size));
+        this.ctx.ellipse(0, 0, spinW, p.size, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.strokeStyle = '#fef08a';
+        this.ctx.lineWidth = 1.5;
+        this.ctx.stroke();
+      } else if (p.type === 'confetti') {
+        this.ctx.fillStyle = p.color;
+        this.ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+      }
+      this.ctx.restore();
+    }
+
+    if (this.particles.length > 0) {
+      this.animId = requestAnimationFrame(this.loop.bind(this));
+    } else {
+      this.animId = null;
+    }
+  },
+
+  spawnCoins(count = 15, x = null, y = null) {
+    const originX = x !== null ? x : this.width / 2;
+    const originY = y !== null ? y : this.height * 0.75;
+    playCoinShowerSound();
+
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 1.5) + (Math.random() - 0.5) * 1.2;
+      const speed = Math.random() * 9 + 6;
+      this.particles.push({
+        type: 'coin',
+        x: originX + (Math.random() - 0.5) * 40,
+        y: originY,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        gravity: 0.35,
+        size: Math.random() * 4 + 7,
+        rotation: Math.random() * Math.PI,
+        rotSpeed: (Math.random() - 0.5) * 0.3,
+        life: 1.0,
+        decay: Math.random() * 0.01 + 0.012,
+      });
+    }
+    this.startLoop();
+  },
+
+  spawnConfetti(count = 35) {
+    const colors = ['#f43f5e', '#ec4899', '#a855f7', '#3b82f6', '#06b6d4', '#10b981', '#f59e0b', '#fbbf24'];
+    for (let i = 0; i < count; i++) {
+      this.particles.push({
+        type: 'confetti',
+        x: Math.random() * this.width,
+        y: -10,
+        vx: (Math.random() - 0.5) * 4,
+        vy: Math.random() * 3 + 2,
+        gravity: 0.05,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        size: Math.random() * 6 + 6,
+        rotation: Math.random() * Math.PI,
+        rotSpeed: (Math.random() - 0.5) * 0.15,
+        life: 1.0,
+        decay: 0.007,
+      });
+    }
+    this.startLoop();
+  },
+
+  triggerScreenShake() {
+    document.body.classList.remove('screen-rumble');
+    void document.body.offsetWidth;
+    document.body.classList.add('screen-rumble');
+    setTimeout(() => document.body.classList.remove('screen-rumble'), 400);
+  },
+
+  spawnFloatingGift(imgUrl, combo = 1) {
+    try {
+      const floater = document.createElement('div');
+      floater.className = 'fixed pointer-events-none z-[85] flex items-center gap-1.5 transition-all';
+      floater.style.left = `${Math.random() * 40 + 30}%`;
+      floater.style.bottom = '15%';
+      floater.style.animation = 'fly-gift-up 1.8s cubic-bezier(0.22, 1, 0.36, 1) forwards';
+      floater.innerHTML = `
+        <div class="relative flex items-center justify-center p-1.5 rounded-2xl bg-black/70 border border-yellow-400/60 shadow-[0_0_20px_rgba(251,191,36,0.7)] backdrop-blur-sm">
+          <img src="${imgUrl}" style="width:52px;height:52px;object-fit:contain;" alt="Gift" />
+          ${combo > 1 ? `<span class="absolute -top-2 -right-2 px-2 py-0.5 rounded-full bg-gradient-to-r from-red-600 to-pink-600 text-white font-black text-xs border border-yellow-300 shadow-md">x${combo}</span>` : ''}
+        </div>
+      `;
+      document.body.appendChild(floater);
+      setTimeout(() => floater.remove(), 1900);
+    } catch (_) {}
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Authentic Theatrical Legendary Gift Modal (Full-Screen VIP Takeover)
+// ---------------------------------------------------------------------------
+let legendaryTimer = null;
+function showLegendaryGiftModal(supporter, giftName, diamonds, combo, iconUrl) {
+  if (!DOM.legendaryGiftModal) return;
+  if (legendaryTimer) clearTimeout(legendaryTimer);
+
+  const realImg = getGiftAsset(giftName, iconUrl);
+  if (DOM.legendaryGiftImg) DOM.legendaryGiftImg.src = realImg;
+  if (DOM.legendaryGiftName) DOM.legendaryGiftName.textContent = giftName;
+  if (DOM.legendaryGiftDiamonds) DOM.legendaryGiftDiamonds.textContent = fmt(diamonds);
+  if (DOM.legendaryComboBadge) DOM.legendaryComboBadge.textContent = `x${combo || 1}`;
+
+  const avUrl = supporter?.avatar_url || supporter?.avatar || 'https://placehold.co/100x100/111827/white?text=VIP';
+  if (DOM.legendaryUserAvatar) DOM.legendaryUserAvatar.src = avUrl;
+  if (DOM.legendaryUserName) DOM.legendaryUserName.textContent = supporter?.nickname || supporter?.name || supporter?.unique_id || 'داعم أسطوري';
+  if (DOM.legendaryUserHandle) DOM.legendaryUserHandle.textContent = supporter?.unique_id || supporter?.handle ? `@${supporter.unique_id || supporter.handle}` : '';
+
+  // Sounds & Effects
+  playLegendaryRoarSound();
+  playBigGiftSound();
+  GiftFxEngine.triggerScreenShake();
+  GiftFxEngine.spawnCoins(35);
+  GiftFxEngine.spawnConfetti(75);
+
+  DOM.legendaryGiftModal.classList.remove('hidden');
+
+  legendaryTimer = setTimeout(() => {
+    DOM.legendaryGiftModal.classList.add('hidden');
+    legendaryTimer = null;
+  }, 3800);
+}
+
+// ---------------------------------------------------------------------------
+// PK Battle Round Countdown Timer Engine (عداد وقت الجولة التفاعلي)
+// ---------------------------------------------------------------------------
+let pkTimerInterval = null;
+let pkTimerEndTimestamp = 0;
+let pkTimerTotalSeconds = 300;
+let pkTimerPhase = 'BATTLE'; // 'BATTLE' | 'PUNISH' | 'ENDED'
+
+function startPkCountdown(seconds, phase = 'BATTLE') {
+  if (pkTimerInterval) clearInterval(pkTimerInterval);
+  pkTimerTotalSeconds = seconds > 0 ? seconds : 300;
+  pkTimerEndTimestamp = Date.now() + (pkTimerTotalSeconds * 1000);
+  pkTimerPhase = phase;
+
+  if (DOM.pkRoundTimerBadge) {
+    DOM.pkRoundTimerBadge.classList.remove('hidden');
+  }
+  updatePkTimerDisplay();
+  pkTimerInterval = setInterval(updatePkTimerDisplay, 1000);
+}
+
+function updatePkTimerDisplay() {
+  const now = Date.now();
+  const remainingMs = Math.max(0, pkTimerEndTimestamp - now);
+  const remainingSec = Math.ceil(remainingMs / 1000);
+
+  const mins = Math.floor(remainingSec / 60);
+  const secs = remainingSec % 60;
+  const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+  if (DOM.pkRoundTimerText) {
+    DOM.pkRoundTimerText.textContent = formatted;
+  }
+
+  const pct = Math.max(0, Math.min(100, Math.round((remainingSec / pkTimerTotalSeconds) * 100)));
+  if (DOM.pkRoundTimerBar) {
+    DOM.pkRoundTimerBar.style.width = `${pct}%`;
+  }
+
+  if (DOM.pkRoundTimerPhase) {
+    if (pkTimerPhase === 'PUNISH') {
+      DOM.pkRoundTimerPhase.textContent = 'وقت الحكم:';
+      if (DOM.pkRoundTimerIcon) DOM.pkRoundTimerIcon.textContent = '⏱️';
+    } else {
+      DOM.pkRoundTimerPhase.textContent = 'وقت الجولة:';
+      if (DOM.pkRoundTimerIcon) DOM.pkRoundTimerIcon.textContent = remainingSec <= 15 ? '🔥' : '⏳';
+    }
+  }
+
+  // Dynamic Color Classes
+  if (DOM.pkRoundTimerBadge) {
+    DOM.pkRoundTimerBadge.classList.remove('timer-normal', 'timer-warning', 'timer-urgent', 'timer-punish', 'timer-ended');
+    if (pkTimerPhase === 'PUNISH') {
+      DOM.pkRoundTimerBadge.classList.add('timer-punish');
+    } else if (remainingSec <= 15 && remainingSec > 0) {
+      DOM.pkRoundTimerBadge.classList.add('timer-urgent');
+    } else if (remainingSec <= 60 && remainingSec > 15) {
+      DOM.pkRoundTimerBadge.classList.add('timer-warning');
+    } else if (remainingSec > 60) {
+      DOM.pkRoundTimerBadge.classList.add('timer-normal');
+    } else {
+      DOM.pkRoundTimerBadge.classList.add('timer-ended');
+    }
+  }
+
+  // 15-second warning alert
+  if (remainingSec === 15 && pkTimerPhase === 'BATTLE') {
+    toast('🔥 آخر 15 ثانية في الجولة! احشدوا الدعم والتكبيس الآن! ⚡', 'warning', 4000);
+  }
+
+  if (remainingSec <= 0) {
+    if (pkTimerInterval) {
+      clearInterval(pkTimerInterval);
+      pkTimerInterval = null;
+    }
+    if (DOM.pkRoundTimerText) {
+      DOM.pkRoundTimerText.textContent = '00:00';
+    }
+  }
+}
+
+function stopPkCountdown(state = 'ENDED') {
+  if (pkTimerInterval) {
+    clearInterval(pkTimerInterval);
+    pkTimerInterval = null;
+  }
+  if (state === 'IDLE') {
+    if (DOM.pkRoundTimerBadge) DOM.pkRoundTimerBadge.classList.add('hidden');
+  } else {
+    if (DOM.pkRoundTimerBadge) {
+      DOM.pkRoundTimerBadge.classList.remove('hidden', 'timer-normal', 'timer-warning', 'timer-urgent', 'timer-punish');
+      DOM.pkRoundTimerBadge.classList.add('timer-ended');
+    }
+    if (DOM.pkRoundTimerText) DOM.pkRoundTimerText.textContent = '00:00';
+    if (DOM.pkRoundTimerPhase) DOM.pkRoundTimerPhase.textContent = 'انتهت الجولة';
+    if (DOM.pkRoundTimerBar) DOM.pkRoundTimerBar.style.width = '0%';
+  }
+}
+
+// ---------------------------------------------------------------------------
 // DOM Node Factories
 // ---------------------------------------------------------------------------
 function createCommentNode(data) {
@@ -469,25 +927,28 @@ function createGiftNode(data) {
   card.dataset.giftKey = String(txn.gift_id || giftName || '');
   card.dataset.streakActive = isStreak ? '1' : '0';
 
-  // Avatar + mini gift icon
+  // 1. Supporter Avatar
   const avDiv = document.createElement('div');
   avDiv.style.cssText = 'position:relative;flex-shrink:0;';
-
   const userAv = avatarEl(user.avatar_url, user.nickname, 'comment-avatar');
-  userAv.style.cssText = 'width:38px;height:38px;border-radius:50%;object-fit:cover;border:1px solid rgba(255,255,255,0.2);';
+  userAv.style.cssText = 'width:38px;height:38px;border-radius:50%;object-fit:cover;border:1px solid rgba(255,255,255,0.25);';
+  avDiv.appendChild(userAv);
 
-  if (iconUrl) {
-    const giftMini = document.createElement('img');
-    giftMini.src = iconUrl;
-    giftMini.alt = giftName;
-    giftMini.style.cssText = 'position:absolute;bottom:-4px;right:-4px;width:20px;height:20px;object-fit:contain;filter:drop-shadow(0 0 4px rgba(0,0,0,0.8));';
-    giftMini.onerror = () => { giftMini.remove(); };
-    avDiv.append(userAv, giftMini);
-  } else {
-    avDiv.appendChild(userAv);
-  }
+  // 2. Real High-Resolution Gift Image (عرض الصورة الحقيقية للهدية)
+  const resolvedGiftIcon = getGiftAsset(giftName, iconUrl);
+  const giftImgDiv = document.createElement('div');
+  giftImgDiv.className = 'gift-icon flex-shrink-0 flex items-center justify-center';
+  const realGiftImg = document.createElement('img');
+  realGiftImg.className = 'gift-card-real-img';
+  realGiftImg.src = resolvedGiftIcon;
+  realGiftImg.alt = giftName;
+  realGiftImg.loading = 'lazy';
+  realGiftImg.onerror = () => {
+    realGiftImg.src = 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_rose.png~tplv-obj.png';
+  };
+  giftImgDiv.appendChild(realGiftImg);
 
-  // Info block
+  // 3. Info block
   const info = document.createElement('div');
   info.className = 'gift-info';
 
@@ -518,7 +979,7 @@ function createGiftNode(data) {
   }
 
   const nameLine = document.createElement('div');
-  nameLine.className   = 'gift-name';
+  nameLine.className   = 'gift-name font-bold text-white';
   nameLine.textContent = giftName;
 
   const detailsLine = document.createElement('div');
@@ -558,12 +1019,12 @@ function createGiftNode(data) {
     info.appendChild(unmaskDiv);
   }
 
-  // Combo counter
+  // 4. Combo counter
   const comboDiv = document.createElement('div');
   comboDiv.className   = 'gift-combo';
   comboDiv.textContent = `x${combo}`;
 
-  card.append(avDiv, info, comboDiv);
+  card.append(avDiv, giftImgDiv, info, comboDiv);
   return card;
 }
 
@@ -609,12 +1070,29 @@ function addGift(data) {
     : (totalComboDiamonds * 0.005).toFixed(2);
 
   // VIP sound chime for legendary gifts (>= 1000 diamonds)
-  if (totalComboDiamonds >= 1000 || unitDiamonds >= 1000) {
-    playBigGiftSound();
+  const resolvedIcon = getGiftAsset(giftName, iconUrl);
+
+  try {
+    // 1. Floating real gift animation upward on screen
+    GiftFxEngine.spawnFloatingGift(resolvedIcon, combo);
+
+    // 2. Multi-tier visual effects
+    if (totalComboDiamonds >= 5000 || unitDiamonds >= 5000) {
+      showLegendaryGiftModal(user, giftName, totalComboDiamonds, combo, resolvedIcon);
+    } else if (totalComboDiamonds >= 1000 || unitDiamonds >= 1000) {
+      playBigGiftSound();
+      GiftFxEngine.spawnCoins(24);
+      GiftFxEngine.spawnConfetti(45);
+      GiftFxEngine.triggerScreenShake();
+    } else if (totalComboDiamonds >= 100 || unitDiamonds >= 100) {
+      GiftFxEngine.spawnCoins(10);
+    }
+  } catch (fxErr) {
+    console.debug('[GiftFX] error:', fxErr);
   }
 
   // Show combo burst popup for streaks >= 5
-  if (combo >= 5) showComboBurst(giftName, iconUrl || '🎁', combo);
+  if (combo >= 5) showComboBurst(giftName, resolvedIcon, combo);
 
   // Update revenue KPIs immediately
   if (data.total_diamonds !== undefined) {
@@ -675,11 +1153,8 @@ function showComboBurst(name, iconUrlOrEmoji, count) {
   DOM.comboCountDisplay.textContent = `x${count}`;
   DOM.comboGiftName.textContent     = name;
 
-  if (iconUrlOrEmoji && iconUrlOrEmoji.startsWith('http')) {
-    DOM.comboGiftIcon.innerHTML = `<img src="${iconUrlOrEmoji}" style="width:64px;height:64px;object-fit:contain;display:block;margin:0 auto;" alt="${name}" />`;
-  } else {
-    DOM.comboGiftIcon.textContent = iconUrlOrEmoji || '🎁';
-  }
+  const realIcon = getGiftAsset(name, iconUrlOrEmoji);
+  DOM.comboGiftIcon.innerHTML = `<img src="${realIcon}" style="width:68px;height:68px;object-fit:contain;display:block;margin:0 auto;filter:drop-shadow(0 0 10px rgba(251,191,36,0.8));" alt="${name}" onerror="this.src='https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_rose.png~tplv-obj.png'" />`;
 
   DOM.comboPopup.classList.remove('hidden');
 
@@ -876,6 +1351,24 @@ function updatePK(pkData, eventType) {
       DOM.pkStatusBadge.className   = 'px-3 py-1 rounded-full text-xs font-bold bg-gray-800 text-gray-400 border border-gray-700';
       DOM.pkSection?.classList.remove('pk-active');
     }
+  }
+
+  // Synchronize PK Round Countdown Timer (مزامنة عداد وقت الجولة)
+  if (status === 'ACTIVE' || (isActive && status !== 'PUNISH')) {
+    const dur = pkData.duration || 300;
+    const rem = (pkData.remaining_seconds != null && pkData.remaining_seconds > 0) ? pkData.remaining_seconds : dur;
+    if (isNewRound || !pkTimerInterval || pkTimerPhase !== 'BATTLE') {
+      startPkCountdown(rem, 'BATTLE');
+    }
+  } else if (status === 'PUNISH') {
+    const rem = (pkData.remaining_seconds != null && pkData.remaining_seconds > 0) ? pkData.remaining_seconds : 120;
+    if (!pkTimerInterval || pkTimerPhase !== 'PUNISH') {
+      startPkCountdown(rem, 'PUNISH');
+    }
+  } else if (status === 'ENDED' || eventType === 'ended') {
+    stopPkCountdown('ENDED');
+  } else {
+    stopPkCountdown('IDLE');
   }
 
   // Populate Host Side (معه)
@@ -2137,6 +2630,9 @@ function startDemoSimulation() {
 
   toast(currentLang === 'ar' ? '🎮 تم تشغيل وضع المحاكاة التجريبية الحية!' : '🎮 Demo simulation mode activated!', 'success');
 
+  // Start PK Round Countdown Timer (300s)
+  startPkCountdown(300, 'BATTLE');
+
   // Push an initial set of mock data
   for (let i = 0; i < 3; i++) {
     const user = DEMO_USERS[i % DEMO_USERS.length];
@@ -2268,6 +2764,32 @@ function startDemoSimulation() {
       bumpKpi(DOM.kpiNet, (demoDiamonds * 0.005 * 0.5).toFixed(2), fmtUsd);
     }
 
+    // 3.8. Legendary Lion Support Takeover at tick 10 & 25
+    if (tick === 10 || tick === 25) {
+      const lionVal = 29999;
+      demoDiamonds += lionVal;
+      demoHostScore += lionVal;
+      addGift({
+        user: {
+          nickname: 'أبو فهد العتيبي 🦁',
+          unique_id: 'abu_fahad',
+          avatar_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&crop=faces',
+        },
+        transaction: {
+          gift_name: 'أسد التيك توك (Lion)',
+          gift_icon_url: 'https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_lion.png~tplv-obj.png',
+          diamond_unit_cost: 29999,
+          repeat_count: 1,
+          total_value: lionVal,
+        },
+        recipient_side: 'host',
+        recipient_name: 'فريقنا',
+      });
+      bumpKpi(DOM.kpiDiamonds, demoDiamonds);
+      bumpKpi(DOM.kpiUsd, (demoDiamonds * 0.005).toFixed(2), fmtUsd);
+      bumpKpi(DOM.kpiNet, (demoDiamonds * 0.005 * 0.5).toFixed(2), fmtUsd);
+    }
+
     // 4. Random liker every 4 ticks
     if (tick % 4 === 0) {
       const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)];
@@ -2290,6 +2812,7 @@ function stopDemoSimulation() {
     isDemoMode = false;
     clearInterval(demoTimer);
     demoTimer = null;
+    stopPkCountdown('IDLE');
   }
 }
 
@@ -2315,6 +2838,7 @@ document.querySelectorAll('.quick-stream-btn').forEach(btn => {
 // ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
+GiftFxEngine.init();
 initLiveVideoPlayer();
 applyLanguage(currentLang);
 applyTheme(currentTheme);
@@ -2325,5 +2849,5 @@ if (sessionStorage.getItem('tt_admin_token')) {
   if (DOM.adminSidebarSection) DOM.adminSidebarSection.classList.remove('hidden');
 }
 
-console.log('🎯 TIKTOK VRF initialized successfully.');
+console.log('🎯 TIKTOK VRF initialized successfully with PK Round Timer & Gift FX.');
 
