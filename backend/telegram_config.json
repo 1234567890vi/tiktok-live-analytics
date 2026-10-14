@@ -1,0 +1,8 @@
+{
+  "bot_token": "",
+  "chat_id": "",
+  "enabled": false,
+  "notify_on_new_stream": true,
+  "notify_on_stream_end": true,
+  "periodic_report_hours": 0
+}
