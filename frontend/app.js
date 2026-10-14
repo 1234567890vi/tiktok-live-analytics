@@ -2024,7 +2024,7 @@ function initLiveVideoPlayer() {
 }
 
 function loadVideoStream(streamData, chosenQuality = 'auto') {
-  if (!streamData) return;
+  if (!streamData || !DOM.liveVideoElement) return;
   currentStreamData = streamData;
 
   const qualities = streamData.qualities || {};
@@ -2170,6 +2170,7 @@ function loadVideoStream(streamData, chosenQuality = 'auto') {
 }
 
 function loadDemoVideoStream() {
+  if (!DOM.liveVideoElement) return;
   if (DOM.videoPlaceholder) DOM.videoPlaceholder.classList.add('hidden');
   if (DOM.videoLiveBadge) DOM.videoLiveBadge.classList.remove('hidden');
   if (DOM.videoStreamerInfo) DOM.videoStreamerInfo.textContent = '🎮 بث تجريبي حي (Live Stream Demo)';

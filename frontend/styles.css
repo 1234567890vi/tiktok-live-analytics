@@ -688,44 +688,6 @@ html.theme-oled #mainSidebar {
   gap: 4px;
 }
 
-/* ══════════════════════════════════════════════════════════════════
-   LIVE VIDEO PLAYER STYLES & CONTROLS
-══════════════════════════════════════════════════════════════════ */
-#liveVideoSection {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-#liveVideoContainer.video-collapsed {
-  display: none !important;
-}
-
-#liveVideoElement.aspect-portrait,
-#liveIframeElement.aspect-portrait {
-  max-width: 340px;
-  height: 480px;
-  margin: 0 auto;
-}
-
-#liveVideoElement.aspect-landscape,
-#liveIframeElement.aspect-landscape {
-  width: 100%;
-  max-height: 480px;
-}
-
-#liveIframeElement {
-  border: none;
-  background-color: #000;
-}
-
-#videoQualitySelect {
-  font-family: inherit;
-  font-size: 11px;
-}
-
-#videoBufferingIndicator {
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-}
 
 /* ══════════════════════════════════════════════════════════════════
    HIDDEN SUPPORTER UNMASKING BADGES & GLOW
