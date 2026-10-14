@@ -973,3 +973,95 @@ html.theme-oled #mainSidebar {
   100% { transform: scale(1) rotate(0deg); opacity: 1; }
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   GIFT SEPARATION & TEAM RECIPIENT STYLES (فصل هدايا فريقنا عن الخصم)
+   ══════════════════════════════════════════════════════════════════ */
+
+/* Host team gift cards (فريقنا - أزرق نيون) */
+.gift-card.side-host {
+  border-inline-start: 4px solid #3b82f6 !important;
+  background: linear-gradient(135deg, rgba(30, 58, 138, 0.28), rgba(15, 23, 42, 0.88)) !important;
+  box-shadow: 0 0 14px rgba(59, 130, 246, 0.15);
+}
+.gift-card.side-host:hover {
+  border-color: rgba(96, 165, 250, 0.6) !important;
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.28) !important;
+}
+
+/* Opponent team gift cards (الخصم - أحمر نيون) */
+.gift-card.side-opponent {
+  border-inline-start: 4px solid #ef4444 !important;
+  background: linear-gradient(135deg, rgba(127, 29, 29, 0.28), rgba(15, 23, 42, 0.88)) !important;
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.15);
+}
+.gift-card.side-opponent:hover {
+  border-color: rgba(248, 113, 113, 0.6) !important;
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.28) !important;
+}
+
+/* Filtering on Unified Feed */
+#giftFeed.filter-host .gift-card.side-opponent {
+  display: none !important;
+}
+#giftFeed.filter-opponent .gift-card.side-host {
+  display: none !important;
+}
+
+/* Filter tab button active states */
+.gift-filter-tab {
+  cursor: pointer;
+  user-select: none;
+}
+.gift-filter-tab.active {
+  background: rgba(245, 158, 11, 0.18) !important;
+  border-color: rgba(245, 158, 11, 0.6) !important;
+  color: #fef08a !important;
+}
+.gift-filter-tab.active.tab-host {
+  background: rgba(37, 99, 235, 0.3) !important;
+  border-color: rgba(59, 130, 246, 0.75) !important;
+  color: #bfdbfe !important;
+}
+.gift-filter-tab.active.tab-opp {
+  background: rgba(220, 38, 38, 0.3) !important;
+  border-color: rgba(239, 68, 68, 0.75) !important;
+  color: #fecaca !important;
+}
+
+/* Mini PK Gift Pills inside PK Arena */
+.mini-pk-gift-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  flex-shrink: 0;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  animation: pop-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.mini-pk-gift-pill.host {
+  border-color: rgba(59, 130, 246, 0.45);
+  background: linear-gradient(135deg, rgba(30, 58, 138, 0.5), rgba(15, 23, 42, 0.95));
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.25);
+}
+.mini-pk-gift-pill.opp {
+  border-color: rgba(239, 68, 68, 0.45);
+  background: linear-gradient(135deg, rgba(127, 29, 29, 0.5), rgba(15, 23, 42, 0.95));
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.25);
+}
+.mini-pk-gift-pill:hover {
+  transform: scale(1.05);
+}
+
+/* Floating Gifts with Team Direction Glow */
+.floating-gift-host {
+  border-color: rgba(59, 130, 246, 0.8) !important;
+  box-shadow: 0 0 25px rgba(59, 130, 246, 0.7) !important;
+}
+.floating-gift-opponent {
+  border-color: rgba(239, 68, 68, 0.8) !important;
+  box-shadow: 0 0 25px rgba(239, 68, 68, 0.7) !important;
+}
+

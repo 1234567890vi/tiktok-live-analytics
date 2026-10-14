@@ -18,6 +18,10 @@ const TOAST_DURATION = 4000;  // ms
 let ws              = null;
 let autoScroll      = true;
 let giftCount       = 0;
+let hostGiftsCount  = 0;
+let oppGiftsCount   = 0;
+let currentGiftFilter = 'all';
+let isSplitViewActive = false;
 let commentCount    = 0;
 let comboTimer      = null;
 let currentUsername = '';
@@ -261,16 +265,40 @@ const DOM = {
   pkOpponentBar:    $('pkOpponentBar'),
   pkHostPct:        $('pkHostPct'),
   pkOppPct:         $('pkOppPct'),
+  pkHostGiftsFeed:  $('pkHostGiftsFeed'),
+  pkOppGiftsFeed:   $('pkOppGiftsFeed'),
+  pkHostGiftCount:  $('pkHostGiftCount'),
+  pkOppGiftCount:   $('pkOppGiftCount'),
+  pkHostLastGift:   $('pkHostLastGift'),
+  pkOppLastGift:    $('pkOppLastGift'),
 
-  // Feeds
-  commentsFeed:    $('commentsFeed'),
-  giftFeed:        $('giftFeed'),
-  leaderboardList: $('leaderboardList'),
-  likersRow:       $('likersRow'),
-  commentCount:    $('commentCount'),
-  giftCount:       $('giftCount'),
-  toggleScrollBtn: $('toggleScrollBtn'),
-  scrollIcon:      $('scrollIcon'),
+  // Feeds & Gift Separation
+  commentsFeed:        $('commentsFeed'),
+  giftFeed:            $('giftFeed'),
+  giftSplitContainer:  $('giftSplitContainer'),
+  giftFeedHost:        $('giftFeedHost'),
+  giftFeedOpp:         $('giftFeedOpp'),
+  hostGiftCountBadge:  $('hostGiftCountBadge'),
+  oppGiftCountBadge:   $('oppGiftCountBadge'),
+  hostGiftsNum:        $('hostGiftsNum'),
+  oppGiftsNum:         $('oppGiftsNum'),
+  splitHostGiftsCount: $('splitHostGiftsCount'),
+  splitOppGiftsCount:  $('splitOppGiftsCount'),
+  giftFilterBtnAll:    $('giftFilterBtnAll'),
+  giftFilterBtnHost:   $('giftFilterBtnHost'),
+  giftFilterBtnOpp:    $('giftFilterBtnOpp'),
+  badgeFilterAll:      $('badgeFilterAll'),
+  badgeFilterHost:     $('badgeFilterHost'),
+  badgeFilterOpp:      $('badgeFilterOpp'),
+  btnToggleSplitView:  $('btnToggleSplitView'),
+  splitViewIcon:       $('splitViewIcon'),
+  splitViewText:       $('splitViewText'),
+  leaderboardList:     $('leaderboardList'),
+  likersRow:           $('likersRow'),
+  commentCount:        $('commentCount'),
+  giftCount:           $('giftCount'),
+  toggleScrollBtn:     $('toggleScrollBtn'),
+  scrollIcon:          $('scrollIcon'),
 
   // Revenue summary
   lbTotalDiamonds: $('lbTotalDiamonds'),
@@ -472,12 +500,40 @@ function flushBatchRenders() {
   if (giftQueue.length > 0) {
     clearPlaceholder(DOM.giftFeed);
     const frag = document.createDocumentFragment();
+    const fragHost = DOM.giftFeedHost ? document.createDocumentFragment() : null;
+    const fragOpp  = DOM.giftFeedOpp  ? document.createDocumentFragment() : null;
+
     const batch = giftQueue.splice(0, giftQueue.length);
     // Reverse batch so newest gift ends up at the top
     for (let i = batch.length - 1; i >= 0; i--) {
-      frag.appendChild(createGiftNode(batch[i]));
+      const item = batch[i];
+      const card = createGiftNode(item);
+      frag.appendChild(card);
+
+      const side = item.recipient_side || 'host';
+      if (side === 'opponent') {
+        if (fragOpp) fragOpp.appendChild(card.cloneNode(true));
+      } else {
+        if (fragHost) fragHost.appendChild(card.cloneNode(true));
+      }
     }
     DOM.giftFeed.prepend(frag);
+
+    if (fragHost && fragHost.childNodes.length > 0 && DOM.giftFeedHost) {
+      clearPlaceholder(DOM.giftFeedHost, '.text-gray-400');
+      DOM.giftFeedHost.prepend(fragHost);
+      while (DOM.giftFeedHost.children.length > MAX_GIFTS) {
+        DOM.giftFeedHost.removeChild(DOM.giftFeedHost.lastChild);
+      }
+    }
+
+    if (fragOpp && fragOpp.childNodes.length > 0 && DOM.giftFeedOpp) {
+      clearPlaceholder(DOM.giftFeedOpp, '.text-gray-400');
+      DOM.giftFeedOpp.prepend(fragOpp);
+      while (DOM.giftFeedOpp.children.length > MAX_GIFTS) {
+        DOM.giftFeedOpp.removeChild(DOM.giftFeedOpp.lastChild);
+      }
+    }
 
     // Prune oldest gifts from bottom in single pass
     while (DOM.giftFeed.children.length > MAX_GIFTS) {
@@ -655,8 +711,17 @@ const GiftFxEngine = {
     }
   },
 
-  spawnCoins(count = 15, x = null, y = null) {
-    const originX = x !== null ? x : this.width / 2;
+  spawnCoins(count = 15, x = null, y = null, side = null) {
+    let originX = x;
+    if (originX === null) {
+      if (side === 'opponent') {
+        originX = this.width * 0.72;
+      } else if (side === 'host') {
+        originX = this.width * 0.28;
+      } else {
+        originX = this.width / 2;
+      }
+    }
     const originY = y !== null ? y : this.height * 0.75;
     playCoinShowerSound();
 
@@ -708,17 +773,31 @@ const GiftFxEngine = {
     setTimeout(() => document.body.classList.remove('screen-rumble'), 400);
   },
 
-  spawnFloatingGift(imgUrl, combo = 1) {
+  spawnFloatingGift(imgUrl, combo = 1, side = 'host') {
     try {
       const floater = document.createElement('div');
       floater.className = 'fixed pointer-events-none z-[85] flex items-center gap-1.5 transition-all';
-      floater.style.left = `${Math.random() * 40 + 30}%`;
+
+      let leftPct;
+      let borderClass = '';
+      if (side === 'opponent') {
+        leftPct = Math.random() * 25 + 62;
+        borderClass = 'floating-gift-opponent border-red-500/80 shadow-[0_0_20px_rgba(239,68,68,0.7)]';
+      } else if (side === 'host') {
+        leftPct = Math.random() * 25 + 10;
+        borderClass = 'floating-gift-host border-blue-500/80 shadow-[0_0_20px_rgba(59,130,246,0.7)]';
+      } else {
+        leftPct = Math.random() * 40 + 30;
+        borderClass = 'border-yellow-400/60 shadow-[0_0_20px_rgba(251,191,36,0.7)]';
+      }
+
+      floater.style.left = `${leftPct}%`;
       floater.style.bottom = '15%';
       floater.style.animation = 'fly-gift-up 1.8s cubic-bezier(0.22, 1, 0.36, 1) forwards';
       floater.innerHTML = `
-        <div class="relative flex items-center justify-center p-1.5 rounded-2xl bg-black/70 border border-yellow-400/60 shadow-[0_0_20px_rgba(251,191,36,0.7)] backdrop-blur-sm">
+        <div class="relative flex items-center justify-center p-1.5 rounded-2xl bg-black/80 border ${borderClass} backdrop-blur-sm">
           <img src="${imgUrl}" style="width:52px;height:52px;object-fit:contain;" alt="Gift" />
-          ${combo > 1 ? `<span class="absolute -top-2 -right-2 px-2 py-0.5 rounded-full bg-gradient-to-r from-red-600 to-pink-600 text-white font-black text-xs border border-yellow-300 shadow-md">x${combo}</span>` : ''}
+          ${combo > 1 ? `<span class="absolute -top-2 -right-2 px-2 py-0.5 rounded-full ${side === 'opponent' ? 'bg-gradient-to-r from-red-600 to-rose-600' : 'bg-gradient-to-r from-blue-600 to-cyan-600'} text-white font-black text-xs border border-white/60 shadow-md">x${combo}</span>` : ''}
         </div>
       `;
       document.body.appendChild(floater);
@@ -921,11 +1000,14 @@ function createGiftNode(data) {
 
   const isStreak = !!data.streak_active;
 
+  const recipientSide = data.recipient_side || (data.is_battle_gift ? 'host' : 'host');
+
   const card = document.createElement('div');
-  card.className = `gift-card${isStreak ? ' streak-active' : ''}${totalComboDiamonds >= 1000 || unitDiamonds >= 1000 ? ' vip-gift' : ''}`;
+  card.className = `gift-card${isStreak ? ' streak-active' : ''}${totalComboDiamonds >= 1000 || unitDiamonds >= 1000 ? ' vip-gift' : ''} ${recipientSide === 'opponent' ? 'side-opponent' : 'side-host'}`;
   card.dataset.userKey = String(user.user_id || user.unique_id || '');
   card.dataset.giftKey = String(txn.gift_id || giftName || '');
   card.dataset.streakActive = isStreak ? '1' : '0';
+  card.dataset.recipientSide = recipientSide;
 
   // 1. Supporter Avatar
   const avDiv = document.createElement('div');
@@ -1041,6 +1123,47 @@ function addComment(data) {
 }
 
 // ---------------------------------------------------------------------------
+// PK Arena Mini Gift Stream Pill Helper (عرض مصغر للهدايا داخل ساحة الجولة)
+// ---------------------------------------------------------------------------
+function addMiniPkGift(side, data) {
+  const container = (side === 'opponent') ? DOM.pkOppGiftsFeed : DOM.pkHostGiftsFeed;
+  if (!container) return;
+  clearPlaceholder(container, '.text-gray-500');
+
+  const txn = data.transaction || {};
+  const user = data.user || {};
+  const giftName = txn.gift_name || 'Gift';
+  const iconUrl = txn.gift_icon_url || '';
+  const combo = data.repeat_count || txn.repeat_count || 1;
+  const unitDiamonds = (data.diamond_unit_cost !== undefined && data.diamond_unit_cost !== null)
+    ? data.diamond_unit_cost
+    : (txn.diamond_unit_cost || 1);
+  const totalVal = (data.combo_diamonds !== undefined && data.combo_diamonds !== null)
+    ? data.combo_diamonds
+    : (unitDiamonds * combo);
+  const resolvedIcon = getGiftAsset(giftName, iconUrl);
+
+  const pill = document.createElement('div');
+  pill.className = `mini-pk-gift-pill ${side === 'opponent' ? 'opp' : 'host'}`;
+  pill.innerHTML = `
+    <img src="${resolvedIcon}" class="w-6 h-6 object-contain flex-shrink-0" alt="${giftName}" onerror="this.src='https://p16-webcast.tiktokcdn.com/img/maliva/webcast-va/resource/gift_rose.png~tplv-obj.png'" />
+    <div class="flex flex-col min-w-0 leading-tight">
+      <div class="flex items-center gap-1">
+        <span class="text-[11px] font-bold text-white truncate max-w-[70px]">${giftName}</span>
+        ${combo > 1 ? `<span class="text-[10px] font-black ${side === 'opponent' ? 'text-red-300' : 'text-blue-300'} font-mono">x${combo}</span>` : ''}
+      </div>
+      <span class="text-[9px] text-gray-400 font-mono truncate max-w-[70px]">@${user.unique_id || user.nickname || 'anon'}</span>
+    </div>
+    <span class="text-[10px] font-extrabold ${side === 'opponent' ? 'text-amber-400' : 'text-cyan-300'} font-mono mr-auto">💎${fmt(totalVal)}</span>
+  `;
+
+  container.prepend(pill);
+  while (container.children.length > 8) {
+    container.removeChild(container.lastChild);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Gifts
 // ---------------------------------------------------------------------------
 function addGift(data) {
@@ -1069,23 +1192,45 @@ function addGift(data) {
     ? Number(data.combo_usd).toFixed(2)
     : (totalComboDiamonds * 0.005).toFixed(2);
 
+  // Recipient side tracking & separate team counters
+  const recipientSide = data.recipient_side || (data.is_battle_gift ? 'host' : 'host');
+
+  if (recipientSide === 'opponent') {
+    oppGiftsCount++;
+    if (DOM.oppGiftsNum) DOM.oppGiftsNum.textContent = fmt(oppGiftsCount);
+    if (DOM.badgeFilterOpp) DOM.badgeFilterOpp.textContent = fmt(oppGiftsCount);
+    if (DOM.splitOppGiftsCount) DOM.splitOppGiftsCount.textContent = fmt(oppGiftsCount);
+    if (DOM.pkOppGiftCount) DOM.pkOppGiftCount.textContent = fmt(oppGiftsCount);
+    if (DOM.pkOppLastGift) DOM.pkOppLastGift.textContent = `${giftName} x${combo} (@${user.unique_id || user.nickname || 'الخصم'})`;
+    addMiniPkGift('opponent', data);
+  } else {
+    hostGiftsCount++;
+    if (DOM.hostGiftsNum) DOM.hostGiftsNum.textContent = fmt(hostGiftsCount);
+    if (DOM.badgeFilterHost) DOM.badgeFilterHost.textContent = fmt(hostGiftsCount);
+    if (DOM.splitHostGiftsCount) DOM.splitHostGiftsCount.textContent = fmt(hostGiftsCount);
+    if (DOM.pkHostGiftCount) DOM.pkHostGiftCount.textContent = fmt(hostGiftsCount);
+    if (DOM.pkHostLastGift) DOM.pkHostLastGift.textContent = `${giftName} x${combo} (@${user.unique_id || user.nickname || 'فريقنا'})`;
+    addMiniPkGift('host', data);
+  }
+  if (DOM.badgeFilterAll) DOM.badgeFilterAll.textContent = fmt(giftCount);
+
   // VIP sound chime for legendary gifts (>= 1000 diamonds)
   const resolvedIcon = getGiftAsset(giftName, iconUrl);
 
   try {
-    // 1. Floating real gift animation upward on screen
-    GiftFxEngine.spawnFloatingGift(resolvedIcon, combo);
+    // 1. Floating real gift animation upward on screen (with team directional positioning and glow)
+    GiftFxEngine.spawnFloatingGift(resolvedIcon, combo, recipientSide);
 
     // 2. Multi-tier visual effects
     if (totalComboDiamonds >= 5000 || unitDiamonds >= 5000) {
       showLegendaryGiftModal(user, giftName, totalComboDiamonds, combo, resolvedIcon);
     } else if (totalComboDiamonds >= 1000 || unitDiamonds >= 1000) {
       playBigGiftSound();
-      GiftFxEngine.spawnCoins(24);
+      GiftFxEngine.spawnCoins(24, null, null, recipientSide);
       GiftFxEngine.spawnConfetti(45);
       GiftFxEngine.triggerScreenShake();
     } else if (totalComboDiamonds >= 100 || unitDiamonds >= 100) {
-      GiftFxEngine.spawnCoins(10);
+      GiftFxEngine.spawnCoins(10, null, null, recipientSide);
     }
   } catch (fxErr) {
     console.debug('[GiftFX] error:', fxErr);
@@ -1133,6 +1278,31 @@ function addGift(data) {
       topCard.classList.add('vip-gift');
     }
 
+    // In-place upgrade on split stream top card as well
+    const splitContainer = (recipientSide === 'opponent') ? DOM.giftFeedOpp : DOM.giftFeedHost;
+    const topSplitCard = splitContainer ? splitContainer.firstElementChild : null;
+    if (topSplitCard && topSplitCard.dataset && topSplitCard.dataset.userKey === userKey && topSplitCard.dataset.giftKey === giftKey) {
+      topSplitCard.dataset.streakActive = isStreak ? '1' : '0';
+      const cDiv = topSplitCard.querySelector('.gift-combo');
+      if (cDiv) {
+        cDiv.textContent = `x${combo}`;
+        cDiv.classList.remove('combo-bounce');
+        void cDiv.offsetWidth;
+        cDiv.classList.add('combo-bounce');
+      }
+      const dLine = topSplitCard.querySelector('.gift-details');
+      if (dLine) {
+        dLine.innerHTML = `
+          <span class="gift-unit-pill" title="سعر الهدية الواحدة">💎 ${fmt(unitDiamonds)}</span>
+          ${combo > 1 ? `<span class="gift-total-pill" title="إجمالي الكومبو">المجموع: 💎 ${fmt(totalComboDiamonds)}</span>` : ''}
+          <span class="gift-usd-pill" title="القيمة التقريبية بالدولار">≈ $${usdEst}</span>
+        `;
+      }
+      if (totalComboDiamonds >= 1000 || unitDiamonds >= 1000) {
+        topSplitCard.classList.add('vip-gift');
+      }
+    }
+
     DOM.giftCount.textContent = `${fmt(giftCount)} gifts`;
     return;
   }
@@ -1142,6 +1312,83 @@ function addGift(data) {
     giftQueue.splice(0, giftQueue.length - 150);
   }
   scheduleBatchRender();
+}
+
+// ---------------------------------------------------------------------------
+// Gift Feed Filter & Dual Split View Controls (التحكم بفلترة وتقسيم الهدايا)
+// ---------------------------------------------------------------------------
+function setGiftFilter(side) {
+  currentGiftFilter = side;
+
+  // Reset tab active styling
+  if (DOM.giftFilterBtnAll) DOM.giftFilterBtnAll.className = 'gift-filter-tab px-2.5 py-1 rounded-lg border transition-all text-gray-400 border-transparent hover:border-gray-700 hover:bg-gray-800/40 flex items-center gap-1';
+  if (DOM.giftFilterBtnHost) DOM.giftFilterBtnHost.className = 'gift-filter-tab px-2.5 py-1 rounded-lg border transition-all text-blue-300 border-transparent hover:border-blue-500/40 hover:bg-blue-950/40 flex items-center gap-1';
+  if (DOM.giftFilterBtnOpp) DOM.giftFilterBtnOpp.className = 'gift-filter-tab px-2.5 py-1 rounded-lg border transition-all text-red-300 border-transparent hover:border-red-500/40 hover:bg-red-950/40 flex items-center gap-1';
+
+  if (side === 'host') {
+    if (DOM.giftFilterBtnHost) DOM.giftFilterBtnHost.className = 'gift-filter-tab active tab-host px-2.5 py-1 rounded-lg border transition-all text-blue-200 border-blue-500/60 bg-blue-950/60 flex items-center gap-1';
+    if (DOM.giftFeed) {
+      DOM.giftFeed.classList.add('filter-host');
+      DOM.giftFeed.classList.remove('filter-opponent');
+    }
+  } else if (side === 'opponent') {
+    if (DOM.giftFilterBtnOpp) DOM.giftFilterBtnOpp.className = 'gift-filter-tab active tab-opp px-2.5 py-1 rounded-lg border transition-all text-red-200 border-red-500/60 bg-red-950/60 flex items-center gap-1';
+    if (DOM.giftFeed) {
+      DOM.giftFeed.classList.add('filter-opponent');
+      DOM.giftFeed.classList.remove('filter-host');
+    }
+  } else {
+    if (DOM.giftFilterBtnAll) DOM.giftFilterBtnAll.className = 'gift-filter-tab active px-2.5 py-1 rounded-lg border transition-all text-gray-200 border-yellow-500/50 bg-yellow-500/10 flex items-center gap-1';
+    if (DOM.giftFeed) {
+      DOM.giftFeed.classList.remove('filter-host', 'filter-opponent');
+    }
+  }
+
+  // If in split view and user clicks a filter tab, switch back to unified feed to show the filtered view
+  if (isSplitViewActive) {
+    toggleSplitView(false);
+  }
+}
+
+function toggleSplitView(forceState = null) {
+  isSplitViewActive = (forceState !== null) ? forceState : !isSplitViewActive;
+
+  if (isSplitViewActive) {
+    if (DOM.giftFeed) DOM.giftFeed.classList.add('hidden');
+    if (DOM.giftSplitContainer) DOM.giftSplitContainer.classList.remove('hidden');
+    if (DOM.splitViewIcon) DOM.splitViewIcon.textContent = '🔄';
+    if (DOM.splitViewText) DOM.splitViewText.textContent = (currentLang === 'ar' ? 'عرض موحد' : 'Unified View');
+    if (DOM.btnToggleSplitView) {
+      DOM.btnToggleSplitView.classList.add('border-indigo-500/70', 'bg-indigo-950/70', 'text-indigo-200');
+      DOM.btnToggleSplitView.classList.remove('bg-gray-800/80', 'border-gray-700');
+    }
+
+    // Populate split view from existing giftFeed cards if feeds are empty
+    if (DOM.giftFeedHost && DOM.giftFeedOpp && DOM.giftFeed) {
+      const cards = Array.from(DOM.giftFeed.querySelectorAll('.gift-card'));
+      if (cards.length > 0 && DOM.giftFeedHost.querySelectorAll('.gift-card').length === 0) {
+        clearPlaceholder(DOM.giftFeedHost, '.text-gray-400');
+        clearPlaceholder(DOM.giftFeedOpp, '.text-gray-400');
+        cards.forEach(card => {
+          const s = card.dataset.recipientSide;
+          if (s === 'opponent') {
+            DOM.giftFeedOpp.appendChild(card.cloneNode(true));
+          } else {
+            DOM.giftFeedHost.appendChild(card.cloneNode(true));
+          }
+        });
+      }
+    }
+  } else {
+    if (DOM.giftFeed) DOM.giftFeed.classList.remove('hidden');
+    if (DOM.giftSplitContainer) DOM.giftSplitContainer.classList.add('hidden');
+    if (DOM.splitViewIcon) DOM.splitViewIcon.textContent = '⚖️';
+    if (DOM.splitViewText) DOM.splitViewText.textContent = (currentLang === 'ar' ? 'عرض منقسم' : 'Split View');
+    if (DOM.btnToggleSplitView) {
+      DOM.btnToggleSplitView.classList.remove('border-indigo-500/70', 'bg-indigo-950/70', 'text-indigo-200');
+      DOM.btnToggleSplitView.classList.add('bg-gray-800/80', 'border-gray-700');
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -2466,13 +2713,30 @@ DOM.startBtn.addEventListener('click', () => {
   // Reset feeds
   DOM.commentsFeed.innerHTML    = '<div class="flex items-center justify-center h-full text-gray-600 text-sm">Loading...</div>';
   DOM.giftFeed.innerHTML        = '<div class="flex items-center justify-center h-full text-gray-600 text-sm">Loading...</div>';
+  if (DOM.giftFeedHost) DOM.giftFeedHost.innerHTML = '<div class="flex items-center justify-center h-full text-gray-600 text-sm">Loading...</div>';
+  if (DOM.giftFeedOpp) DOM.giftFeedOpp.innerHTML = '<div class="flex items-center justify-center h-full text-gray-600 text-sm">Loading...</div>';
+  if (DOM.pkHostGiftsFeed) DOM.pkHostGiftsFeed.innerHTML = '<span class="text-xs text-gray-500 italic">ستظهر هدايا فريقنا هنا</span>';
+  if (DOM.pkOppGiftsFeed) DOM.pkOppGiftsFeed.innerHTML = '<span class="text-xs text-gray-500 italic">ستظهر هدايا الخصم هنا</span>';
   DOM.leaderboardList.innerHTML = '<div class="flex items-center justify-center h-full text-gray-600 text-sm">Loading...</div>';
   DOM.likersRow.innerHTML       = '<p class="text-gray-600 text-sm">Loading...</p>';
   commentCount = 0;
   giftCount    = 0;
+  hostGiftsCount = 0;
+  oppGiftsCount  = 0;
   _likersData  = {};
   DOM.commentCount.textContent = '0';
   DOM.giftCount.textContent    = '0 gifts';
+  if (DOM.hostGiftsNum) DOM.hostGiftsNum.textContent = '0';
+  if (DOM.oppGiftsNum) DOM.oppGiftsNum.textContent = '0';
+  if (DOM.badgeFilterAll) DOM.badgeFilterAll.textContent = '0';
+  if (DOM.badgeFilterHost) DOM.badgeFilterHost.textContent = '0';
+  if (DOM.badgeFilterOpp) DOM.badgeFilterOpp.textContent = '0';
+  if (DOM.splitHostGiftsCount) DOM.splitHostGiftsCount.textContent = '0';
+  if (DOM.splitOppGiftsCount) DOM.splitOppGiftsCount.textContent = '0';
+  if (DOM.pkHostGiftCount) DOM.pkHostGiftCount.textContent = '0';
+  if (DOM.pkOppGiftCount) DOM.pkOppGiftCount.textContent = '0';
+  if (DOM.pkHostLastGift) DOM.pkHostLastGift.textContent = 'في انتظار الدعم...';
+  if (DOM.pkOppLastGift) DOM.pkOppLastGift.textContent = 'في انتظار الدعم...';
 
   connectWs(cleanUser);
 });
@@ -2491,6 +2755,12 @@ DOM.toggleScrollBtn.addEventListener('click', () => {
   DOM.scrollIcon.textContent = autoScroll ? '⬇️' : '⏸️';
   if (autoScroll) DOM.commentsFeed.scrollTop = DOM.commentsFeed.scrollHeight;
 });
+
+// Gift Feed Filter Tabs & Split View Listeners
+if (DOM.giftFilterBtnAll)  DOM.giftFilterBtnAll.addEventListener('click', () => setGiftFilter('all'));
+if (DOM.giftFilterBtnHost) DOM.giftFilterBtnHost.addEventListener('click', () => setGiftFilter('host'));
+if (DOM.giftFilterBtnOpp)  DOM.giftFilterBtnOpp.addEventListener('click', () => setGiftFilter('opponent'));
+if (DOM.btnToggleSplitView) DOM.btnToggleSplitView.addEventListener('click', () => toggleSplitView());
 
 // Pause auto-scroll when user manually scrolls up
 DOM.commentsFeed.addEventListener('scroll', () => {
@@ -2688,6 +2958,10 @@ function startDemoSimulation() {
       const addedDiamonds = g.diamonds * repeat;
       demoDiamonds += addedDiamonds;
 
+      const isHost = Math.random() > 0.45;
+      const recSide = isHost ? 'host' : 'opponent';
+      const recName = isHost ? 'فريقنا' : 'الخصم (قيصر_الليل)';
+
       addGift({
         user: { nickname: u.name, unique_id: u.handle, avatar_url: u.avatar },
         transaction: {
@@ -2697,8 +2971,9 @@ function startDemoSimulation() {
           repeat_count: repeat,
           total_value: addedDiamonds,
         },
-        recipient_side: Math.random() > 0.4 ? 'host' : 'opponent',
-        recipient_name: 'المضيف',
+        recipient_side: recSide,
+        recipient_name: recName,
+        is_battle_gift: true
       });
 
       if (g.diamonds >= 100 || repeat >= 5) {
@@ -2713,8 +2988,8 @@ function startDemoSimulation() {
       DOM.lbGrossUsd.textContent = fmtUsd(demoDiamonds * 0.005);
       DOM.lbNetUsd.textContent = fmtUsd(demoDiamonds * 0.005 * 0.5);
 
-      // Update PK points
-      if (Math.random() > 0.35) {
+      // Update PK points matched to recipient side
+      if (recSide === 'host') {
         demoHostScore += addedDiamonds;
       } else {
         demoOppScore += addedDiamonds;

@@ -556,6 +556,20 @@
               <span class="text-xs text-gray-500 italic">في انتظار الداعمين...</span>
             </div>
           </div>
+
+          <!-- Host Live Mini Gift Stream (هدايا فريقنا الحية في الجولة) -->
+          <div class="pt-2 border-t border-blue-900/40">
+            <div class="flex items-center justify-between text-[11px] font-semibold text-blue-300 mb-1.5">
+              <span class="flex items-center gap-1.5">
+                <span>🎁 هدايا فريقنا:</span>
+                <span id="pkHostGiftCount" class="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-mono text-[10px] font-bold">0</span>
+              </span>
+              <span id="pkHostLastGift" class="text-[10px] text-blue-300/80 font-mono truncate max-w-[140px]">في انتظار الدعم...</span>
+            </div>
+            <div id="pkHostGiftsFeed" class="flex items-center gap-2 overflow-x-auto py-1 scrollbar-thin min-h-[44px]">
+              <span class="text-xs text-gray-500 italic">ستظهر هدايا فريقنا هنا</span>
+            </div>
+          </div>
         </div>
 
         <!-- CENTER VS COLLISION [Col 6] -->
@@ -622,6 +636,20 @@
               <span class="text-xs text-gray-500 italic">في انتظار الداعمين...</span>
             </div>
           </div>
+
+          <!-- Opponent Live Mini Gift Stream (هدايا الخصم الحية في الجولة) -->
+          <div class="pt-2 border-t border-red-900/40">
+            <div class="flex items-center justify-between text-[11px] font-semibold text-red-300 mb-1.5">
+              <span class="flex items-center gap-1.5">
+                <span>🎁 هدايا الخصم:</span>
+                <span id="pkOppGiftCount" class="px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/30 font-mono text-[10px] font-bold">0</span>
+              </span>
+              <span id="pkOppLastGift" class="text-[10px] text-red-300/80 font-mono truncate max-w-[140px]">في انتظار الدعم...</span>
+            </div>
+            <div id="pkOppGiftsFeed" class="flex items-center gap-2 overflow-x-auto py-1 scrollbar-thin min-h-[44px]">
+              <span class="text-xs text-gray-500 italic">ستظهر هدايا الخصم هنا</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -671,21 +699,96 @@
         </div>
       </div>
 
-      <!-- CENTER: Gift Alerts Feed -->
-      <div class="glass-card flex flex-col h-[600px]">
-        <div class="p-4 border-b border-gray-800 flex items-center justify-between">
-          <h2 class="font-bold text-sm flex items-center gap-2">
-            <span class="text-yellow-400">🎁</span>
-            Gift Alerts
-            <span class="text-xs text-gray-500 font-normal">الهدايا</span>
-          </h2>
-          <span id="giftCount" class="text-xs text-gray-400 font-mono">0 gifts</span>
+      <!-- CENTER: Gift Alerts Feed (مع فصل هدايا فريقنا عن هدايا الخصم) -->
+      <div class="glass-card flex flex-col h-[600px] overflow-hidden">
+        <!-- Header with counters -->
+        <div class="p-3.5 border-b border-gray-800 flex flex-wrap items-center justify-between gap-2 bg-gray-900/40">
+          <div class="flex items-center gap-2">
+            <span class="text-yellow-400 text-base">🎁</span>
+            <h2 class="font-bold text-sm flex items-center gap-1.5 text-white">
+              Gift Alerts
+              <span class="text-xs text-gray-500 font-normal">الهدايا</span>
+            </h2>
+          </div>
+          <div class="flex items-center gap-2 text-xs font-mono">
+            <span id="hostGiftCountBadge" class="px-2 py-0.5 rounded-full bg-blue-950/80 text-blue-300 border border-blue-700/50 flex items-center gap-1" title="إجمالي هدايا فريقنا">
+              <span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+              فريقنا: <span id="hostGiftsNum" class="font-bold">0</span>
+            </span>
+            <span id="oppGiftCountBadge" class="px-2 py-0.5 rounded-full bg-red-950/80 text-red-300 border border-red-700/50 flex items-center gap-1" title="إجمالي هدايا الخصم">
+              <span class="w-1.5 h-1.5 rounded-full bg-red-400"></span>
+              الخصم: <span id="oppGiftsNum" class="font-bold">0</span>
+            </span>
+            <span id="giftCount" class="text-xs text-gray-400 font-mono hidden sm:inline">0 gifts</span>
+          </div>
         </div>
-        <div id="giftFeed" class="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin">
+
+        <!-- Filter & Split View Toolbar -->
+        <div class="px-3 py-2 border-b border-gray-800/80 bg-gray-950/40 flex items-center justify-between gap-2">
+          <!-- Filter Tabs -->
+          <div class="flex items-center gap-1.5 text-xs font-semibold">
+            <button id="giftFilterBtnAll" class="gift-filter-tab active px-2.5 py-1 rounded-lg border transition-all text-gray-200 border-yellow-500/50 bg-yellow-500/10 flex items-center gap-1">
+              <span>🌐 الكل</span>
+              <span id="badgeFilterAll" class="text-[10px] px-1.5 py-0.2 rounded-full bg-gray-800 font-mono font-bold">0</span>
+            </button>
+            <button id="giftFilterBtnHost" class="gift-filter-tab px-2.5 py-1 rounded-lg border transition-all text-blue-300 border-transparent hover:border-blue-500/40 hover:bg-blue-950/40 flex items-center gap-1">
+              <span>🔵 فريقنا</span>
+              <span id="badgeFilterHost" class="text-[10px] px-1.5 py-0.2 rounded-full bg-blue-950 text-blue-300 font-mono font-bold">0</span>
+            </button>
+            <button id="giftFilterBtnOpp" class="gift-filter-tab px-2.5 py-1 rounded-lg border transition-all text-red-300 border-transparent hover:border-red-500/40 hover:bg-red-950/40 flex items-center gap-1">
+              <span>🔴 الخصم</span>
+              <span id="badgeFilterOpp" class="text-[10px] px-1.5 py-0.2 rounded-full bg-red-950 text-red-300 font-mono font-bold">0</span>
+            </button>
+          </div>
+
+          <!-- Split View Toggle Button -->
+          <button id="btnToggleSplitView" class="px-2.5 py-1 rounded-lg border border-gray-700 bg-gray-800/80 hover:bg-gray-700/80 text-gray-200 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm" title="تبديل العرض بين شريط موحد وعمودين متوازيين">
+            <span id="splitViewIcon">⚖️</span>
+            <span id="splitViewText" class="hidden xs:inline">عرض منقسم</span>
+          </button>
+        </div>
+
+        <!-- 1. Standard Unified / Filtered Gift Feed -->
+        <div id="giftFeed" class="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin transition-all">
           <div class="flex flex-col items-center justify-center h-full text-center p-6 space-y-2 text-gray-400">
             <div class="w-12 h-12 rounded-2xl bg-yellow-500/10 text-yellow-400 flex items-center justify-center text-2xl border border-yellow-500/20 shadow-inner">🎁</div>
             <div class="text-xs font-bold text-gray-200">في انتظار الهدايا والدعم</div>
             <div class="text-[11px] text-gray-500 max-w-[220px]">ستظهر تنبيهات الهدايا وقيمتها بالألماسات والكومبو المتحرك هنا فور إرسالها</div>
+          </div>
+        </div>
+
+        <!-- 2. Dual-Stream Side-by-Side Split View (عرض متوازي لهدايا فريقنا وهدايا الخصم) -->
+        <div id="giftSplitContainer" class="hidden flex-1 grid grid-cols-2 divide-x divide-x-reverse divide-gray-800/80 overflow-hidden">
+          <!-- Left Col: Host Team Gifts -->
+          <div class="flex flex-col h-full overflow-hidden bg-blue-950/10">
+            <div class="px-3 py-1.5 border-b border-blue-900/40 bg-blue-950/30 flex items-center justify-between text-xs font-bold text-blue-300">
+              <span class="flex items-center gap-1">
+                <span>🔵 هدايا فريقنا</span>
+              </span>
+              <span id="splitHostGiftsCount" class="font-mono text-[11px] px-1.5 py-0.2 rounded bg-blue-900/60 text-blue-200">0</span>
+            </div>
+            <div id="giftFeedHost" class="flex-1 overflow-y-auto p-2 space-y-2 scrollbar-thin">
+              <div class="flex flex-col items-center justify-center h-full text-center p-4 space-y-1 text-gray-400">
+                <span class="text-xl">🔵</span>
+                <span class="text-[11px] text-blue-300/80">هدايا فريقنا ستظهر هنا</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Col: Opponent Team Gifts -->
+          <div class="flex flex-col h-full overflow-hidden bg-red-950/10">
+            <div class="px-3 py-1.5 border-b border-red-900/40 bg-red-950/30 flex items-center justify-between text-xs font-bold text-red-300">
+              <span class="flex items-center gap-1">
+                <span>🔴 هدايا الخصم</span>
+              </span>
+              <span id="splitOppGiftsCount" class="font-mono text-[11px] px-1.5 py-0.2 rounded bg-red-900/60 text-red-200">0</span>
+            </div>
+            <div id="giftFeedOpp" class="flex-1 overflow-y-auto p-2 space-y-2 scrollbar-thin">
+              <div class="flex flex-col items-center justify-center h-full text-center p-4 space-y-1 text-gray-400">
+                <span class="text-xl">🔴</span>
+                <span class="text-[11px] text-red-300/80">هدايا الخصم ستظهر هنا</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

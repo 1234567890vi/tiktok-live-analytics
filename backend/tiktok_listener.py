@@ -1516,8 +1516,18 @@ class TikTokSession:
 
             # Determine recipient side during PK Battle
             to_user = _safe(event, "to_user")
-            to_uid  = str(_safe(to_user, "id", default="") or _safe(event, "to_member_id_int", default=""))
-            to_uniq = str(_safe(to_user, "display_id", default="") or _safe(to_user, "unique_id", default=""))
+            to_uid  = str(
+                _safe(to_user, "id", default="")
+                or _safe(to_user, "user_id", default="")
+                or _safe(event, "to_member_id_int", default="")
+                or _safe(event, "to_user_id", default="")
+                or ""
+            )
+            to_uniq = str(
+                _safe(to_user, "display_id", default="")
+                or _safe(to_user, "unique_id", default="")
+                or ""
+            )
 
             pk_st = self._engine.get_pk_state()
             pk_dict = pk_st.to_dict() if hasattr(pk_st, "to_dict") else pk_st.__dict__
@@ -1546,6 +1556,8 @@ class TikTokSession:
                         ):
                             recipient_name = h.get("nickname") or h.get("unique_id") or self.username
                             break
+                    if not is_opp and to_user and not recipient_name:
+                        recipient_name = _safe(to_user, "nickname") or _safe(to_user, "display_id") or recipient_name
 
             txn = self._engine.process_gift(
                 uinfo["user_id"], uinfo["unique_id"],
@@ -1714,11 +1726,24 @@ class TikTokSession:
 
                 sender_nick = "داعـم"
                 sender_av   = ""
-                for c in (host_mvps + opp_mvps):
+                battle_rec_side = "host"
+                battle_rec_name = self._streamer_nickname or self.username
+
+                for c in opp_mvps:
                     if c.get("user_id") == from_uid:
-                        sender_nick = c.get("nickname") or "داعـم"
+                        sender_nick = c.get("nickname") or "داعـم الخصم"
                         sender_av   = c.get("avatar_url") or ""
+                        battle_rec_side = "opponent"
+                        battle_rec_name = (opp_anchors[0].get("nickname") or opp_anchors[0].get("unique_id") or "الخصم") if opp_anchors else "الخصم"
                         break
+
+                if battle_rec_side == "host":
+                    for c in host_mvps:
+                        if c.get("user_id") == from_uid:
+                            sender_nick = c.get("nickname") or "داعـمنا"
+                            sender_av   = c.get("avatar_url") or ""
+                            break
+
                 await self._send({
                     "type": "gift",
                     "data": {
@@ -1745,8 +1770,8 @@ class TikTokSession:
                         "total_diamonds": self._engine.get_total_diamonds(),
                         "estimated_usd": round(self._engine.get_total_diamonds() * DIAMOND_TO_USD_RATE, 4),
                         "net_payout_usd": round(self._engine.get_total_diamonds() * DIAMOND_TO_USD_RATE * NET_PAYOUT_RATIO, 4),
-                        "recipient_side": "host",
-                        "recipient_name": self.username,
+                        "recipient_side": battle_rec_side,
+                        "recipient_name": battle_rec_name,
                         "is_battle_gift": True,
                     },
                     "leaderboard": [(s.to_dict() if hasattr(s, "to_dict") else s) for s in self._engine.get_top_supporters(10)],
