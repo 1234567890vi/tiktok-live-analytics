@@ -37,45 +37,105 @@ from TikTokLive.events import (
     LinkMicBattlePunishFinishEvent,
 )
 
+# Optional battle events depending on TikTokLive version
+try:
+    from TikTokLive.events import LinkMicBattleItemCardEvent  # type: ignore
+except ImportError:
+    LinkMicBattleItemCardEvent = None
+
+try:
+    from TikTokLive.events import LinkMicFanTicketMethodEvent  # type: ignore
+except ImportError:
+    LinkMicFanTicketMethodEvent = None
+
 from backend.config import DIAMOND_TO_USD_RATE, NET_PAYOUT_RATIO, SIGN_API_KEY
 
 if SIGN_API_KEY:
     WebDefaults.tiktok_sign_api_key = SIGN_API_KEY
 
-# Comprehensive fallback diamond prices for well-known TikTok gifts
+# Comprehensive fallback diamond prices for well-known TikTok gifts in English and Arabic
 COMMON_TIKTOK_GIFTS: dict[str, int] = {
-    "rose": 1,
-    "heart me": 1,
-    "tiktok": 1,
-    "gg": 1,
-    "ice cream cone": 1,
-    "finger heart": 5,
-    "panda": 5,
-    "mic": 5,
-    "doughnut": 30,
-    "leon the kitten": 34,
-    "paper crane": 99,
-    "cap and mustache": 99,
-    "confetti": 100,
-    "sunglasses": 199,
-    "love bang": 199,
-    "corgi": 299,
-    "boxing gloves": 299,
-    "swan": 699,
-    "train": 899,
-    "fireworks": 1088,
-    "whale diving": 2150,
-    "jet": 4888,
-    "private jet": 4888,
-    "interstellar": 10000,
-    "falcon": 10999,
-    "planet": 15000,
-    "tiktok shuttle": 20000,
-    "level ship": 21000,
-    "phoenix": 25999,
-    "lion": 29999,
-    "pegasus": 39999,
-    "tiktok universe": 34999,
+    # 1 Diamond
+    "rose": 1, "وردة": 1, "ورده": 1,
+    "tiktok": 1, "تيك توك": 1, "تيكتوك": 1,
+    "heart me": 1, "قلبي": 1, "قلب": 1,
+    "ice cream cone": 1, "مثلجات": 1, "ايس كريم": 1,
+    "gg": 1, "جي جي": 1,
+    "football": 1, "كرة قدم": 1, "كرة": 1,
+    "mini speaker": 1, "مكبر صوت": 1, "مكبر": 1,
+    "star": 1, "نجمة": 1, "نجمه": 1,
+    "lightning": 1, "برق": 1, "صاعقة": 1,
+    "weights": 1, "أثقال": 1,
+    "coffee": 1, "قهوة": 1,
+    "greeting": 1, "تحية": 1,
+    "thumbs up": 1, "إعجاب": 1,
+
+    # 2 - 9 Diamonds
+    "finger heart": 5, "حركة القلب": 5, "قلب باليد": 5, "قلب صغير": 5,
+    "panda": 5, "باندا": 5,
+    "mic": 5, "ميكروفون": 5, "مايك": 5,
+    "hi": 5, "مرحبا": 5, "هلا": 5,
+    "love you": 5, "أحبك": 5,
+    "cotton candy": 5, "غزل البنات": 5,
+    "hand heart": 9, "قلب يدوي": 9,
+
+    # 10 - 49 Diamonds
+    "gamepad": 10, "ذراع ألعاب": 10,
+    "perfume": 20, "عطر": 20,
+    "doughnut": 30, "donut": 30, "دونات": 30,
+    "leon the kitten": 34, "قط ليون": 34, "ليون": 34,
+
+    # 50 - 99 Diamonds
+    "butterfly": 88, "فراشة": 88,
+    "paper crane": 99, "طائر ورقي": 99,
+    "cap and mustache": 99, "قبعة وشارب": 99, "شنب": 99,
+    "little crown": 99, "تاج صغير": 99,
+    "hat and mustache": 99,
+
+    # 100 - 499 Diamonds
+    "confetti": 100, "قصاصات": 100, "احتفال": 100,
+    "hand hearts": 100, "قلوب اليد": 100,
+    "bear": 100, "دب": 100,
+    "origami gun": 100, "مسدس ورقي": 100,
+    "sunglasses": 199, "glasses": 199, "نظارات شمسية": 199, "نظارة": 199, "نظارات": 199,
+    "love bang": 199, "قنبلة الحب": 199,
+    "goggles": 199,
+    "corgi": 299, "كورجي": 299, "كلب": 299,
+    "duck": 299, "بطة": 299,
+    "boxing gloves": 299, "gloves": 299, "قفازات ملاكمة": 299, "قفاز": 299, "قفازات": 299,
+
+    # 500 - 999 Diamonds
+    "swan": 699, "بجعة": 699,
+    "train": 899, "قطار": 899,
+    "trophy": 999, "كأس": 999,
+
+    # 1000 - 4999 Diamonds (Big Gifts)
+    "fireworks": 1088, "ألعاب نارية": 1088,
+    "diamond": 1000, "ألماسة": 1000,
+    "whale diving": 2150, "diving whale": 2150, "حوت غاطس": 2150, "حوت": 2150,
+    "motorcycle": 2988, "دراجة نارية": 2988, "موتوسيكل": 2988,
+    "private jet": 4888, "jet": 4888, "طائرة خاصة": 4888, "طائرة": 4888, "طيارة": 4888,
+
+    # 5000 - 19999 Diamonds (Mega Gifts)
+    "magic mirror": 5000, "مرآة سحرية": 5000,
+    "sports car": 7000, "سيارة رياضية": 7000, "سيارة": 7000,
+    "yacht": 9888, "luxury yacht": 9888, "يخت": 9888,
+    "interstellar": 10000, "galaxy": 10000, "مجرة": 10000, "فضاء": 10000, "بين النجوم": 10000, "غالاكسي": 10000,
+    "falcon": 10999, "صقر": 10999,
+    "planet": 15000, "كوكب": 15000,
+    "castle": 20000, "قلعة": 20000,
+    "tiktok shuttle": 20000, "shuttle": 20000, "مكوك تيك توك": 20000, "مكوك": 20000,
+    "level ship": 21000, "سفينة": 21000,
+
+    # 20000+ Diamonds (Super Legendary Gifts)
+    "phoenix": 25999, "عنقاء": 25999,
+    "dragon": 26999, "تنين": 26999,
+    "lion": 29999, "أسد": 29999,
+    "zeus": 34000, "زيوس": 34000,
+    "tiktok universe": 34999, "universe": 34999, "كون تيك توك": 34999, "عالم تيك توك": 34999, "يونيفيرس": 34999,
+    "pegasus": 39999, "بيغاسوس": 39999, "حصان مجنح": 39999,
+    "adam": 40000, "آدم": 40000,
+    "seal": 50000, "ختم": 50000,
 }
 
 logger = logging.getLogger(__name__)
@@ -390,6 +450,32 @@ def _extract_avatar(obj) -> str:
     urls = _safe(obj, "url_list")
     if urls and isinstance(urls, (list, tuple)) and len(urls) > 0:
         return str(urls[0])
+    return ""
+
+
+def _extract_gift_icon(gift, event=None) -> str:
+    """Extract gift icon URL safely from any gift or event structure."""
+    if not gift and not event:
+        return ""
+    if event:
+        for attr in ("gift_icon_image", "gift_image", "icon"):
+            sub = _safe(event, attr)
+            if sub:
+                av = _extract_avatar(sub)
+                if av:
+                    return av
+    if gift:
+        if isinstance(gift, str) and gift.startswith("http"):
+            return gift
+        for attr in ("image", "icon", "gift_icon_image", "gift_image"):
+            sub = _safe(gift, attr)
+            if sub:
+                av = _extract_avatar(sub)
+                if av:
+                    return av
+        urls = _safe(gift, "url_list")
+        if urls and isinstance(urls, (list, tuple)) and len(urls) > 0:
+            return str(urls[0])
     return ""
 
 
@@ -848,18 +934,48 @@ class TikTokSession:
                     if init_viewers > 0:
                         self._engine.update_viewer_count(init_viewers)
 
-                    init_diamonds = int(
-                        r_info.get("fan_ticket_count") or
-                        stats.get("fan_ticket_count") or
-                        stats.get("total_diamonds") or
-                        stats.get("total_diamond_count") or
-                        room_view_stats.get("fan_ticket_count") or
-                        owner.get("fan_ticket_count") or
-                        0
-                    )
+                    # Exhaustive search for cumulative stream diamonds since start
+                    init_diamonds = 0
+                    for candidate in [
+                        r_info.get("fan_ticket_count"),
+                        stats.get("fan_ticket_count"),
+                        stats.get("total_diamonds"),
+                        stats.get("total_diamond_count"),
+                        room_view_stats.get("fan_ticket_count"),
+                        owner.get("fan_ticket_count"),
+                        r_info.get("total_fan_ticket_count"),
+                    ]:
+                        if candidate is not None and str(candidate).isdigit():
+                            init_diamonds = max(init_diamonds, int(candidate))
+
                     if init_diamonds > 0:
                         self._engine.set_total_diamonds(init_diamonds)
                         logger.info("Initialized @%s with %d total diamonds since live opened", self.username, init_diamonds)
+
+                    # Initial top supporters if available in room info
+                    ranks = r_info.get("top_fans") or r_info.get("ranks") or stats.get("top_fans") or []
+                    if ranks and isinstance(ranks, (list, tuple)):
+                        for contributor in ranks:
+                            c_user = contributor.get("user") or contributor
+                            c_uid = str(c_user.get("id") or c_user.get("id_str") or "")
+                            c_uniq = str(c_user.get("display_id") or c_user.get("unique_id") or "")
+                            c_nick = str(c_user.get("nickname") or c_uniq or "داعم")
+                            c_av = _extract_avatar(c_user)
+                            c_score = int(contributor.get("fan_ticket") or contributor.get("score") or 0)
+                            if c_score > 0 and c_uid:
+                                self._engine.update_supporter_score(c_uid, c_uniq, c_nick, c_av, c_score)
+
+                    # Check if stream is ALREADY in an active battle upon connection!
+                    link_mic = r_info.get("link_mic") or r_info.get("linkmic_info") or r_info.get("battle_info") or {}
+                    if link_mic and isinstance(link_mic, dict):
+                        b_id = str(link_mic.get("battle_id", "") or "")
+                        if b_id:
+                            logger.info("Stream @%s is currently in an active PK battle (%s) on connect", self.username, b_id)
+                            self._engine.update_pk_battle(
+                                bid=b_id,
+                                active=True,
+                                status="ACTIVE",
+                            )
             except Exception as e:
                 logger.debug("Optional initial room_info fetch: %s", e)
 
@@ -1010,9 +1126,15 @@ class TikTokSession:
             gift      = _safe(event, "gift")
             gift_id   = str(_safe(event, "gift_id", default=0) or _safe(gift, "id", default="0"))
             gift_name = str(_safe(gift, "name", default="Unknown Gift"))
-            gift_icon = _extract_avatar(gift) or _extract_avatar(_safe(gift, "image"))
+            gift_icon = _extract_gift_icon(gift, event)
 
-            unit_diamonds = int(_safe(gift, "diamond_count", default=0) or _safe(event, "fan_ticket_count", default=0))
+            unit_diamonds = int(
+                _safe(gift, "diamond_count", default=0) or
+                _safe(gift, "coins", default=0) or
+                _safe(event, "fan_ticket_count", default=0) or
+                _safe(gift, "diamond_icon_count", default=0) or
+                0
+            )
 
             # Fallback to preloaded official TikTok catalog if diamond_count or name is missing
             cached_gift = self._gift_catalog.get(gift_id, {})
@@ -1026,9 +1148,19 @@ class TikTokSession:
             if not gift_icon and cached_gift:
                 gift_icon = cached_gift.get("icon_url", "")
 
-            # Static fallback for top known TikTok gifts if still 0
+            # Static fallback for top known TikTok gifts in English and Arabic
             if unit_diamonds <= 0 and gift_name:
-                unit_diamonds = COMMON_TIKTOK_GIFTS.get(gift_name.lower().strip(), 0)
+                clean_name = gift_name.lower().strip()
+                unit_diamonds = COMMON_TIKTOK_GIFTS.get(clean_name, 0)
+                if unit_diamonds <= 0:
+                    for k, v in COMMON_TIKTOK_GIFTS.items():
+                        if k in clean_name:
+                            unit_diamonds = v
+                            break
+
+            # Absolute fallback minimum 1 diamond so no gift is ever zero diamonds
+            if unit_diamonds <= 0:
+                unit_diamonds = 1
 
             repeat_count  = int(_safe(event, "repeat_count", default=1) or 1)
             repeat_end    = int(_safe(event, "repeat_end", default=0))
@@ -1134,15 +1266,19 @@ class TikTokSession:
             if act == 4 or "OPEN" in act_str or act_str == "4":
                 status = "ACTIVE"
                 is_active = True
+                event_tag = "start"
             elif act == 5 or "FINISH" in act_str or act_str == "5":
                 status = "PUNISH"
                 is_active = True
+                event_tag = "punish"
             elif act in (3, 6, 11) or any(x in act_str for x in ("CANCEL", "CUT_SHORT", "LEAVE")):
                 status = "ENDED"
                 is_active = False
+                event_tag = "ended"
             else:
                 status = "ACTIVE" if battle_id else "IDLE"
                 is_active = bool(battle_id)
+                event_tag = "update" if is_active else "ended"
 
             host_name = host_anchors[0].get("unique_id", self.username) if host_anchors else self.username
             opp_name  = opp_anchors[0].get("unique_id", "opponent") if opp_anchors else "opponent"
@@ -1164,7 +1300,6 @@ class TikTokSession:
 
             pk = self._engine.get_pk_state()
             pk_dict = pk.to_dict() if hasattr(pk, "to_dict") else pk.__dict__
-            event_tag = "start" if status == "ACTIVE" else ("ended" if status == "ENDED" else "update")
             await self._send({"type": "pk_battle", "data": pk_dict, "event": event_tag})
 
         # ---- PK Armies Live Points & Contributors Update ----
@@ -1278,6 +1413,29 @@ class TikTokSession:
             pk = self._engine.get_pk_state()
             pk_dict = pk.to_dict() if hasattr(pk, "to_dict") else pk.__dict__
             await self._send({"type": "pk_battle", "data": pk_dict, "event": "ended"})
+
+        # ---- PK Battle Item Cards (Boxing Gloves x5, Fog, Time boosters) ----
+        if LinkMicBattleItemCardEvent:
+            @client.on(LinkMicBattleItemCardEvent)
+            async def on_pk_item_card(event: LinkMicBattleItemCardEvent):
+                card_name = str(_safe(event, "card_name", default="") or "كرت الدعم")
+                card_type = str(_safe(event, "card_type", default="glove"))
+                desc = "تم تفعيل كرت مضاعفة النقاط في الجولة! 🔥" if "glove" in card_type.lower() or "boxing" in card_type.lower() else "تم تفعيل كرت داعم في الجولة ⚡"
+                await self._send({
+                    "type": "pk_item_card",
+                    "data": {
+                        "card_name": card_name or "كرت القفاز السحري 🥊",
+                        "description": desc,
+                    }
+                })
+
+        # ---- PK Fan Tickets Direct Sync ----
+        if LinkMicFanTicketMethodEvent:
+            @client.on(LinkMicFanTicketMethodEvent)
+            async def on_pk_fan_ticket(event: LinkMicFanTicketMethodEvent):
+                fan_tickets = int(_safe(event, "fan_ticket_count", default=0) or _safe(event, "total_fan_ticket_count", default=0))
+                if fan_tickets > 0:
+                    self._engine.set_total_diamonds(fan_tickets)
 
     async def _send(self, payload: dict) -> None:
         """Safely call the broadcast coroutine (swallows closed-socket errors)."""

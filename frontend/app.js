@@ -21,6 +21,117 @@ let giftCount       = 0;
 let commentCount    = 0;
 let comboTimer      = null;
 let currentUsername = '';
+let lastPkStatus    = 'IDLE';
+let lastRoundNum    = 0;
+
+// ---------------------------------------------------------------------------
+// Pure Web Audio Synthesizer (Zero External Dependencies, Instant Audio)
+// ---------------------------------------------------------------------------
+let audioCtx = null;
+function getAudioContext() {
+  if (!audioCtx) {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (AudioContextClass) audioCtx = new AudioContextClass();
+  }
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume().catch(() => {});
+  }
+  return audioCtx;
+}
+
+// User-gesture audio unlock
+['click', 'touchstart', 'keydown'].forEach(evt => {
+  window.addEventListener(evt, () => getAudioContext(), { once: true, passive: true });
+});
+
+// Sound 1: Battle Start Fanfare (Triumphant brass fanfare)
+function playBattleStartSound() {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const notes = [
+      { f: 329.63, start: 0.00, dur: 0.14 },
+      { f: 415.30, start: 0.12, dur: 0.14 },
+      { f: 493.88, start: 0.24, dur: 0.16 },
+      { f: 659.25, start: 0.40, dur: 0.45 },
+    ];
+    notes.forEach(({ f, start, dur }) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(f, now + start);
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(1400, now + start);
+
+      gain.gain.setValueAtTime(0.001, now + start);
+      gain.gain.exponentialRampToValueAtTime(0.22, now + start + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + start + dur);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + start);
+      osc.stop(now + start + dur);
+    });
+  } catch (err) {
+    console.debug('[Audio] Fanfare error:', err);
+  }
+}
+
+// Sound 2: VIP / Big Gift Chime (Sparkling magical arpeggio)
+function playBigGiftSound() {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const notes = [587.33, 739.99, 880.00, 1174.66, 1479.98];
+    notes.forEach((f, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f, now + (idx * 0.06));
+
+      gain.gain.setValueAtTime(0.001, now + (idx * 0.06));
+      gain.gain.exponentialRampToValueAtTime(0.18, now + (idx * 0.06) + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + (idx * 0.06) + 0.35);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + (idx * 0.06));
+      osc.stop(now + (idx * 0.06) + 0.36);
+    });
+  } catch (err) {
+    console.debug('[Audio] Big gift sound error:', err);
+  }
+}
+
+// Sound 3: Item Card Activated (Punchy power-up tone)
+function playItemCardSound() {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(220, now);
+    osc.frequency.exponentialRampToValueAtTime(880, now + 0.25);
+
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.exponentialRampToValueAtTime(0.25, now + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.36);
+  } catch (err) {
+    console.debug('[Audio] Item card sound error:', err);
+  }
+}
+
 
 // ---------------------------------------------------------------------------
 // DOM refs — cached once on load
@@ -319,7 +430,10 @@ function createGiftNode(data) {
   const isStreak = !!data.streak_active;
 
   const card = document.createElement('div');
-  card.className = `gift-card${isStreak ? ' streak-active' : ''}`;
+  card.className = `gift-card${isStreak ? ' streak-active' : ''}${totalComboDiamonds >= 1000 || unitDiamonds >= 1000 ? ' vip-gift' : ''}`;
+  card.dataset.userKey = String(user.user_id || user.unique_id || '');
+  card.dataset.giftKey = String(txn.gift_id || giftName || '');
+  card.dataset.streakActive = isStreak ? '1' : '0';
 
   // Avatar + mini gift icon
   const avDiv = document.createElement('div');
@@ -415,14 +529,33 @@ function addGift(data) {
   }
 
   const txn      = data.transaction || {};
+  const user     = data.user || {};
   const giftName = txn.gift_name     || 'Gift';
   const iconUrl  = txn.gift_icon_url || '';
   const combo    = data.repeat_count || txn.repeat_count || 1;
+  const isStreak = !!data.streak_active;
+
+  const unitDiamonds = (data.diamond_unit_cost !== undefined && data.diamond_unit_cost !== null)
+    ? data.diamond_unit_cost
+    : (txn.diamond_unit_cost || (combo > 0 && txn.total_value ? Math.round(txn.total_value / combo) : (txn.total_value || 0)));
+
+  const totalComboDiamonds = (data.combo_diamonds !== undefined && data.combo_diamonds !== null)
+    ? data.combo_diamonds
+    : (unitDiamonds * combo);
+
+  const usdEst = (data.combo_usd !== undefined && data.combo_usd !== null)
+    ? Number(data.combo_usd).toFixed(2)
+    : (totalComboDiamonds * 0.005).toFixed(2);
+
+  // VIP sound chime for legendary gifts (>= 1000 diamonds)
+  if (totalComboDiamonds >= 1000 || unitDiamonds >= 1000) {
+    playBigGiftSound();
+  }
 
   // Show combo burst popup for streaks >= 5
   if (combo >= 5) showComboBurst(giftName, iconUrl || '🎁', combo);
 
-  // Update revenue KPIs
+  // Update revenue KPIs immediately
   if (data.total_diamonds !== undefined) {
     bumpKpi(DOM.kpiDiamonds, data.total_diamonds);
     bumpKpi(DOM.kpiUsd, data.estimated_usd, fmtUsd);
@@ -430,6 +563,39 @@ function addGift(data) {
     DOM.lbTotalDiamonds.textContent = fmt(data.total_diamonds);
     DOM.lbGrossUsd.textContent      = fmtUsd(data.estimated_usd);
     DOM.lbNetUsd.textContent        = fmtUsd(data.net_payout_usd);
+  }
+
+  // In-place streak upgrade (zero delay, prevents DOM flooding on long streaks)
+  const userKey = String(user.user_id || user.unique_id || '');
+  const giftKey = String(txn.gift_id || giftName || '');
+  const topCard = DOM.giftFeed ? DOM.giftFeed.firstElementChild : null;
+  if (topCard && topCard.dataset && topCard.dataset.userKey === userKey && topCard.dataset.giftKey === giftKey && topCard.dataset.streakActive === '1') {
+    topCard.dataset.streakActive = isStreak ? '1' : '0';
+    if (!isStreak) topCard.classList.remove('streak-active');
+
+    const comboDiv = topCard.querySelector('.gift-combo');
+    if (comboDiv) {
+      comboDiv.textContent = `x${combo}`;
+      comboDiv.classList.remove('combo-bounce');
+      void comboDiv.offsetWidth;
+      comboDiv.classList.add('combo-bounce');
+    }
+
+    const detailsLine = topCard.querySelector('.gift-details');
+    if (detailsLine) {
+      detailsLine.innerHTML = `
+        <span class="gift-unit-pill" title="سعر الهدية الواحدة">💎 ${fmt(unitDiamonds)}</span>
+        ${combo > 1 ? `<span class="gift-total-pill" title="إجمالي الكومبو">المجموع: 💎 ${fmt(totalComboDiamonds)}</span>` : ''}
+        <span class="gift-usd-pill" title="القيمة التقريبية بالدولار">≈ $${usdEst}</span>
+      `;
+    }
+
+    if (totalComboDiamonds >= 1000 || unitDiamonds >= 1000) {
+      topCard.classList.add('vip-gift');
+    }
+
+    DOM.giftCount.textContent = `${fmt(giftCount)} gifts`;
+    return;
   }
 
   giftQueue.push(data);
@@ -584,6 +750,27 @@ function updatePK(pkData, eventType) {
   const hostWins     = pkData.host_wins || 0;
   const oppWins      = pkData.opponent_wins || 0;
   const roundNum     = pkData.round_number || 1;
+
+  // Instant Round Start Detection & Synchronization
+  const isNewRound =
+    (eventType === 'start') ||
+    (lastPkStatus !== 'ACTIVE' && (status === 'ACTIVE' || isActive)) ||
+    ((status === 'ACTIVE' || isActive) && roundNum > lastRoundNum && lastRoundNum !== 0);
+
+  if (isNewRound) {
+    playBattleStartSound();
+    if (DOM.pkSection) {
+      DOM.pkSection.classList.remove('round-start-flash');
+      void DOM.pkSection.offsetWidth;
+      DOM.pkSection.classList.add('round-start-flash');
+      setTimeout(() => DOM.pkSection?.classList.remove('round-start-flash'), 2000);
+      try { DOM.pkSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (_) {}
+    }
+    toast(`⚔️ بدأت جولة جديدة الآن! (الجولة ${roundNum}) 🔥 احشدوا الدعم!`, 'warning', 6000);
+  }
+
+  lastPkStatus = status;
+  lastRoundNum = roundNum;
 
   if (DOM.pkBattleType) DOM.pkBattleType.textContent = battleType;
   if (DOM.pkRoundNum)   DOM.pkRoundNum.textContent   = roundNum;
@@ -886,6 +1073,15 @@ function connectWs(username) {
 
       case 'pk_battle':
         updatePK(msg.data, msg.event);
+        break;
+
+      case 'pk_item_card':
+        playItemCardSound();
+        if (DOM.pkSection) {
+          DOM.pkSection.classList.add('item-card-active');
+          setTimeout(() => DOM.pkSection?.classList.remove('item-card-active'), 5000);
+        }
+        toast(`🥊 [كرت سحري]: ${msg.data?.card_name || 'كرت مضاعفة'} — ${msg.data?.description || ''}`, 'warning', 7000);
         break;
 
       case 'heartbeat':

@@ -471,6 +471,76 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
   text-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
 }
 
+/* ── PK Round Start Flash Animation ───────────────────────────── */
+@keyframes roundStartFlash {
+  0% {
+    box-shadow: 0 0 0 rgba(239, 68, 68, 0);
+    border-color: rgba(239, 68, 68, 0.4);
+  }
+  20% {
+    box-shadow: 0 0 50px rgba(239, 68, 68, 0.9), inset 0 0 30px rgba(239, 68, 68, 0.35);
+    border-color: #ef4444;
+    transform: scale(1.01);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(59, 130, 246, 0.8), inset 0 0 25px rgba(59, 130, 246, 0.3);
+    border-color: #3b82f6;
+  }
+  100% {
+    box-shadow: 0 0 30px rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.4);
+    transform: scale(1);
+  }
+}
+.round-start-flash {
+  animation: roundStartFlash 1.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── Streak Combo Bounce Animation ────────────────────────────── */
+@keyframes comboBounce {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.4) rotate(4deg); color: #fbbf24; text-shadow: 0 0 12px rgba(251, 191, 36, 0.8); }
+  60%  { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}
+.combo-bounce {
+  display: inline-block;
+  animation: comboBounce 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ── VIP / Legendary Gift Card (>= 1000 Diamonds) ─────────────── */
+.gift-card.vip-gift {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.22), rgba(236, 72, 153, 0.18), rgba(99, 102, 241, 0.2)) !important;
+  border: 2px solid #f59e0b !important;
+  box-shadow: 0 0 22px rgba(245, 158, 11, 0.35), inset 0 0 12px rgba(245, 158, 11, 0.15) !important;
+  position: relative;
+  overflow: hidden;
+}
+.gift-card.vip-gift::before {
+  content: '👑 أسطورية VIP';
+  position: absolute;
+  top: 3px;
+  left: 6px;
+  font-size: 0.58rem;
+  font-weight: 800;
+  color: #fef08a;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(254, 240, 138, 0.4);
+  letter-spacing: 0.03em;
+}
+
+/* ── PK Item Card Glow (Boxing Gloves x5, Boosters) ────────────── */
+@keyframes itemCardGlow {
+  0%, 100% { box-shadow: 0 0 15px rgba(234, 179, 8, 0.4); border-color: rgba(234, 179, 8, 0.6); }
+  50%      { box-shadow: 0 0 35px rgba(234, 179, 8, 0.95); border-color: #facc15; }
+}
+.item-card-active {
+  animation: itemCardGlow 1.8s infinite alternate ease-in-out;
+}
+
+
 /* ── Responsive ───────────────────────────────────────────────── */
 @media (max-width: 640px) {
   .kpi-value { font-size: 1.25rem; }
