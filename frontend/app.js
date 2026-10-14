@@ -250,6 +250,9 @@ const DOM = {
   btnVideoFullscreen:     $('btnVideoFullscreen'),
   btnVideoAspect:         $('btnVideoAspect'),
   videoAspectIcon:        $('videoAspectIcon'),
+  btnTogglePlayerMode:    $('btnTogglePlayerMode'),
+  playerModeIcon:         $('playerModeIcon'),
+  playerModeText:         $('playerModeText'),
   btnVideoExternal:       $('btnVideoExternal'),
   btnToggleVideoCollapse: $('btnToggleVideoCollapse'),
   videoCollapseIcon:      $('videoCollapseIcon'),
@@ -1028,13 +1031,15 @@ function applySnapshot(data) {
 // ---------------------------------------------------------------------------
 // Live Video Player Controller (مشغل البث المرئي المباشر)
 // ---------------------------------------------------------------------------
-// Live Video Stream Player (HLS / Low Latency / Ultra Smooth)
+// ---------------------------------------------------------------------------
+// Live Video Stream Player (HLS / Anti-Stutter Tuning / Direct Fallback)
 // ---------------------------------------------------------------------------
 let hlsInstance = null;
 let isVideoMuted = true;
 let isVideoPortrait = false;
 let isVideoCollapsed = false;
 let currentStreamData = null;
+let currentPlayerMode = 'hls'; // 'hls' or 'embed'
 
 function getProxiedStreamUrl(url) {
   if (!url) return '';
@@ -1117,7 +1122,7 @@ function resyncLiveStream() {
       hlsInstance.startLoad();
       if (DOM.liveVideoElement && DOM.liveVideoElement.buffered && DOM.liveVideoElement.buffered.length > 0) {
         const liveEdge = DOM.liveVideoElement.buffered.end(DOM.liveVideoElement.buffered.length - 1);
-        DOM.liveVideoElement.currentTime = Math.max(0, liveEdge - 1.5);
+        DOM.liveVideoElement.currentTime = Math.max(0, liveEdge - 2.0);
       }
       DOM.liveVideoElement.play().catch(() => {});
     } catch (err) {
@@ -1126,6 +1131,62 @@ function resyncLiveStream() {
   } else if (DOM.liveVideoElement) {
     DOM.liveVideoElement.load();
     DOM.liveVideoElement.play().catch(() => {});
+  }
+}
+
+function switchToIframePlayer() {
+  if (!currentStreamData) return;
+  currentPlayerMode = 'embed';
+  if (hlsInstance) {
+    try { hlsInstance.stopLoad(); } catch (_) {}
+  }
+  if (DOM.liveVideoElement) {
+    DOM.liveVideoElement.pause();
+    DOM.liveVideoElement.classList.add('hidden');
+  }
+  if (DOM.videoPlaceholder) DOM.videoPlaceholder.classList.add('hidden');
+  if (DOM.videoBufferingIndicator) DOM.videoBufferingIndicator.classList.add('hidden');
+
+  const embedUrl = currentStreamData.embed_url ||
+                   currentStreamData.iframe_url ||
+                   `https://www.tiktok.com/@${currentStreamData.username || currentUsername}/live`;
+
+  if (DOM.liveIframeElement) {
+    DOM.liveIframeElement.src = embedUrl;
+    DOM.liveIframeElement.classList.remove('hidden');
+  }
+  if (DOM.playerModeIcon) DOM.playerModeIcon.textContent = '🌐';
+  if (DOM.playerModeText) DOM.playerModeText.textContent = 'مشغل تيك توك المباشر';
+  toast('🌐 تم التبديل إلى مشغل تيك توك المباشر (Direct CDN بدون أي تقطيع)', 'success', 5000);
+}
+
+function switchToHlsPlayer() {
+  if (!currentStreamData) return;
+  currentPlayerMode = 'hls';
+  if (DOM.liveIframeElement) {
+    DOM.liveIframeElement.classList.add('hidden');
+    DOM.liveIframeElement.removeAttribute('src');
+  }
+  DOM.liveVideoElement?.classList.remove('hidden');
+  if (DOM.playerModeIcon) DOM.playerModeIcon.textContent = '⚡';
+  if (DOM.playerModeText) DOM.playerModeText.textContent = 'مشغل السيرفر';
+
+  if (hlsInstance) {
+    try {
+      hlsInstance.startLoad();
+      DOM.liveVideoElement?.play().catch(() => {});
+    } catch (_) {}
+  } else {
+    loadVideoStream(currentStreamData);
+  }
+  toast('⚡ تم التبديل إلى مشغل السيرفر السلس', 'info', 4000);
+}
+
+function togglePlayerMode() {
+  if (currentPlayerMode === 'hls') {
+    switchToIframePlayer();
+  } else {
+    switchToHlsPlayer();
   }
 }
 
@@ -1145,6 +1206,11 @@ function initLiveVideoPlayer() {
   // Re-sync Button
   DOM.btnVideoRefresh?.addEventListener('click', () => {
     resyncLiveStream();
+  });
+
+  // Toggle Player Mode (Server Stream vs TikTok Direct Embed)
+  DOM.btnTogglePlayerMode?.addEventListener('click', () => {
+    togglePlayerMode();
   });
 
   // Quality Switcher
@@ -1185,10 +1251,14 @@ function initLiveVideoPlayer() {
     if (isVideoPortrait) {
       DOM.liveVideoElement.classList.remove('aspect-landscape');
       DOM.liveVideoElement.classList.add('aspect-portrait');
+      DOM.liveIframeElement?.classList.remove('aspect-landscape');
+      DOM.liveIframeElement?.classList.add('aspect-portrait');
       if (DOM.videoAspectIcon) DOM.videoAspectIcon.textContent = '🖥️';
     } else {
       DOM.liveVideoElement.classList.remove('aspect-portrait');
       DOM.liveVideoElement.classList.add('aspect-landscape');
+      DOM.liveIframeElement?.classList.remove('aspect-portrait');
+      DOM.liveIframeElement?.classList.add('aspect-landscape');
       if (DOM.videoAspectIcon) DOM.videoAspectIcon.textContent = '📱';
     }
   });
@@ -1242,14 +1312,17 @@ function loadVideoStream(streamData, chosenQuality = 'auto') {
     DOM.videoQualitySelect.value = chosenQuality;
   }
 
+  // If currently in embed mode, update iframe
+  if (currentPlayerMode === 'embed') {
+    switchToIframePlayer();
+    return;
+  }
+
   // If no HLS direct stream is provided but TikTok embed or room_id is present:
   if (!targetHls) {
     const embedSrc = streamData.embed_url || streamData.iframe_url || '';
     if (embedSrc && DOM.liveIframeElement) {
-      if (DOM.videoPlaceholder) DOM.videoPlaceholder.classList.add('hidden');
-      DOM.liveVideoElement?.classList.add('hidden');
-      DOM.liveIframeElement.src = embedSrc;
-      DOM.liveIframeElement.classList.remove('hidden');
+      switchToIframePlayer();
       return;
     }
 
@@ -1280,26 +1353,32 @@ function loadVideoStream(streamData, chosenQuality = 'auto') {
 
   const finalStreamUrl = getProxiedStreamUrl(targetHls);
 
-  // Setup HLS.js with ultra-smooth live stream settings
+  // Setup HLS.js with rock-solid anti-stutter live settings
   if (window.Hls && window.Hls.isSupported()) {
     hlsInstance = new window.Hls({
       enableWorker: true,
-      lowLatencyMode: false,          // Standard buffer prevents micro-freezes & stuttering
-      liveSyncDurationCount: 3,       // 3 segments (~4-6s buffer) eliminates stuttering completely
-      liveMaxLatencyDurationCount: 8, // Prevents falling too far behind
-      maxLiveSyncPlaybackRate: 1.12,  // Gentle catch up
+      lowLatencyMode: false,
+      // 6 segments safety buffer (~10-12s) completely absorbs any network jitters
+      liveSyncDurationCount: 6,
+      liveMaxLatencyDurationCount: 15,
+      // Constant 1.0x rate prevents buffer drain speed-up cycle that causes stuttering!
+      maxLiveSyncPlaybackRate: 1.0,
       liveDurationInfinity: true,
       backBufferLength: 30,
-      maxBufferLength: 20,
-      maxMaxBufferLength: 40,
-      maxBufferSize: 50 * 1000 * 1000,
-      startFragPrefetch: true,        // Pre-downloads next video segment ahead of time for seamless transition
-      manifestLoadingTimeOut: 12000,
+      maxBufferLength: 30,
+      maxMaxBufferLength: 60,
+      maxBufferSize: 60 * 1000 * 1000,
+      startFragPrefetch: true,        // Pre-download next video segment
+      progressive: true,              // Progressive chunk parsing
+      nudgeOffset: 0.1,               // Nudge forward past timestamp holes
+      nudgeMaxRetry: 5,
+      highBufferWatchdogPeriod: 2,
+      manifestLoadingTimeOut: 15000,
       manifestLoadingMaxRetry: 6,
       manifestLoadingRetryDelay: 500,
-      levelLoadingTimeOut: 12000,
+      levelLoadingTimeOut: 15000,
       levelLoadingMaxRetry: 6,
-      fragLoadingTimeOut: 20000,
+      fragLoadingTimeOut: 25000,
       fragLoadingMaxRetry: 8,
       fragLoadingRetryDelay: 500,
       testBandwidth: true,
@@ -1332,14 +1411,12 @@ function loadVideoStream(streamData, chosenQuality = 'auto') {
             break;
           default:
             console.error('[HLS] Unrecoverable error:', data);
-            // If proxy or stream died, fallback to embed or alternate quality
-            if (streamData.embed_url && DOM.liveIframeElement) {
-              DOM.liveVideoElement?.classList.add('hidden');
-              DOM.liveIframeElement.src = streamData.embed_url;
-              DOM.liveIframeElement.classList.remove('hidden');
-            }
+            switchToIframePlayer();
             break;
         }
+      } else if (data.details === 'bufferStalledError') {
+        console.debug('[HLS] Buffer stalled, ensuring stream continues loading...');
+        hlsInstance.startLoad();
       }
     });
   } else if (DOM.liveVideoElement.canPlayType('application/vnd.apple.mpegurl')) {
@@ -1364,7 +1441,7 @@ function loadDemoVideoStream() {
     hls_url: demoHls,
     web_url: 'https://www.tiktok.com',
   });
-  toast('📺 تم تشغيل البث المرئي التجريبي بسلاسة!', 'success');
+  toast('📺 تم تشغيل البث المرئي التجريبي بدون أي تقطيع!', 'success');
 }
 
 function triggerSpyAlert(text) {

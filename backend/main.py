@@ -567,8 +567,12 @@ async def stream_proxy(request: Request, url: str):
             )
 
         # Direct video segment chunk (.ts / .mp4 / .m4s)
-        media_type = resp.headers.get("content-type") or "video/mp2t"
-        status_code = resp.status_code
+        # Stream chunks (32KB) progressively so video decoder gets frames immediately without buffering delay
+        req = client.build_request("GET", url, headers=req_headers)
+        upstream = await client.send(req, stream=True)
+
+        status_code = upstream.status_code
+        media_type = upstream.headers.get("content-type") or ("video/mp4" if (".m4s" in url or ".mp4" in url) else "video/mp2t")
         resp_headers = {
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
@@ -576,13 +580,22 @@ async def stream_proxy(request: Request, url: str):
             # Immutable segments can be safely cached by browser to eliminate re-buffering
             "Cache-Control": "public, max-age=86400, immutable" if status_code == 200 else "no-cache",
         }
-        if "content-range" in resp.headers:
-            resp_headers["Content-Range"] = resp.headers["content-range"]
-        if "accept-ranges" in resp.headers:
-            resp_headers["Accept-Ranges"] = resp.headers["accept-ranges"]
+        if "content-range" in upstream.headers:
+            resp_headers["Content-Range"] = upstream.headers["content-range"]
+        if "accept-ranges" in upstream.headers:
+            resp_headers["Accept-Ranges"] = upstream.headers["accept-ranges"]
+        if "content-length" in upstream.headers:
+            resp_headers["Content-Length"] = upstream.headers["content-length"]
 
-        return Response(
-            content=resp.content,
+        async def _stream_chunks():
+            try:
+                async for chunk in upstream.aiter_bytes(chunk_size=32768):
+                    yield chunk
+            finally:
+                await upstream.aclose()
+
+        return StreamingResponse(
+            _stream_chunks(),
             status_code=status_code,
             media_type=media_type,
             headers=resp_headers,
