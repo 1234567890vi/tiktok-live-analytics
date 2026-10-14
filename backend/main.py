@@ -217,6 +217,15 @@ async def serve_admin_page():
     return FileResponse(str(admin_path), media_type="text/html")
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    """Silence browser favicon requests to avoid 404 log noise."""
+    icon_path = FRONTEND_DIR / "favicon.ico"
+    if icon_path.exists():
+        return FileResponse(str(icon_path))
+    return Response(status_code=204)
+
+
 @app.get("/health")
 async def health_check():
     """Liveness / readiness probe for cloud deployment health checks."""

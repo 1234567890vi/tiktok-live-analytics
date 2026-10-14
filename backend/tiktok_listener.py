@@ -1071,7 +1071,7 @@ class TikTokSession:
                 await self._client.connect(
                     process_connect_events=True,
                     fetch_room_info=True,
-                    fetch_gift_info=True,
+                    fetch_gift_info=False,
                 )
 
                 if not self._running:

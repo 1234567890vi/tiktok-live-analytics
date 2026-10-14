@@ -213,6 +213,7 @@ class BackgroundSupervisor:
         self.tunnel_proc: subprocess.Popen | None = None
         self.current_url: str = ""
         self.tunnel_type: str = "cloudflare" if CLOUDFLARED_BIN.exists() else "localtunnel"
+        self._cf_fail_count: int = 0
         self.running: bool = True
         self.uvicorn_log_file = None
         self.tunnel_log_file = None
@@ -266,14 +267,14 @@ class BackgroundSupervisor:
         if self.tunnel_proc and self.tunnel_proc.poll() is None:
             return
 
-        if CLOUDFLARED_BIN.exists():
+        if CLOUDFLARED_BIN.exists() and self._cf_fail_count < 2:
             self._start_cloudflare_tunnel()
         else:
             self._start_localtunnel()
 
     def _start_cloudflare_tunnel(self) -> None:
         """Start Cloudflare Tunnel via cloudflared.exe (Zero Password, Direct Access)."""
-        logger.info("Starting Cloudflare Tunnel via %s...", CLOUDFLARED_BIN)
+        logger.info("Starting Cloudflare Tunnel via %s (attempt %d/2)...", CLOUDFLARED_BIN, self._cf_fail_count + 1)
         self.tunnel_type = "cloudflare"
         cmd = [str(CLOUDFLARED_BIN), "tunnel", "--protocol", "http2", "--url", "http://127.0.0.1:8000"]
 
@@ -296,6 +297,7 @@ class BackgroundSupervisor:
             return
 
         url_pattern = re.compile(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com")
+        captured = False
         try:
             with open(TUNNEL_LOG, "a", encoding="utf-8") as tf:
                 for line in iter(self.tunnel_proc.stdout.readline, ""):
@@ -308,6 +310,8 @@ class BackgroundSupervisor:
                     match = url_pattern.search(clean_line)
                     if match:
                         url = match.group(0).strip()
+                        captured = True
+                        self._cf_fail_count = 0
                         if url != self.current_url:
                             self.current_url = url
                             logger.info("Cloudflare Tunnel URL captured: %s", self.current_url)
@@ -336,6 +340,13 @@ class BackgroundSupervisor:
 
         except Exception as exc:
             logger.debug("Cloudflare output reader exited: %s", exc)
+        finally:
+            if not captured and self.running:
+                self._cf_fail_count += 1
+                logger.warning("Cloudflare tunnel failed to obtain public URL (failures: %d/2).", self._cf_fail_count)
+                if self._cf_fail_count >= 2:
+                    logger.warning("Falling back to Localtunnel immediately...")
+                    self._start_localtunnel()
 
     def _start_localtunnel(self) -> None:
         """Fallback to localtunnel if cloudflared is unavailable."""
