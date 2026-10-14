@@ -27,6 +27,7 @@ from backend.config import (
     MAX_SESSIONS,
 )
 from backend.tiktok_listener import TikTokSession
+from backend.telegram_bot import TelegramBotManager
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -60,6 +61,37 @@ def _get_admin_token(request: Request, data: dict | None = None) -> str:
     return request.query_params.get("token", "").strip()
 
 
+def _get_current_stats() -> dict:
+    """Helper returning real-time statistical snapshot of users, sessions, and history."""
+    uptime = int(time.time() - _server_start_time)
+    now = int(time.time())
+    history_copy = []
+    for item in _search_history[:80]:
+        row = dict(item)
+        if row["status"] == "active":
+            row["duration_seconds"] = max(0, now - row["started_at"])
+            sess = _active_sessions.get(row["username"])
+            if sess:
+                row["total_diamonds"] = getattr(sess._engine, "get_total_diamonds", lambda: 0)()
+        history_copy.append(row)
+
+    return {
+        "status": "ok",
+        "server_uptime_seconds": uptime,
+        "total_connections": _total_connections,
+        "active_users_count": sum(len(s) for s in _active_websockets.values()),
+        "active_streamers_count": len(_active_sessions),
+        "active_sessions": list(_active_sessions.keys()),
+        "search_history": history_copy,
+        "tracking_enabled": _tracking_enabled,
+        "banned_targets": sorted(list(_banned_targets)),
+    }
+
+
+# Telegram Bot & Notification Service
+telegram_bot = TelegramBotManager(stats_provider=_get_current_stats)
+
+
 # ---------------------------------------------------------------------------
 # Session registry — created inside the lifespan so it has a running event loop
 # ---------------------------------------------------------------------------
@@ -86,9 +118,12 @@ async def lifespan(app: FastAPI):
     logger.info("   Frontend: %s", FRONTEND_DIR)
     logger.info("   Max sessions: %d", MAX_SESSIONS)
 
+    await telegram_bot.start()
+
     yield  # ── app runs here ────────────────────────────────────────────
 
     logger.info("🛑 Shutting down — stopping all active sessions...")
+    await telegram_bot.stop()
     async with _sessions_lock:
         tasks = [session.stop() for session in _active_sessions.values()]
     if tasks:
@@ -191,34 +226,64 @@ async def admin_stats(request: Request, token: str = ""):
     if not tok or tok not in _admin_tokens:
         return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
 
-    uptime = int(time.time() - _server_start_time)
-    now = int(time.time())
-    history_copy = []
-    for item in _search_history[:80]:
-        row = dict(item)
-        if row["status"] == "active":
-            row["duration_seconds"] = max(0, now - row["started_at"])
-            sess = _active_sessions.get(row["username"])
-            if sess:
-                row["total_diamonds"] = getattr(sess._engine, "get_total_diamonds", lambda: 0)()
-        history_copy.append(row)
-
+    data = _get_current_stats()
     current_sign_key = os.getenv("SIGN_API_KEY", "")
     masked_key = (current_sign_key[:4] + "..." + current_sign_key[-4:]) if len(current_sign_key) >= 8 else ("***" if current_sign_key else "")
+    data["has_sign_api_key"] = bool(current_sign_key)
+    data["sign_api_key_masked"] = masked_key
+    data["telegram"] = telegram_bot.get_safe_config()
+    return data
 
+
+@app.get("/api/admin/telegram/settings")
+async def admin_telegram_get_settings(request: Request):
+    """Return current Telegram bot configuration."""
+    tok = _get_admin_token(request)
+    if not tok or tok not in _admin_tokens:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
+    return {"status": "ok", "settings": telegram_bot.get_safe_config()}
+
+
+@app.post("/api/admin/telegram/save")
+async def admin_telegram_save_settings(request: Request, data: dict):
+    """Save Telegram bot settings and restart polling service."""
+    tok = _get_admin_token(request, data)
+    if not tok or tok not in _admin_tokens:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
+
+    telegram_bot.save_config(data)
+    await telegram_bot.restart()
     return {
         "status": "ok",
-        "server_uptime_seconds": uptime,
-        "total_connections": _total_connections,
-        "active_users_count": sum(len(s) for s in _active_websockets.values()),
-        "active_streamers_count": len(_active_sessions),
-        "active_sessions": list(_active_sessions.keys()),
-        "search_history": history_copy,
-        "tracking_enabled": _tracking_enabled,
-        "banned_targets": sorted(list(_banned_targets)),
-        "has_sign_api_key": bool(current_sign_key),
-        "sign_api_key_masked": masked_key,
+        "settings": telegram_bot.get_safe_config(),
+        "message": "تم حفظ إعدادات تلغرام وتفعيل الخدمة بنجاح",
     }
+
+
+@app.post("/api/admin/telegram/test")
+async def admin_telegram_test(request: Request, data: dict):
+    """Send test message to Telegram bot."""
+    tok = _get_admin_token(request, data)
+    if not tok or tok not in _admin_tokens:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
+
+    success, msg = await telegram_bot.send_test_message()
+    if success:
+        return {"status": "ok", "message": msg}
+    return JSONResponse(status_code=400, content={"status": "error", "message": msg})
+
+
+@app.post("/api/admin/telegram/send-report")
+async def admin_telegram_send_report(request: Request, data: dict):
+    """Force sending current stats report to Telegram immediately."""
+    tok = _get_admin_token(request, data)
+    if not tok or tok not in _admin_tokens:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
+
+    success, msg = await telegram_bot.send_stats_report()
+    if success:
+        return {"status": "ok", "message": "تم إرسال التقرير الإحصائي إلى تلغرام بنجاح"}
+    return JSONResponse(status_code=400, content={"status": "error", "message": msg})
 
 
 @app.post("/api/admin/set-sign-key")
@@ -550,6 +615,7 @@ async def ws_track(websocket: WebSocket, username: str):
             "message":  f"Connecting to @{clean_username}...",
         }))
         await session.start()
+        asyncio.create_task(telegram_bot.notify_stream_started(clean_username, 1))
     else:
         logger.info(
             "Client connected to existing active session for @%s (viewers: %d)",
@@ -631,6 +697,11 @@ async def ws_track(websocket: WebSocket, username: str):
                         if ended_session:
                             await ended_session.stop()
                             logger.info("Session cleaned up for @%s (0 active viewers)", clean_username)
+                            asyncio.create_task(telegram_bot.notify_stream_ended(
+                                clean_username,
+                                session_record["duration_seconds"],
+                                session_record["total_diamonds"],
+                            ))
             else:
                 logger.info("Client disconnected from @%s (%d viewers still watching)", clean_username, remaining_viewers)
 

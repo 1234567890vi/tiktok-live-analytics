@@ -191,6 +191,10 @@
           <span>🔑</span> <span id="tabTitleApiSettings">مفتاح التوقيع (Sign API)</span>
           <span id="badgeSignKeyStatus" class="text-[10px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700">غير مضبوط</span>
         </button>
+        <button id="tabBtnTelegram" class="px-4 py-3 text-xs sm:text-sm font-bold border-b-2 border-transparent text-gray-400 hover:text-gray-200 transition flex items-center gap-2 whitespace-nowrap">
+          <span>🤖</span> <span id="tabTitleTelegram">بوت تلغرام (الإحصائيات)</span>
+          <span id="badgeTelegramStatus" class="text-[10px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700">معطل</span>
+        </button>
       </div>
 
       <!-- ════════ TAB 1: SESSIONS & LIVE USER TRACKING ════════ -->
@@ -393,7 +397,162 @@
         </div>
       </div>
 
-    </div>
+      <!-- ════════ TAB 5: TELEGRAM BOT & STATS NOTIFIER ════════ -->
+      <div id="tabViewTelegram" class="hidden space-y-6">
+        <!-- Quick Action Bar -->
+        <div class="glass-card p-5 border border-blue-900/40 flex flex-wrap items-center justify-between gap-4 shadow-xl">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-2xl bg-blue-500/15 text-blue-400 flex items-center justify-center text-2xl border border-blue-500/20">
+              ✈️
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                <span>إرسال الإحصائيات الفورية إلى تلغرام</span>
+                <span id="tgLiveStatusBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700 font-normal font-mono">غير متصل</span>
+              </h3>
+              <p class="text-xs text-gray-400 mt-0.5">
+                يمكنك إرسال تقرير إحصائي مباشر ولحظي إلى محادثتك أو قناتك على تلغرام بضغطة زر واحدة.
+              </p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <button
+              id="btnTelegramTest"
+              class="px-4 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-xs font-bold text-gray-200 transition border border-gray-700 flex items-center gap-2 shadow"
+            >
+              <span>🧪</span>
+              <span id="textBtnTelegramTest">فحص الاتصال (تجربة)</span>
+            </button>
+            <button
+              id="btnTelegramSendReport"
+              class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-xs font-bold text-white transition flex items-center gap-2 shadow-lg shadow-blue-600/30 active:scale-98"
+            >
+              <span>📊</span>
+              <span id="textBtnTelegramReport">إرسال تقرير الإحصائيات الآن</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Configuration Form (2 Cols) -->
+          <div class="lg:col-span-2 glass-card p-6 space-y-5 border border-gray-800 shadow-xl">
+            <h3 class="text-sm font-bold text-white flex items-center gap-2 border-b border-gray-800 pb-3">
+              <span>⚙️</span>
+              <span>إعدادات الاتصال بالبوت (Bot Token & Chat ID)</span>
+            </h3>
+
+            <!-- Bot Token -->
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-gray-300">
+                <span>رمز البوت (Telegram Bot Token):</span>
+              </label>
+              <input
+                type="password"
+                id="inputTelegramToken"
+                placeholder="مثال: 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
+                class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 font-mono transition"
+              />
+              <p class="text-[11px] text-gray-500">
+                💡 احصل على الرمز مجاناً وفوراً من بوت <a href="https://t.me/BotFather" target="_blank" class="text-blue-400 hover:underline">@BotFather</a> عبر إرسال الأمر <code>/newbot</code>.
+              </p>
+            </div>
+
+            <!-- Chat ID -->
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-gray-300">
+                <span>معرّف المحادثة أو القناة (Telegram Chat ID):</span>
+              </label>
+              <input
+                type="text"
+                id="inputTelegramChatId"
+                placeholder="مثال: 123456789 أو -100123456789"
+                class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 font-mono transition"
+              />
+              <p class="text-[11px] text-gray-500">
+                💡 لمعرفة معرف حسابك: تحدث مع <a href="https://t.me/userinfobot" target="_blank" class="text-blue-400 hover:underline">@userinfobot</a> أو ابدأ محادثة مع بوتك واكتب <code>/start</code>.
+              </p>
+            </div>
+
+            <!-- Notification Options -->
+            <div class="space-y-3 pt-3 border-t border-gray-800/80">
+              <div class="text-xs font-semibold text-gray-300">خيارات التنبيهات التلقائية:</div>
+              <div class="space-y-2">
+                <label class="flex items-center gap-2.5 cursor-pointer text-xs text-gray-300 hover:text-white transition">
+                  <input type="checkbox" id="checkNotifyStreamStart" class="rounded bg-gray-900 border-gray-700 text-blue-600 focus:ring-0 w-4 h-4 cursor-pointer" checked />
+                  <span>🟢 إرسال إشعار فوري عند بدء تتبع بث جديد في الموقع</span>
+                </label>
+                <label class="flex items-center gap-2.5 cursor-pointer text-xs text-gray-300 hover:text-white transition">
+                  <input type="checkbox" id="checkNotifyStreamEnd" class="rounded bg-gray-900 border-gray-700 text-blue-600 focus:ring-0 w-4 h-4 cursor-pointer" checked />
+                  <span>🔴 إرسال إشعار فوري عند انتهاء جلسة تتبع (مع ملخص مدة البث والألماسات)</span>
+                </label>
+              </div>
+
+              <!-- Periodic Report -->
+              <div class="pt-2 flex items-center justify-between gap-4 flex-wrap">
+                <label class="text-xs text-gray-300 font-semibold" for="selectPeriodicReport">
+                  <span>⏱️ التقرير الإحصائي الدوري المجدول:</span>
+                </label>
+                <select
+                  id="selectPeriodicReport"
+                  class="bg-gray-900 border border-gray-700 text-white text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500 font-medium"
+                >
+                  <option value="0">معطل (إرسال يدوي فقط)</option>
+                  <option value="1">كل ساعة (1 Hour)</option>
+                  <option value="6">كل 6 ساعات (6 Hours)</option>
+                  <option value="12">كل 12 ساعة (12 Hours)</option>
+                  <option value="24">كل 24 ساعة (يومي)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="pt-2">
+              <button
+                id="btnSaveTelegramSettings"
+                class="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 active:scale-98"
+              >
+                <span>💾</span>
+                <span>حفظ الإعدادات وتفعيل البوت</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Telegram Commands Guide (1 Col) -->
+          <div class="glass-card p-6 space-y-4 border border-gray-800 shadow-xl flex flex-col justify-between">
+            <div class="space-y-4">
+              <h3 class="text-sm font-bold text-white flex items-center gap-2 border-b border-gray-800 pb-3">
+                <span>📱</span>
+                <span>التحكم المباشر عبر تلغرام</span>
+              </h3>
+              <p class="text-xs text-gray-400 leading-relaxed">
+                بعد ضبط البوت، لا تحتاج حتى لفتح الموقع! افتح محادثة البوت على تطبيق تلغرام في هاتفك وأرسل أي أمر:
+              </p>
+              <div class="space-y-2.5 font-mono text-xs">
+                <div class="p-2.5 rounded-xl bg-gray-900/90 border border-gray-800 text-gray-300">
+                  <span class="text-cyan-400 font-bold">/stats</span>
+                  <div class="text-[11px] text-gray-400 font-sans mt-0.5">عرض تقرير إحصائي حي وشامل لكافة عمليات الموقع.</div>
+                </div>
+                <div class="p-2.5 rounded-xl bg-gray-900/90 border border-gray-800 text-gray-300">
+                  <span class="text-emerald-400 font-bold">/users</span>
+                  <div class="text-[11px] text-gray-400 font-sans mt-0.5">عرض عدد المتصلين الآن وأسماء الحسابات المتابعة.</div>
+                </div>
+                <div class="p-2.5 rounded-xl bg-gray-900/90 border border-gray-800 text-gray-300">
+                  <span class="text-purple-400 font-bold">/history</span>
+                  <div class="text-[11px] text-gray-400 font-sans mt-0.5">عرض آخر 10 عمليات تتبع بالوقت والألماسات.</div>
+                </div>
+                <div class="p-2.5 rounded-xl bg-gray-900/90 border border-gray-800 text-gray-300">
+                  <span class="text-amber-400 font-bold">/help</span>
+                  <div class="text-[11px] text-gray-400 font-sans mt-0.5">قائمة التعليمات والمساعدة.</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-3 rounded-xl bg-blue-950/40 border border-blue-800/40 text-[11px] text-blue-300 flex items-start gap-2">
+              <span>🔒</span>
+              <span>البوت محمي ومخصص لمالك الموقع فقط ولا يستجيب إلا للمعرّف المسجل.</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
   </main>
 

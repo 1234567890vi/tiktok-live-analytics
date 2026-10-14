@@ -215,6 +215,23 @@ const DOM = {
   labelCurrentStatus:    $('labelCurrentStatus'),
   currentSignKeyText:    $('currentSignKeyText'),
 
+  // Tab 5 Views (Telegram)
+  tabBtnTelegram:         $('tabBtnTelegram'),
+  tabTitleTelegram:       $('tabTitleTelegram'),
+  badgeTelegramStatus:    $('badgeTelegramStatus'),
+  tabViewTelegram:        $('tabViewTelegram'),
+  tgLiveStatusBadge:      $('tgLiveStatusBadge'),
+  btnTelegramTest:        $('btnTelegramTest'),
+  textBtnTelegramTest:    $('textBtnTelegramTest'),
+  btnTelegramSendReport:  $('btnTelegramSendReport'),
+  textBtnTelegramReport:  $('textBtnTelegramReport'),
+  inputTelegramToken:     $('inputTelegramToken'),
+  inputTelegramChatId:    $('inputTelegramChatId'),
+  checkNotifyStreamStart: $('checkNotifyStreamStart'),
+  checkNotifyStreamEnd:   $('checkNotifyStreamEnd'),
+  selectPeriodicReport:   $('selectPeriodicReport'),
+  btnSaveTelegramSettings:$('btnSaveTelegramSettings'),
+
   // Toast
   toastContainer:        $('toastContainer'),
 };
@@ -367,11 +384,13 @@ function switchAdminTab(tab) {
   const isBanned   = tab === 'banned';
   const isBcast    = tab === 'broadcast';
   const isApi      = tab === 'api_settings';
+  const isTelegram = tab === 'telegram';
 
   if (DOM.tabViewSessions) DOM.tabViewSessions.classList.toggle('hidden', !isSessions);
   if (DOM.tabViewBanned) DOM.tabViewBanned.classList.toggle('hidden', !isBanned);
   if (DOM.tabViewBroadcast) DOM.tabViewBroadcast.classList.toggle('hidden', !isBcast);
   if (DOM.tabViewApiSettings) DOM.tabViewApiSettings.classList.toggle('hidden', !isApi);
+  if (DOM.tabViewTelegram) DOM.tabViewTelegram.classList.toggle('hidden', !isTelegram);
 
   const activeTabClass = 'px-4 py-3 text-xs sm:text-sm font-bold border-b-2 border-purple-500 text-purple-300 transition flex items-center gap-2 whitespace-nowrap';
   const inactiveTabClass = 'px-4 py-3 text-xs sm:text-sm font-bold border-b-2 border-transparent text-gray-400 hover:text-gray-200 transition flex items-center gap-2 whitespace-nowrap';
@@ -380,6 +399,7 @@ function switchAdminTab(tab) {
   if (DOM.tabBtnBanned) DOM.tabBtnBanned.className = isBanned ? activeTabClass : inactiveTabClass;
   if (DOM.tabBtnBroadcast) DOM.tabBtnBroadcast.className = isBcast ? activeTabClass : inactiveTabClass;
   if (DOM.tabBtnApiSettings) DOM.tabBtnApiSettings.className = isApi ? activeTabClass : inactiveTabClass;
+  if (DOM.tabBtnTelegram) DOM.tabBtnTelegram.className = isTelegram ? activeTabClass : inactiveTabClass;
 }
 
 // ---------------------------------------------------------------------------
@@ -479,6 +499,11 @@ async function loadAdminStats() {
           ? (data.sign_api_key_masked || 'Active')
           : (currentLang === 'ar' ? 'غير مضبوط (يستخدم الـ IP المشترك)' : 'Not set (using shared IP fallback)');
         DOM.currentSignKeyText.className = data.has_sign_api_key ? 'font-mono text-emerald-400 font-bold' : 'font-mono text-amber-400';
+      }
+
+      // Telegram status
+      if (data.telegram) {
+        updateTelegramUI(data.telegram);
       }
     }
   } catch (err) {
@@ -822,6 +847,143 @@ async function handleSaveSignApiKey() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Telegram Bot Management
+// ---------------------------------------------------------------------------
+function updateTelegramUI(tg) {
+  if (DOM.badgeTelegramStatus) {
+    if (tg.enabled && tg.has_token) {
+      DOM.badgeTelegramStatus.textContent = currentLang === 'ar' ? 'نشط ✅' : 'Active ✅';
+      DOM.badgeTelegramStatus.className = 'text-[10px] px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 font-bold';
+    } else {
+      DOM.badgeTelegramStatus.textContent = currentLang === 'ar' ? 'معطل ⚠️' : 'Disabled ⚠️';
+      DOM.badgeTelegramStatus.className = 'text-[10px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700 font-bold';
+    }
+  }
+
+  if (DOM.tgLiveStatusBadge) {
+    if (tg.enabled && tg.has_token) {
+      DOM.tgLiveStatusBadge.textContent = currentLang === 'ar' ? '🟢 متصل وجاهز' : '🟢 Connected';
+      DOM.tgLiveStatusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 font-bold font-mono';
+    } else {
+      DOM.tgLiveStatusBadge.textContent = currentLang === 'ar' ? '⚪ غير متصل' : '⚪ Disconnected';
+      DOM.tgLiveStatusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700 font-normal font-mono';
+    }
+  }
+
+  // Populate inputs if user hasn't focused them
+  if (DOM.inputTelegramChatId && !DOM.inputTelegramChatId.matches(':focus') && tg.chat_id) {
+    DOM.inputTelegramChatId.value = tg.chat_id;
+  }
+  if (DOM.inputTelegramToken && !DOM.inputTelegramToken.matches(':focus') && tg.bot_token_masked) {
+    DOM.inputTelegramToken.placeholder = `محفوظ: ${tg.bot_token_masked}`;
+  }
+  if (DOM.checkNotifyStreamStart && !DOM.checkNotifyStreamStart.matches(':focus')) {
+    DOM.checkNotifyStreamStart.checked = tg.notify_on_new_stream !== false;
+  }
+  if (DOM.checkNotifyStreamEnd && !DOM.checkNotifyStreamEnd.matches(':focus')) {
+    DOM.checkNotifyStreamEnd.checked = tg.notify_on_stream_end !== false;
+  }
+  if (DOM.selectPeriodicReport && !DOM.selectPeriodicReport.matches(':focus') && tg.periodic_report_hours !== undefined) {
+    DOM.selectPeriodicReport.value = String(tg.periodic_report_hours);
+  }
+}
+
+async function handleSaveTelegramSettings() {
+  const token = getAdminToken();
+  if (!token) return;
+
+  const botToken = DOM.inputTelegramToken ? DOM.inputTelegramToken.value.trim() : '';
+  const chatId = DOM.inputTelegramChatId ? DOM.inputTelegramChatId.value.trim() : '';
+  const notifyStart = DOM.checkNotifyStreamStart ? DOM.checkNotifyStreamStart.checked : true;
+  const notifyEnd = DOM.checkNotifyStreamEnd ? DOM.checkNotifyStreamEnd.checked : true;
+  const periodic = DOM.selectPeriodicReport ? parseInt(DOM.selectPeriodicReport.value, 10) : 0;
+
+  try {
+    const body = {
+      chat_id: chatId,
+      notify_on_new_stream: notifyStart,
+      notify_on_stream_end: notifyEnd,
+      periodic_report_hours: periodic,
+      enabled: Boolean(chatId && (botToken || (DOM.inputTelegramToken && DOM.inputTelegramToken.placeholder.includes('محفوظ')))),
+    };
+    if (botToken) {
+      body.bot_token = botToken;
+    }
+
+    const res = await fetch('/api/admin/telegram/save', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (res.ok && data.status === 'ok') {
+      toast(currentLang === 'ar' ? '✅ تم حفظ إعدادات تلغرام وتفعيل الخدمة بنجاح!' : '✅ Telegram settings saved!', 'success');
+      if (DOM.inputTelegramToken) DOM.inputTelegramToken.value = '';
+      if (data.settings) updateTelegramUI(data.settings);
+    } else {
+      toast(data.message || 'فشل حفظ الإعدادات', 'error');
+    }
+  } catch (err) {
+    toast(`خطأ: ${err.message}`, 'error');
+  }
+}
+
+async function handleTestTelegram() {
+  const token = getAdminToken();
+  if (!token) return;
+
+  toast(currentLang === 'ar' ? 'جاري فحص الاتصال وإرسال رسالة تجريبية...' : 'Testing connection...', 'info');
+
+  try {
+    const res = await fetch('/api/admin/telegram/test', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({}),
+    });
+    const data = await res.json();
+    if (res.ok && data.status === 'ok') {
+      toast(currentLang === 'ar' ? '🎉 تم إرسال الرسالة التجريبية إلى تلغرام بنجاح!' : '🎉 Test message sent successfully!', 'success');
+    } else {
+      toast(data.message || 'فشل فحص الاتصال', 'error');
+    }
+  } catch (err) {
+    toast(`خطأ: ${err.message}`, 'error');
+  }
+}
+
+async function handleSendTelegramReport() {
+  const token = getAdminToken();
+  if (!token) return;
+
+  toast(currentLang === 'ar' ? 'جاري تجميع الإحصائيات وإرسال التقرير...' : 'Sending report...', 'info');
+
+  try {
+    const res = await fetch('/api/admin/telegram/send-report', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({}),
+    });
+    const data = await res.json();
+    if (res.ok && data.status === 'ok') {
+      toast(currentLang === 'ar' ? '📊 تم إرسال التقرير الإحصائي إلى محادثة تلغرام بنجاح!' : '📊 Report sent successfully!', 'success');
+    } else {
+      toast(data.message || 'فشل إرسال التقرير', 'error');
+    }
+  } catch (err) {
+    toast(`خطأ: ${err.message}`, 'error');
+  }
+}
+
 function startAdminRefresh() {
   stopAdminRefresh();
   adminRefreshInterval = setInterval(() => {
@@ -858,6 +1020,11 @@ if (DOM.tabBtnSessions) DOM.tabBtnSessions.addEventListener('click', () => switc
 if (DOM.tabBtnBanned) DOM.tabBtnBanned.addEventListener('click', () => switchAdminTab('banned'));
 if (DOM.tabBtnBroadcast) DOM.tabBtnBroadcast.addEventListener('click', () => switchAdminTab('broadcast'));
 if (DOM.tabBtnApiSettings) DOM.tabBtnApiSettings.addEventListener('click', () => switchAdminTab('api_settings'));
+if (DOM.tabBtnTelegram) DOM.tabBtnTelegram.addEventListener('click', () => switchAdminTab('telegram'));
+
+if (DOM.btnSaveTelegramSettings) DOM.btnSaveTelegramSettings.addEventListener('click', handleSaveTelegramSettings);
+if (DOM.btnTelegramTest) DOM.btnTelegramTest.addEventListener('click', handleTestTelegram);
+if (DOM.btnTelegramSendReport) DOM.btnTelegramSendReport.addEventListener('click', handleSendTelegramReport);
 
 if (DOM.btnSubmitBan) DOM.btnSubmitBan.addEventListener('click', () => {
   const target = DOM.bannedInputTarget ? DOM.bannedInputTarget.value.trim() : '';
