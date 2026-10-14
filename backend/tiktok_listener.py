@@ -20,7 +20,7 @@ from TikTokLive.events import (
     CommentEvent,
     GiftEvent,
     LikeEvent,
-    ViewerCountEvent,
+    RoomUserSeqEvent,
     LinkMicBattleEvent,
     LinkMicArmiesEvent,
 )
@@ -70,16 +70,34 @@ except ModuleNotFoundError:
             self.__init__(self._host)
 
         def update_viewer_count(self, n: int) -> None:
-            self._viewers = n
+            if n > 0:
+                self._viewers = n
+
+        def set_total_diamonds(self, n: int) -> None:
+            self._diamonds = max(self._diamonds, n)
+
+        def set_total_likes(self, n: int) -> None:
+            self._likes = max(self._likes, n)
+
+        def update_supporter_score(self, uid, uniq, nick, av, score: int) -> None:
+            if not uid:
+                return
+            sup = self._supporters.setdefault(uid, {
+                "user_id": uid, "unique_id": uniq, "nickname": nick,
+                "avatar_url": av, "total_diamonds": 0, "gift_count": 0,
+            })
+            sup["total_diamonds"] = max(sup["total_diamonds"], score)
 
         def process_like(self, uid, uniq, nick, av, lc, total):
             self._likes = max(self._likes, total)
-            rec = self._likers.setdefault(uid, {
-                "user_id": uid, "unique_id": uniq,
-                "nickname": nick, "avatar_url": av, "like_count": 0,
-            })
-            rec["like_count"] += lc
-            self._like_times.append((time.time(), lc))
+            if uid:
+                rec = self._likers.setdefault(uid, {
+                    "user_id": uid, "unique_id": uniq,
+                    "nickname": nick, "avatar_url": av, "like_count": 0,
+                })
+                rec["like_count"] += lc
+            if lc > 0:
+                self._like_times.append((time.time(), lc))
             return self._likes
 
         def process_comment(self, uid, uniq, nick, av, text, ts, level=0):
@@ -328,20 +346,46 @@ class TikTokSession:
     # ------------------------------------------------------------------
 
     async def _run_client(self) -> None:
-        try:
-            await self._client.start()
-        except Exception as exc:
-            logger.error("TikTokLive client error for @%s: %s", self.username, exc)
-            await self._send({
-                "type":    "error",
-                "message": str(exc),
-                "detail":  (
-                    f"Could not connect to @{self.username}. "
-                    "The user may be offline or the username is incorrect."
-                ),
-            })
-        finally:
-            self._running = False
+        backoff = 2
+        while self._running:
+            try:
+                logger.info("Connecting to @%s (backoff=%ds)...", self.username, backoff)
+                # Use connect() with process_connect_events=True — blocks while stream is running
+                await self._client.connect(process_connect_events=True)
+
+                if not self._running:
+                    break
+
+                # If connect() completes cleanly while self._running is True, the connection dropped
+                logger.info("Connection dropped for @%s, auto-reconnecting...", self.username)
+                await self._send({
+                    "type": "reconnecting",
+                    "username": self.username,
+                    "message": "Connection lost. Reconnecting to live...",
+                })
+                await asyncio.sleep(backoff)
+                self._client = TikTokLiveClient(unique_id=f"@{self.username}")
+                self._register_handlers()
+
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                if not self._running:
+                    break
+                logger.warning(
+                    "TikTokLive error for @%s: %s. Reconnecting in %ds...",
+                    self.username, exc, backoff
+                )
+                await self._send({
+                    "type": "reconnecting",
+                    "username": self.username,
+                    "message": f"Connection interrupted ({exc}). Reconnecting...",
+                })
+                await asyncio.sleep(backoff)
+                backoff = min(int(backoff * 1.5), 10)
+                self._client = TikTokLiveClient(unique_id=f"@{self.username}")
+                self._register_handlers()
+        self._running = False
 
     def _register_handlers(self) -> None:
         client = self._client
@@ -355,22 +399,67 @@ class TikTokSession:
                 "username": self.username,
                 "room_id":  str(event.room_id),
             })
+
+            # Fetch initial room info safely (likes, viewer count, diamonds from start of live)
+            try:
+                r_info = await client._web.fetch_room_info()
+                if r_info and isinstance(r_info, dict):
+                    init_likes = int(r_info.get("like_count", 0) or 0)
+                    if init_likes > 0:
+                        self._engine.set_total_likes(init_likes)
+
+                    init_viewers = int(r_info.get("user_count", 0) or 0)
+                    if init_viewers > 0:
+                        self._engine.update_viewer_count(init_viewers)
+
+                    init_diamonds = int(r_info.get("fan_ticket_count", 0) or 0)
+                    if init_diamonds > 0:
+                        self._engine.set_total_diamonds(init_diamonds)
+            except Exception as e:
+                logger.debug("Optional initial room_info fetch: %s", e)
+
             await self.send_snapshot()
 
         # ---- Disconnect ----
         @client.on(DisconnectEvent)
         async def on_disconnect(event: DisconnectEvent):
-            logger.info("Disconnected from @%s", self.username)
-            await self._send({"type": "disconnected", "username": self.username})
+            logger.info("Disconnected event from @%s", self.username)
+            if not self._running:
+                await self._send({"type": "disconnected", "username": self.username})
 
-        # ---- Viewer Count ----
-        @client.on(ViewerCountEvent)
-        async def on_viewers(event: ViewerCountEvent):
-            viewer_count = _safe(event, "viewer_count", default=0)
-            self._engine.update_viewer_count(int(viewer_count))
+        # ---- Viewer Count (RoomUserSeqEvent in TikTokLive v7) ----
+        @client.on(RoomUserSeqEvent)
+        async def on_viewers(event: RoomUserSeqEvent):
+            # TikTokLive v7: 'total' is the current live viewers count!
+            viewers = int(_safe(event, "total", default=0) or _safe(event, "total_user", default=0))
+            if viewers > 0:
+                self._engine.update_viewer_count(viewers)
+
+            # Process top contributors from room
+            ranks = _safe(event, "ranks")
+            if ranks and isinstance(ranks, (list, tuple)):
+                for contributor in ranks:
+                    c_user = _safe(contributor, "user")
+                    if c_user:
+                        c_uinfo = _user_info(c_user)
+                        c_score = int(_safe(contributor, "score", default=0))
+                        if c_score > 0 and c_uinfo["user_id"]:
+                            self._engine.update_supporter_score(
+                                c_uinfo["user_id"], c_uinfo["unique_id"],
+                                c_uinfo["nickname"], c_uinfo["avatar_url"],
+                                c_score
+                            )
+
+            supporters = self._engine.get_top_supporters(10)
+            leaderboard = [
+                (s.to_dict() if hasattr(s, "to_dict") else s)
+                for s in supporters
+            ]
+
             await self._send({
                 "type": "viewers",
-                "data": {"viewer_count": int(viewer_count)},
+                "data": {"viewer_count": getattr(self._engine, "_viewers", viewers)},
+                "leaderboard": leaderboard,
             })
 
         # ---- Comments ----
@@ -402,8 +491,10 @@ class TikTokSession:
         async def on_like(event: LikeEvent):
             user  = _safe(event, "user")
             uinfo = _user_info(user)
-            like_count       = int(_safe(event, "like_count",       default=0))
-            total_room_likes = int(_safe(event, "total_like_count", default=0))
+            # count = likes sent in this click/burst
+            # total = cumulative likes in room since live stream started
+            like_count       = int(_safe(event, "count", default=0))
+            total_room_likes = int(_safe(event, "total", default=0))
 
             total = self._engine.process_like(
                 uinfo["user_id"], uinfo["unique_id"],
@@ -431,23 +522,25 @@ class TikTokSession:
             user  = _safe(event, "user")
             uinfo = _user_info(user)
 
-            gift       = _safe(event, "gift")
-            gift_id    = str(_safe(gift, "id",   default="0"))
-            gift_name  = str(_safe(gift, "name", default="Unknown Gift"))
-            gift_icon  = ""
-            icon_obj   = _safe(gift, "image")
+            gift      = _safe(event, "gift")
+            gift_id   = str(_safe(event, "gift_id", default=0) or _safe(gift, "id", default="0"))
+            gift_name = str(_safe(gift, "name", default="Unknown Gift"))
+            gift_icon = ""
+            icon_obj  = _safe(gift, "image")
             if icon_obj:
                 icon_urls = _safe(icon_obj, "url_list")
                 if icon_urls and isinstance(icon_urls, (list, tuple)) and len(icon_urls) > 0:
                     gift_icon = icon_urls[0]
 
-            unit_diamonds = int(_safe(gift, "diamond_count", default=0))
-            repeat_count  = int(_safe(event, "repeat_count", default=1))
+            unit_diamonds = int(_safe(gift, "diamond_count", default=0) or _safe(event, "fan_ticket_count", default=0))
+            repeat_count  = int(_safe(event, "repeat_count", default=1) or 1)
 
-            # TikTokLive v6: gift.streakable = can combo; event.streaking = currently in streak
-            streakable    = bool(_safe(gift,  "streakable", default=False))
-            streaking_now = bool(_safe(event, "streaking",  default=False))
-            streak_active = streakable and streaking_now
+            # repeat_end: 1 means streak ended, 0 means ongoing
+            repeat_end   = int(_safe(event, "repeat_end", default=0))
+            streak_active = (repeat_end == 0)
+
+            # Cumulative room fan tickets from start of live:
+            room_fan_tickets = int(_safe(event, "room_fan_ticket_count", default=0))
 
             txn = self._engine.process_gift(
                 uinfo["user_id"], uinfo["unique_id"],
@@ -455,6 +548,10 @@ class TikTokSession:
                 gift_id, gift_name, gift_icon,
                 unit_diamonds, repeat_count, streak_active,
             )
+
+            # If room_fan_ticket_count is available, synchronize total diamonds
+            if room_fan_tickets > 0:
+                self._engine.set_total_diamonds(room_fan_tickets)
 
             txn_dict = txn.to_dict() if hasattr(txn, "to_dict") else txn
 

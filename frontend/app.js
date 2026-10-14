@@ -517,6 +517,10 @@ function connectWs(username) {
         setStatus('connecting', msg.message || 'Connecting…');
         break;
 
+      case 'reconnecting':
+        setStatus('connecting', `🔄 ${msg.message || 'Reconnecting…'}`);
+        break;
+
       case 'connected':
         setStatus('online', `🟢 Live — @${msg.username}`);
         DOM.roomInfo.classList.remove('hidden');
@@ -549,13 +553,18 @@ function connectWs(username) {
         break;
 
       case 'like':
-        bumpKpi(DOM.kpiLikes, msg.data.total_likes || 0);
-        DOM.kpiLps.textContent = ((msg.data.likes_per_second) || 0).toFixed(1);
-        updateLiker(msg.data);
+        if (msg.data) {
+          bumpKpi(DOM.kpiLikes, msg.data.total_likes || 0);
+          DOM.kpiLps.textContent = ((msg.data.likes_per_second) || 0).toFixed(1);
+          updateLiker(msg.data);
+        }
         break;
 
       case 'viewers':
-        bumpKpi(DOM.kpiViewers, msg.data.viewer_count || 0);
+        if (msg.data && msg.data.viewer_count != null) {
+          bumpKpi(DOM.kpiViewers, msg.data.viewer_count);
+        }
+        if (msg.leaderboard) updateLeaderboard(msg.leaderboard);
         break;
 
       case 'gift':

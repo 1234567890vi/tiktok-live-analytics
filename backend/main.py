@@ -225,11 +225,12 @@ async def ws_track(websocket: WebSocket, username: str):
                     logger.debug("Unknown client action: %s", action)
 
             except asyncio.TimeoutError:
-                # Send heartbeat ping (time imported at top of file)
+                # Send heartbeat ping & periodic snapshot
                 await websocket.send_text(json.dumps({
                     "type": "heartbeat",
                     "ts":   int(time.time()),
                 }))
+                await session.send_snapshot()
 
             # Break out if the background TikTok task died
             if not session._running and (
