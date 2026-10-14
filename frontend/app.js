@@ -99,6 +99,38 @@ const DOM = {
   comboGiftName:     $('comboGiftName'),
 
   toastContainer: $('toastContainer'),
+
+  // Sidebar & Navigation
+  sidebarToggleBtn: $('sidebarToggleBtn'),
+  sidebarBtnText:   $('sidebarBtnText'),
+  sidebarBackdrop:  $('sidebarBackdrop'),
+  mainSidebar:      $('mainSidebar'),
+  closeSidebarBtn:  $('closeSidebarBtn'),
+
+  // Language buttons
+  langArBtn: $('langArBtn'),
+  langEnBtn: $('langEnBtn'),
+
+  // Theme buttons
+  themeDarkBtn:  $('themeDarkBtn'),
+  themeLightBtn: $('themeLightBtn'),
+  themeOledBtn:  $('themeOledBtn'),
+
+  // Admin Modal
+  openAdminModalBtn:     $('openAdminModalBtn'),
+  adminModal:            $('adminModal'),
+  closeAdminModalBtn:    $('closeAdminModalBtn'),
+  adminLoginSection:     $('adminLoginSection'),
+  adminDashboardSection: $('adminDashboardSection'),
+  adminPasswordInput:    $('adminPasswordInput'),
+  adminLoginBtn:         $('adminLoginBtn'),
+  adminLoginError:       $('adminLoginError'),
+  admActiveUsers:        $('admActiveUsers'),
+  admTotalVisits:        $('admTotalVisits'),
+  admServerUptime:       $('admServerUptime'),
+  adminTableBody:        $('adminTableBody'),
+  adminRefreshBtn:       $('adminRefreshBtn'),
+  adminLogoutBtn:        $('adminLogoutBtn'),
 };
 
 // ---------------------------------------------------------------------------
@@ -814,12 +846,513 @@ function disconnectWs() {
 }
 
 // ---------------------------------------------------------------------------
-// UI event listeners
+// Internationalization (i18n)
+// ---------------------------------------------------------------------------
+let currentLang  = localStorage.getItem('tt_lang') || 'ar';
+let currentTheme = localStorage.getItem('tt_theme') || 'dark';
+let adminRefreshInterval = null;
+let lastAdminData = null;
+
+const I18N = {
+  ar: {
+    appBrand: "راصد تيك توك",
+    sidebarBtn: "القائمة والإعدادات",
+    sidebarTitle: "لوحة التحكم والإعدادات",
+    usernamePlaceholder: "اسم المستخدم بدون @",
+    startBtn: "بدء التتبع",
+    stopBtn: "قطع الاتصال",
+    statusIdle: "خامل",
+    statusConnecting: "جارٍ الاتصال...",
+    statusOnline: "متصل بالبث المباشر",
+    statusOffline: "البث متوقف",
+    room: "الغرفة",
+    kpiViewers: "المشاهدون المباشرون",
+    kpiLikes: "إجمالي الإعجابات",
+    kpiDiamonds: "ألماسات البث المباشرة",
+    kpiDiamondsSub: "ألماسات البث الكاملة",
+    kpiComments: "إجمالي التعليقات",
+    pkTitle: "ساحة الجولة المباشرة",
+    pkSubtitle: "تتبع دقيق للمتنافسين (معه وضده)، الداعمين، ونقاط الجولة",
+    pkWaiting: "⏸️ في انتظار جولة",
+    pkRound: "الجولة",
+    pkHostWins: "🔵 فوزنا:",
+    pkOppWins: "🔴 الخصم:",
+    pkOurTeam: "🔵 فريقنا (معه)",
+    pkHostLabel: "المضيف وحلفاؤه",
+    pkHostPoints: "نقاط فريقنا:",
+    pkHostTopSupporters: "🛡️ كبار الداعمين في الجولة (فريقنا):",
+    pkOppTeam: "🔴 الخصم (ضده)",
+    pkOppLabel: "المنافسون",
+    pkOppPoints: "نقاط الخصم:",
+    pkOppTopSupporters: "⚔️ كبار الداعمين للخصم:",
+    pkTie: "تعادل ⚖️",
+    pkClash: "⚡ تصادم النقاط ⚡",
+    commentsFeedTitle: "Live Comments",
+    commentsFeedSub: "التعليقات",
+    giftFeedTitle: "Gift Alerts",
+    giftFeedSub: "الهدايا",
+    leaderboardTitle: "Top Supporters",
+    leaderboardSub: "حساب الدعم",
+    lbDiamondsLabel: "إجمالي ألماسات البث (Diamonds)",
+    lbGrossLabel: "القيمة الإجمالية (Gross USD)",
+    lbNetLabel: "صافي صاحب البث (Net Payout)",
+    likersTitle: "Top Likers",
+    likersSub: "المعجبون",
+    labelLang: "اللغة (Language)",
+    labelTheme: "مظهر الصفحة (Theme)",
+    themeDark: "الوضع الليلي (Dark Cyber)",
+    themeLight: "الوضع النهاري (Clean Light)",
+    themeOled: "أسود مطلق (Midnight OLED)",
+    labelAdmin: "لوحة أدمن خاصة بي",
+    descAdmin: "عرض عدد المستخدمين، سجل الحسابات المبحوث عنها، مع مدة الاستخدام الفعلي لكل جلسة.",
+    openAdminBtn: "فتح لوحة الأدمن",
+    admTitle: "لوحة الأدمن الخاصة",
+    admSubtitle: "مراقبة المستخدمين، الحسابات المستهدفة ومدة الاستخدام الفعلي",
+    admAuthTitle: "تسجيل الدخول للوحة الأدمن",
+    admAuthSubtitle: "أدخل كلمة المرور الخاصة بك للوصول إلى السجلات والإحصائيات",
+    admActiveNow: "المستخدمون النشطون الآن",
+    admTotalVisits: "إجمالي عمليات التتبع",
+    admUptime: "مدة تشغيل السيرفر",
+    admTableTitle: "سجل الحسابات المبحوث عنها ومدة الاستخدام",
+    refresh: "تحديث",
+    logout: "خروج",
+    thUser: "الحساب المستهدف (Target)",
+    thStatus: "الحالة (Status)",
+    thStart: "وقت البدء (Start Time)",
+    thDuration: "مدة الاستخدام (Duration)",
+    thDiamonds: "ألماسات مسجلة (Diamonds)",
+    noRecords: "لا توجد سجلات حالياً",
+    statusActive: "نشط الآن",
+    statusCompleted: "مكتمل",
+    loginError: "⚠️ كلمة المرور غير صحيحة!",
+    enterPasswordToast: "يرجى إدخال كلمة المرور",
+  },
+  en: {
+    appBrand: "Live Tracker",
+    sidebarBtn: "Menu & Settings",
+    sidebarTitle: "Dashboard & Settings",
+    usernamePlaceholder: "username",
+    startBtn: "Start Tracking",
+    stopBtn: "Disconnect",
+    statusIdle: "Idle",
+    statusConnecting: "Connecting...",
+    statusOnline: "Live Connected",
+    statusOffline: "Stream Offline",
+    room: "Room",
+    kpiViewers: "Live Viewers",
+    kpiLikes: "Total Likes",
+    kpiDiamonds: "Live Diamonds",
+    kpiDiamondsSub: "Total Stream Diamonds",
+    kpiComments: "Total Comments",
+    pkTitle: "Live PK Battle Arena",
+    pkSubtitle: "Real-time tracking of battle contenders, supporters & scores",
+    pkWaiting: "⏸️ Waiting for PK battle",
+    pkRound: "Round",
+    pkHostWins: "🔵 Our Wins:",
+    pkOppWins: "🔴 Rival Wins:",
+    pkOurTeam: "🔵 Our Team (With)",
+    pkHostLabel: "Host & Allies",
+    pkHostPoints: "Our Team Points:",
+    pkHostTopSupporters: "🛡️ Top Supporters (Our Team):",
+    pkOppTeam: "🔴 Opponent (Against)",
+    pkOppLabel: "Rival Contenders",
+    pkOppPoints: "Opponent Points:",
+    pkOppTopSupporters: "⚔️ Top Opponent Supporters:",
+    pkTie: "Tie ⚖️",
+    pkClash: "⚡ Points Clash ⚡",
+    commentsFeedTitle: "Live Comments",
+    commentsFeedSub: "Comments",
+    giftFeedTitle: "Gift Alerts",
+    giftFeedSub: "Gifts",
+    leaderboardTitle: "Top Supporters",
+    leaderboardSub: "Supporters",
+    lbDiamondsLabel: "Total Stream Diamonds",
+    lbGrossLabel: "Gross USD Value",
+    lbNetLabel: "Net Creator Payout",
+    likersTitle: "Top Likers",
+    likersSub: "Likers",
+    labelLang: "Language",
+    labelTheme: "Page Theme & Appearance",
+    themeDark: "Dark Cyber Mode",
+    themeLight: "Clean Light Mode",
+    themeOled: "Midnight OLED Mode",
+    labelAdmin: "Dedicated Admin Panel",
+    descAdmin: "View active users, searched TikTok targets, and exact live session durations.",
+    openAdminBtn: "Open Admin Dashboard",
+    admTitle: "Dedicated Admin Dashboard",
+    admSubtitle: "Real-time user monitoring, searched targets & usage duration",
+    admAuthTitle: "Admin Dashboard Login",
+    admAuthSubtitle: "Enter your administrator password to view usage logs and analytics",
+    admActiveNow: "Active Tracking Users Now",
+    admTotalVisits: "Total Tracked Sessions",
+    admUptime: "Server Uptime",
+    admTableTitle: "Searched Accounts & Usage Durations Log",
+    refresh: "Refresh",
+    logout: "Logout",
+    thUser: "Searched Target",
+    thStatus: "Status",
+    thStart: "Start Time",
+    thDuration: "Usage Duration",
+    thDiamonds: "Logged Diamonds",
+    noRecords: "No session logs found yet",
+    statusActive: "Active Now",
+    statusCompleted: "Completed",
+    loginError: "⚠️ Invalid password!",
+    enterPasswordToast: "Please enter your admin password",
+  }
+};
+
+function formatDuration(sec, lang = 'ar') {
+  if (sec == null || sec < 0) return '0s';
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.floor(sec % 60);
+  if (lang === 'ar') {
+    if (h > 0) return `${h} س و ${m} د و ${s} ث`;
+    if (m > 0) return `${m} د و ${s} ث`;
+    return `${s} ثانية`;
+  } else {
+    if (h > 0) return `${h}h ${m}m ${s}s`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  }
+}
+
+function formatUptime(sec, lang = 'ar') {
+  if (sec == null || sec < 0) return '0s';
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.floor(sec % 60);
+  if (lang === 'ar') {
+    if (d > 0) return `${d} يوم ${h} س ${m} د`;
+    if (h > 0) return `${h} ساعة ${m} د`;
+    if (m > 0) return `${m} دقيقة ${s} ث`;
+    return `${s} ثانية`;
+  } else {
+    if (d > 0) return `${d}d ${h}h ${m}m`;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  }
+}
+
+function applyLanguage(lang) {
+  currentLang = lang;
+  localStorage.setItem('tt_lang', lang);
+  document.documentElement.lang = lang;
+  document.documentElement.dir = (lang === 'ar' ? 'rtl' : 'ltr');
+
+  const t = I18N[lang] || I18N.ar;
+
+  // Header & Controls
+  if ($('appBrandText')) $('appBrandText').textContent = t.appBrand;
+  if ($('sidebarBtnText')) $('sidebarBtnText').textContent = t.sidebarBtn;
+  if (DOM.usernameInput) DOM.usernameInput.placeholder = t.usernamePlaceholder;
+  if (DOM.startBtn) DOM.startBtn.textContent = t.startBtn;
+  if (DOM.stopBtn) DOM.stopBtn.textContent = t.stopBtn;
+
+  // Sidebar Controls
+  if ($('sidebarTitle')) $('sidebarTitle').textContent = t.sidebarTitle;
+  if ($('labelLang')) $('labelLang').textContent = t.labelLang;
+  if ($('labelTheme')) $('labelTheme').textContent = t.labelTheme;
+  if ($('themeDarkText')) $('themeDarkText').textContent = t.themeDark;
+  if ($('themeLightText')) $('themeLightText').textContent = t.themeLight;
+  if ($('themeOledText')) $('themeOledText').textContent = t.themeOled;
+  if ($('labelAdmin')) $('labelAdmin').textContent = t.labelAdmin;
+  if ($('descAdmin')) $('descAdmin').textContent = t.descAdmin;
+  if ($('btnOpenAdminText')) $('btnOpenAdminText').textContent = t.openAdminBtn;
+
+  // Admin Modal Controls
+  if ($('admModalTitle')) $('admModalTitle').textContent = t.admTitle;
+  if ($('admModalSubtitle')) $('admModalSubtitle').textContent = t.admSubtitle;
+  if ($('admAuthTitle')) $('admAuthTitle').textContent = t.admAuthTitle;
+  if ($('admAuthSubtitle')) $('admAuthSubtitle').textContent = t.admAuthSubtitle;
+  if ($('admLabelActive')) $('admLabelActive').textContent = t.admActiveNow;
+  if ($('admLabelTotal')) $('admLabelTotal').textContent = t.admTotalVisits;
+  if ($('admLabelUptime')) $('admLabelUptime').textContent = t.admUptime;
+  if ($('admTableTitle')) $('admTableTitle').textContent = t.admTableTitle;
+  if ($('admBtnRefresh')) $('admBtnRefresh').textContent = t.refresh;
+  if ($('admBtnLogout')) $('admBtnLogout').textContent = t.logout;
+  if ($('thUser')) $('thUser').textContent = t.thUser;
+  if ($('thStatus')) $('thStatus').textContent = t.thStatus;
+  if ($('thStart')) $('thStart').textContent = t.thStart;
+  if ($('thDuration')) $('thDuration').textContent = t.thDuration;
+  if ($('thDiamonds')) $('thDiamonds').textContent = t.thDiamonds;
+
+  // Active button styling
+  if (DOM.langArBtn && DOM.langEnBtn) {
+    if (lang === 'ar') {
+      DOM.langArBtn.className = 'flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold border transition active:scale-95 bg-pink-600/20 border-pink-500 text-pink-300';
+      DOM.langEnBtn.className = 'flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold border transition active:scale-95 bg-gray-800/80 border-gray-700 text-gray-300 hover:bg-gray-800';
+    } else {
+      DOM.langEnBtn.className = 'flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold border transition active:scale-95 bg-pink-600/20 border-pink-500 text-pink-300';
+      DOM.langArBtn.className = 'flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold border transition active:scale-95 bg-gray-800/80 border-gray-700 text-gray-300 hover:bg-gray-800';
+    }
+  }
+
+  // Re-render admin table if data is present
+  if (lastAdminData) {
+    renderAdminTable(lastAdminData);
+  }
+}
+
+function applyTheme(theme) {
+  currentTheme = theme;
+  localStorage.setItem('tt_theme', theme);
+
+  document.documentElement.classList.remove('theme-dark', 'theme-light', 'theme-oled');
+  if (theme === 'light') {
+    document.documentElement.classList.add('theme-light');
+  } else if (theme === 'oled') {
+    document.documentElement.classList.add('theme-oled');
+  } else {
+    document.documentElement.classList.add('theme-dark');
+  }
+
+  const themes = [
+    { name: 'dark', btn: DOM.themeDarkBtn },
+    { name: 'light', btn: DOM.themeLightBtn },
+    { name: 'oled', btn: DOM.themeOledBtn },
+  ];
+
+  themes.forEach(item => {
+    if (!item.btn) return;
+    const check = item.btn.querySelector('.theme-check');
+    if (item.name === theme) {
+      item.btn.className = 'w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold border transition text-start bg-pink-600/20 border-pink-500 text-pink-300';
+      if (check) check.classList.remove('hidden');
+    } else {
+      item.btn.className = 'w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold border transition text-start bg-gray-800/80 border-gray-700 text-gray-300 hover:bg-gray-800';
+      if (check) check.classList.add('hidden');
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Sidebar Management
+// ---------------------------------------------------------------------------
+function openSidebar() {
+  if (DOM.mainSidebar) DOM.mainSidebar.classList.add('sidebar-open');
+  if (DOM.sidebarBackdrop) {
+    DOM.sidebarBackdrop.classList.remove('hidden');
+    void DOM.sidebarBackdrop.offsetWidth;
+    DOM.sidebarBackdrop.classList.add('active');
+  }
+}
+
+function closeSidebar() {
+  if (DOM.mainSidebar) DOM.mainSidebar.classList.remove('sidebar-open');
+  if (DOM.sidebarBackdrop) {
+    DOM.sidebarBackdrop.classList.remove('active');
+    setTimeout(() => DOM.sidebarBackdrop?.classList.add('hidden'), 250);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Admin Dashboard Management
+// ---------------------------------------------------------------------------
+function openAdminModal() {
+  closeSidebar();
+  if (DOM.adminModal) DOM.adminModal.classList.remove('hidden');
+  const token = sessionStorage.getItem('tt_admin_token');
+  if (token) {
+    showAdminDashboard();
+    loadAdminStats();
+    startAdminRefresh();
+  } else {
+    showAdminLogin();
+  }
+}
+
+function closeAdminModal() {
+  if (DOM.adminModal) DOM.adminModal.classList.add('hidden');
+  stopAdminRefresh();
+}
+
+function showAdminLogin() {
+  if (DOM.adminLoginSection) DOM.adminLoginSection.classList.remove('hidden');
+  if (DOM.adminDashboardSection) DOM.adminDashboardSection.classList.add('hidden');
+  if (DOM.adminPasswordInput) {
+    DOM.adminPasswordInput.value = '';
+    DOM.adminPasswordInput.focus();
+  }
+  if (DOM.adminLoginError) DOM.adminLoginError.classList.add('hidden');
+}
+
+function showAdminDashboard() {
+  if (DOM.adminLoginSection) DOM.adminLoginSection.classList.add('hidden');
+  if (DOM.adminDashboardSection) DOM.adminDashboardSection.classList.remove('hidden');
+}
+
+async function handleAdminLogin() {
+  const pwd = DOM.adminPasswordInput ? DOM.adminPasswordInput.value.trim() : '';
+  const t = I18N[currentLang] || I18N.ar;
+  if (!pwd) {
+    toast(t.enterPasswordToast, 'warning');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pwd })
+    });
+    const data = await res.json();
+    if (res.ok && data.status === 'ok' && data.token) {
+      sessionStorage.setItem('tt_admin_token', data.token);
+      if (DOM.adminLoginError) DOM.adminLoginError.classList.add('hidden');
+      showAdminDashboard();
+      await loadAdminStats();
+      startAdminRefresh();
+      toast(currentLang === 'ar' ? '✅ تم تسجيل الدخول بنجاح' : '✅ Admin authenticated successfully', 'success');
+    } else {
+      if (DOM.adminLoginError) DOM.adminLoginError.classList.remove('hidden');
+    }
+  } catch (err) {
+    console.error('Admin login error:', err);
+    toast('Login error: ' + err.message, 'error');
+  }
+}
+
+async function loadAdminStats() {
+  const token = sessionStorage.getItem('tt_admin_token');
+  if (!token) {
+    showAdminLogin();
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/admin/stats?token=${encodeURIComponent(token)}`);
+    if (res.status === 401) {
+      sessionStorage.removeItem('tt_admin_token');
+      stopAdminRefresh();
+      showAdminLogin();
+      return;
+    }
+    const data = await res.json();
+    if (data.status === 'ok') {
+      lastAdminData = data;
+      if (DOM.admActiveUsers) DOM.admActiveUsers.textContent = data.active_users_count ?? 0;
+      if (DOM.admTotalVisits) DOM.admTotalVisits.textContent = data.total_connections ?? 0;
+      if (DOM.admServerUptime) DOM.admServerUptime.textContent = formatUptime(data.server_uptime_seconds ?? 0, currentLang);
+      renderAdminTable(data);
+    }
+  } catch (err) {
+    console.error('Failed to load admin stats:', err);
+  }
+}
+
+function renderAdminTable(data) {
+  if (!DOM.adminTableBody) return;
+  DOM.adminTableBody.innerHTML = '';
+  const t = I18N[currentLang] || I18N.ar;
+  const history = data.search_history || [];
+
+  if (history.length === 0) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 5;
+    td.className = 'p-4 text-center text-gray-500';
+    td.textContent = t.noRecords;
+    tr.appendChild(td);
+    DOM.adminTableBody.appendChild(tr);
+    return;
+  }
+
+  history.forEach(item => {
+    const tr = document.createElement('tr');
+    tr.className = 'hover:bg-gray-800/40 transition';
+
+    // 1. Target username (Strictly textContent to prevent XSS)
+    const tdUser = document.createElement('td');
+    tdUser.className = 'p-3 font-mono font-bold text-pink-400';
+    tdUser.textContent = '@' + (item.username || 'unknown');
+
+    // 2. Status Badge
+    const tdStatus = document.createElement('td');
+    tdStatus.className = 'p-3';
+    const badge = document.createElement('span');
+    if (item.status === 'active') {
+      badge.className = 'admin-badge-active';
+      const ping = document.createElement('span');
+      ping.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping';
+      badge.appendChild(ping);
+      const spanText = document.createElement('span');
+      spanText.textContent = t.statusActive;
+      badge.appendChild(spanText);
+    } else {
+      badge.className = 'admin-badge-completed';
+      badge.textContent = t.statusCompleted;
+    }
+    tdStatus.appendChild(badge);
+
+    // 3. Start Time
+    const tdStart = document.createElement('td');
+    tdStart.className = 'p-3 font-mono text-gray-400';
+    const dateObj = new Date((item.started_at || 0) * 1000);
+    tdStart.textContent = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    // 4. Usage Duration
+    const tdDuration = document.createElement('td');
+    tdDuration.className = 'p-3 font-mono font-bold text-indigo-300';
+    tdDuration.textContent = formatDuration(item.duration_seconds || 0, currentLang);
+
+    // 5. Total Diamonds
+    const tdDiamonds = document.createElement('td');
+    tdDiamonds.className = 'p-3 font-mono font-bold text-yellow-400';
+    tdDiamonds.textContent = `💎 ${fmt(item.total_diamonds || 0)}`;
+
+    tr.appendChild(tdUser);
+    tr.appendChild(tdStatus);
+    tr.appendChild(tdStart);
+    tr.appendChild(tdDuration);
+    tr.appendChild(tdDiamonds);
+
+    DOM.adminTableBody.appendChild(tr);
+  });
+}
+
+function startAdminRefresh() {
+  stopAdminRefresh();
+  adminRefreshInterval = setInterval(() => {
+    loadAdminStats();
+  }, 3000);
+}
+
+function stopAdminRefresh() {
+  if (adminRefreshInterval) {
+    clearInterval(adminRefreshInterval);
+    adminRefreshInterval = null;
+  }
+}
+
+async function handleAdminLogout() {
+  const token = sessionStorage.getItem('tt_admin_token');
+  if (token) {
+    try {
+      await fetch('/api/admin/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token })
+      });
+    } catch (_) {}
+    sessionStorage.removeItem('tt_admin_token');
+  }
+  stopAdminRefresh();
+  showAdminLogin();
+  toast(currentLang === 'ar' ? '👋 تم تسجيل الخروج من لوحة الأدمن' : '👋 Admin session logged out', 'info');
+}
+
+// ---------------------------------------------------------------------------
+// UI Event Listeners
 // ---------------------------------------------------------------------------
 DOM.startBtn.addEventListener('click', () => {
   const username = DOM.usernameInput.value.trim();
   if (!username) {
-    toast('Please enter a TikTok @username', 'warning');
+    const t = I18N[currentLang] || I18N.ar;
+    toast(currentLang === 'ar' ? 'يرجى إدخال اسم مستخدم تيك توك' : 'Please enter a TikTok @username', 'warning');
     DOM.usernameInput.focus();
     return;
   }
@@ -840,7 +1373,7 @@ DOM.startBtn.addEventListener('click', () => {
 
 DOM.stopBtn.addEventListener('click', () => {
   disconnectWs();
-  toast('⏹️ Tracking stopped', 'info');
+  toast(currentLang === 'ar' ? '⏹️ تم إيقاف التتبع' : '⏹️ Tracking stopped', 'info');
 });
 
 DOM.usernameInput.addEventListener('keydown', e => {
@@ -866,8 +1399,45 @@ DOM.commentsFeed.addEventListener('scroll', () => {
   }
 });
 
+// Sidebar drawer triggers
+if (DOM.sidebarToggleBtn) DOM.sidebarToggleBtn.addEventListener('click', openSidebar);
+if (DOM.closeSidebarBtn) DOM.closeSidebarBtn.addEventListener('click', closeSidebar);
+if (DOM.sidebarBackdrop) DOM.sidebarBackdrop.addEventListener('click', () => {
+  closeSidebar();
+  closeAdminModal();
+});
+
+// Language buttons
+if (DOM.langArBtn) DOM.langArBtn.addEventListener('click', () => applyLanguage('ar'));
+if (DOM.langEnBtn) DOM.langEnBtn.addEventListener('click', () => applyLanguage('en'));
+
+// Theme buttons
+if (DOM.themeDarkBtn) DOM.themeDarkBtn.addEventListener('click', () => applyTheme('dark'));
+if (DOM.themeLightBtn) DOM.themeLightBtn.addEventListener('click', () => applyTheme('light'));
+if (DOM.themeOledBtn) DOM.themeOledBtn.addEventListener('click', () => applyTheme('oled'));
+
+// Admin modal triggers
+if (DOM.openAdminModalBtn) DOM.openAdminModalBtn.addEventListener('click', openAdminModal);
+if (DOM.closeAdminModalBtn) DOM.closeAdminModalBtn.addEventListener('click', closeAdminModal);
+if (DOM.adminLoginBtn) DOM.adminLoginBtn.addEventListener('click', handleAdminLogin);
+if (DOM.adminPasswordInput) DOM.adminPasswordInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') handleAdminLogin();
+});
+if (DOM.adminRefreshBtn) DOM.adminRefreshBtn.addEventListener('click', loadAdminStats);
+if (DOM.adminLogoutBtn) DOM.adminLogoutBtn.addEventListener('click', handleAdminLogout);
+
+// Close on Escape key
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeSidebar();
+    closeAdminModal();
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Init
 // ---------------------------------------------------------------------------
-setStatus('idle', 'Idle');
-console.log('🎯 TikTok Live Analytics Tracker loaded.');
+applyLanguage(currentLang);
+applyTheme(currentTheme);
+setStatus('idle', I18N[currentLang]?.statusIdle || 'Idle');
+console.log('🎯 TikTok Live Analytics Tracker loaded with Sidebar, Themes, and Admin Dashboard.');

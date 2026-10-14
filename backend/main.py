@@ -9,11 +9,14 @@ import asyncio
 import json
 import logging
 import time
+import hmac
+import os
+import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -32,6 +35,15 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger("tiktok_tracker")
+
+# ---------------------------------------------------------------------------
+# Admin & Analytics Tracking Registry
+# ---------------------------------------------------------------------------
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+_server_start_time = time.time()
+_total_connections = 0
+_admin_tokens: set[str] = set()
+_search_history: list[dict] = []
 
 # ---------------------------------------------------------------------------
 # Session registry — created inside the lifespan so it has a running event loop
@@ -129,6 +141,59 @@ async def list_sessions():
 
 
 # ---------------------------------------------------------------------------
+# Admin API endpoints
+# ---------------------------------------------------------------------------
+
+@app.post("/api/admin/login")
+async def admin_login(data: dict):
+    """Authenticate admin and issue a secure session token."""
+    pwd = str(data.get("password", "")).strip()
+    if hmac.compare_digest(pwd, ADMIN_PASSWORD):
+        token = secrets.token_hex(24)
+        _admin_tokens.add(token)
+        return {"status": "ok", "token": token}
+    return JSONResponse(status_code=401, content={"status": "error", "message": "Invalid password"})
+
+
+@app.get("/api/admin/stats")
+async def admin_stats(request: Request, token: str = ""):
+    """Return administrative analytics: active users, total visits, searched targets & durations."""
+    auth_hdr = request.headers.get("authorization", "")
+    tok = token or (auth_hdr.replace("Bearer ", "").strip() if "Bearer " in auth_hdr else "")
+    if not tok or tok not in _admin_tokens:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
+
+    uptime = int(time.time() - _server_start_time)
+    now = int(time.time())
+    history_copy = []
+    for item in _search_history[:50]:
+        row = dict(item)
+        if row["status"] == "active":
+            row["duration_seconds"] = max(0, now - row["started_at"])
+            sess = _active_sessions.get(row["username"])
+            if sess:
+                row["total_diamonds"] = getattr(sess._engine, "get_total_diamonds", lambda: 0)()
+        history_copy.append(row)
+
+    return {
+        "status": "ok",
+        "server_uptime_seconds": uptime,
+        "total_connections": _total_connections,
+        "active_users_count": len(_active_sessions),
+        "active_sessions": list(_active_sessions.keys()),
+        "search_history": history_copy,
+    }
+
+
+@app.post("/api/admin/logout")
+async def admin_logout(data: dict):
+    """Revoke admin session token."""
+    token = data.get("token", "")
+    _admin_tokens.discard(token)
+    return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
 # WebSocket — /ws/track/{username}
 # ---------------------------------------------------------------------------
 
@@ -182,6 +247,23 @@ async def ws_track(websocket: WebSocket, username: str):
         if clean_username in _active_sessions:
             old = _active_sessions.pop(clean_username)
             await old.stop()
+
+    # Track search history & connection count
+    global _total_connections
+    _total_connections += 1
+
+    session_record = {
+        "id": secrets.token_hex(4),
+        "username": clean_username,
+        "started_at": int(time.time()),
+        "ended_at": None,
+        "duration_seconds": 0,
+        "total_diamonds": 0,
+        "status": "active",
+    }
+    _search_history.insert(0, session_record)
+    if len(_search_history) > 100:
+        _search_history.pop()
 
     # ---- Broadcast function (called from TikTokSession event handlers) ----
     async def broadcast(payload: dict) -> None:
@@ -241,6 +323,11 @@ async def ws_track(websocket: WebSocket, username: str):
     except (WebSocketDisconnect, Exception) as exc:
         logger.info("WebSocket closed for @%s (%s)", clean_username, type(exc).__name__)
     finally:
+        session_record["ended_at"] = int(time.time())
+        session_record["duration_seconds"] = max(0, session_record["ended_at"] - session_record["started_at"])
+        session_record["total_diamonds"] = getattr(session._engine, "get_total_diamonds", lambda: 0)()
+        session_record["status"] = "completed"
+
         async with lock:
             _active_sessions.pop(clean_username, None)
         await session.stop()
