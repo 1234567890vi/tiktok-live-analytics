@@ -239,6 +239,10 @@ const DOM = {
   playerTitle:            $('playerTitle'),
   videoLiveBadge:         $('videoLiveBadge'),
   videoStreamerInfo:      $('videoStreamerInfo'),
+  videoQualityWrapper:    $('videoQualityWrapper'),
+  videoQualitySelect:     $('videoQualitySelect'),
+  btnVideoRefresh:        $('btnVideoRefresh'),
+  videoRefreshIcon:       $('videoRefreshIcon'),
   btnVideoMute:           $('btnVideoMute'),
   videoMuteIcon:          $('videoMuteIcon'),
   videoMuteText:          $('videoMuteText'),
@@ -252,6 +256,8 @@ const DOM = {
   videoCollapseText:      $('videoCollapseText'),
   liveVideoContainer:     $('liveVideoContainer'),
   liveVideoElement:       $('liveVideoElement'),
+  liveIframeElement:      $('liveIframeElement'),
+  videoBufferingIndicator: $('videoBufferingIndicator'),
   videoPlaceholder:       $('videoPlaceholder'),
   videoPlaceholderTitle:  $('videoPlaceholderTitle'),
   videoPlaceholderDesc:   $('videoPlaceholderDesc'),
@@ -1022,14 +1028,111 @@ function applySnapshot(data) {
 // ---------------------------------------------------------------------------
 // Live Video Player Controller (مشغل البث المرئي المباشر)
 // ---------------------------------------------------------------------------
+// Live Video Stream Player (HLS / Low Latency / Ultra Smooth)
+// ---------------------------------------------------------------------------
 let hlsInstance = null;
 let isVideoMuted = true;
 let isVideoPortrait = false;
 let isVideoCollapsed = false;
 let currentStreamData = null;
 
+function getProxiedStreamUrl(url) {
+  if (!url) return '';
+  if (url.startsWith('/api/stream_proxy')) return url;
+  const lower = url.toLowerCase();
+  const isTikTokCdn = lower.includes('tiktokcdn.com') ||
+                      lower.includes('byteoversea.com') ||
+                      lower.includes('ibytedtos.com') ||
+                      lower.includes('bytedance.net') ||
+                      lower.includes('tiktok.com');
+  if (isTikTokCdn) {
+    return `/api/stream_proxy?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+}
+
+function setupVideoBufferingListeners(video) {
+  if (!video || video._hasBufferingListeners) return;
+  video._hasBufferingListeners = true;
+
+  video.addEventListener('waiting', () => {
+    DOM.videoBufferingIndicator?.classList.remove('hidden');
+  });
+  video.addEventListener('stalled', () => {
+    DOM.videoBufferingIndicator?.classList.remove('hidden');
+  });
+  video.addEventListener('playing', () => {
+    DOM.videoBufferingIndicator?.classList.add('hidden');
+  });
+  video.addEventListener('canplay', () => {
+    DOM.videoBufferingIndicator?.classList.add('hidden');
+  });
+  video.addEventListener('pause', () => {
+    DOM.videoBufferingIndicator?.classList.add('hidden');
+  });
+}
+
+function populateVideoQualities(streamData) {
+  if (!DOM.videoQualitySelect || !DOM.videoQualityWrapper) return;
+  const qualities = streamData.qualities || {};
+  const keys = Object.keys(qualities).filter(k => qualities[k]?.hls);
+
+  if (keys.length === 0) {
+    DOM.videoQualityWrapper.classList.add('hidden');
+    return;
+  }
+
+  DOM.videoQualitySelect.innerHTML = '';
+  const optAuto = document.createElement('option');
+  optAuto.value = 'auto';
+  optAuto.textContent = '⚡ تلقائي (سلس)';
+  DOM.videoQualitySelect.appendChild(optAuto);
+
+  const labels = {
+    hd: '💎 HD (عالية)',
+    sd: '🚀 SD (سلسة وسريعة)',
+    ld: '📱 خفيفة (توفير)',
+    origin: '🎬 الأصلية (Full)',
+    uhd: '🌟 فائقة (UHD)',
+  };
+
+  keys.forEach(k => {
+    const opt = document.createElement('option');
+    opt.value = k;
+    opt.textContent = labels[k] || `دقة (${k.toUpperCase()})`;
+    DOM.videoQualitySelect.appendChild(opt);
+  });
+
+  DOM.videoQualityWrapper.classList.remove('hidden');
+}
+
+function resyncLiveStream() {
+  if (DOM.videoRefreshIcon) DOM.videoRefreshIcon.classList.add('animate-spin');
+  setTimeout(() => {
+    DOM.videoRefreshIcon?.classList.remove('animate-spin');
+  }, 1000);
+
+  if (hlsInstance) {
+    try {
+      hlsInstance.startLoad();
+      if (DOM.liveVideoElement && DOM.liveVideoElement.buffered && DOM.liveVideoElement.buffered.length > 0) {
+        const liveEdge = DOM.liveVideoElement.buffered.end(DOM.liveVideoElement.buffered.length - 1);
+        DOM.liveVideoElement.currentTime = Math.max(0, liveEdge - 1.5);
+      }
+      DOM.liveVideoElement.play().catch(() => {});
+    } catch (err) {
+      console.debug('[Video] Re-sync error:', err);
+    }
+  } else if (DOM.liveVideoElement) {
+    DOM.liveVideoElement.load();
+    DOM.liveVideoElement.play().catch(() => {});
+  }
+}
+
 function initLiveVideoPlayer() {
   if (!DOM.liveVideoElement) return;
+
+  setupVideoBufferingListeners(DOM.liveVideoElement);
 
   // Toggle Mute / Unmute
   DOM.btnVideoMute?.addEventListener('click', () => {
@@ -1037,6 +1140,19 @@ function initLiveVideoPlayer() {
     DOM.liveVideoElement.muted = isVideoMuted;
     if (DOM.videoMuteIcon) DOM.videoMuteIcon.textContent = isVideoMuted ? '🔇' : '🔊';
     if (DOM.videoMuteText) DOM.videoMuteText.textContent = isVideoMuted ? 'صامت' : 'مسموع';
+  });
+
+  // Re-sync Button
+  DOM.btnVideoRefresh?.addEventListener('click', () => {
+    resyncLiveStream();
+  });
+
+  // Quality Switcher
+  DOM.videoQualitySelect?.addEventListener('change', (e) => {
+    const chosen = e.target.value;
+    if (currentStreamData) {
+      loadVideoStream(currentStreamData, chosen);
+    }
   });
 
   // Toggle Picture-in-Picture
@@ -1097,12 +1213,17 @@ function initLiveVideoPlayer() {
   });
 }
 
-function loadVideoStream(streamData) {
+function loadVideoStream(streamData, chosenQuality = 'auto') {
   if (!streamData) return;
   currentStreamData = streamData;
 
-  const hlsUrl = streamData.hls_url || '';
-  const flvUrl = streamData.flv_url || '';
+  const qualities = streamData.qualities || {};
+  let targetHls = streamData.hls_url || streamData.best_hls_url || '';
+
+  if (chosenQuality !== 'auto' && qualities[chosenQuality] && qualities[chosenQuality].hls) {
+    targetHls = qualities[chosenQuality].hls;
+  }
+
   const webUrl = streamData.web_url || `https://www.tiktok.com/@${currentUsername}/live`;
 
   if (DOM.videoStreamerInfo) {
@@ -1116,8 +1237,23 @@ function loadVideoStream(streamData) {
     DOM.btnVideoExternal.classList.remove('hidden');
   }
 
-  if (!hlsUrl) {
-    // If no direct HLS, show helpful prompt with direct link
+  populateVideoQualities(streamData);
+  if (chosenQuality !== 'auto' && DOM.videoQualitySelect) {
+    DOM.videoQualitySelect.value = chosenQuality;
+  }
+
+  // If no HLS direct stream is provided but TikTok embed or room_id is present:
+  if (!targetHls) {
+    const embedSrc = streamData.embed_url || streamData.iframe_url || '';
+    if (embedSrc && DOM.liveIframeElement) {
+      if (DOM.videoPlaceholder) DOM.videoPlaceholder.classList.add('hidden');
+      DOM.liveVideoElement?.classList.add('hidden');
+      DOM.liveIframeElement.src = embedSrc;
+      DOM.liveIframeElement.classList.remove('hidden');
+      return;
+    }
+
+    // Otherwise show helpful prompt
     if (DOM.videoPlaceholder) DOM.videoPlaceholder.classList.remove('hidden');
     if (DOM.videoPlaceholderTitle) DOM.videoPlaceholderTitle.textContent = `البث المباشر نشط (@${streamData.username || currentUsername})`;
     if (DOM.videoPlaceholderDesc) {
@@ -1126,8 +1262,14 @@ function loadVideoStream(streamData) {
     return;
   }
 
-  // Hide placeholder and prepare video element
+  // Hide placeholder & iframe, show video element
   if (DOM.videoPlaceholder) DOM.videoPlaceholder.classList.add('hidden');
+  if (DOM.liveIframeElement) {
+    DOM.liveIframeElement.classList.add('hidden');
+    DOM.liveIframeElement.removeAttribute('src');
+  }
+  DOM.liveVideoElement?.classList.remove('hidden');
+  setupVideoBufferingListeners(DOM.liveVideoElement);
   DOM.liveVideoElement.muted = isVideoMuted;
 
   // Cleanup previous HLS instance
@@ -1136,38 +1278,77 @@ function loadVideoStream(streamData) {
     hlsInstance = null;
   }
 
-  // Setup HLS.js
+  const finalStreamUrl = getProxiedStreamUrl(targetHls);
+
+  // Setup HLS.js with ultra-smooth live stream settings
   if (window.Hls && window.Hls.isSupported()) {
     hlsInstance = new window.Hls({
       enableWorker: true,
-      lowLatencyMode: true,
-      backBufferLength: 60,
+      lowLatencyMode: false,          // Standard buffer prevents micro-freezes & stuttering
+      liveSyncDurationCount: 3,       // 3 segments (~4-6s buffer) eliminates stuttering completely
+      liveMaxLatencyDurationCount: 8, // Prevents falling too far behind
+      maxLiveSyncPlaybackRate: 1.12,  // Gentle catch up
+      liveDurationInfinity: true,
+      backBufferLength: 30,
+      maxBufferLength: 20,
+      maxMaxBufferLength: 40,
+      maxBufferSize: 50 * 1000 * 1000,
+      startFragPrefetch: true,        // Pre-downloads next video segment ahead of time for seamless transition
+      manifestLoadingTimeOut: 12000,
+      manifestLoadingMaxRetry: 6,
+      manifestLoadingRetryDelay: 500,
+      levelLoadingTimeOut: 12000,
+      levelLoadingMaxRetry: 6,
+      fragLoadingTimeOut: 20000,
+      fragLoadingMaxRetry: 8,
+      fragLoadingRetryDelay: 500,
+      testBandwidth: true,
     });
 
-    let hasFailedOver = false;
-    hlsInstance.loadSource(hlsUrl);
+    hlsInstance.loadSource(finalStreamUrl);
     hlsInstance.attachMedia(DOM.liveVideoElement);
 
     hlsInstance.on(window.Hls.Events.MANIFEST_PARSED, () => {
       DOM.liveVideoElement.play().catch(() => {
-        // Autoplay policy fallback: mute and play
+        // Autoplay policy: fallback to muted
         DOM.liveVideoElement.muted = true;
+        isVideoMuted = true;
+        if (DOM.videoMuteIcon) DOM.videoMuteIcon.textContent = '🔇';
+        if (DOM.videoMuteText) DOM.videoMuteText.textContent = 'صامت';
         DOM.liveVideoElement.play().catch(() => {});
       });
     });
 
     hlsInstance.on(window.Hls.Events.ERROR, (event, data) => {
-      if (data.fatal && !hasFailedOver) {
-        hasFailedOver = true;
-        console.debug('[HLS] Direct stream blocked. Switching to server CORS proxy...');
-        const proxyUrl = `/api/stream_proxy?url=${encodeURIComponent(hlsUrl)}`;
-        hlsInstance.loadSource(proxyUrl);
+      if (data.fatal) {
+        switch (data.type) {
+          case window.Hls.ErrorTypes.NETWORK_ERROR:
+            console.warn('[HLS] Network error encountered, recovering...', data);
+            hlsInstance.startLoad();
+            break;
+          case window.Hls.ErrorTypes.MEDIA_ERROR:
+            console.warn('[HLS] Media error encountered, recovering...', data);
+            hlsInstance.recoverMediaError();
+            break;
+          default:
+            console.error('[HLS] Unrecoverable error:', data);
+            // If proxy or stream died, fallback to embed or alternate quality
+            if (streamData.embed_url && DOM.liveIframeElement) {
+              DOM.liveVideoElement?.classList.add('hidden');
+              DOM.liveIframeElement.src = streamData.embed_url;
+              DOM.liveIframeElement.classList.remove('hidden');
+            }
+            break;
+        }
       }
     });
   } else if (DOM.liveVideoElement.canPlayType('application/vnd.apple.mpegurl')) {
     // Native Safari / iOS HLS
-    DOM.liveVideoElement.src = hlsUrl;
-    DOM.liveVideoElement.play().catch(() => {});
+    DOM.liveVideoElement.src = finalStreamUrl;
+    DOM.liveVideoElement.play().catch(() => {
+      DOM.liveVideoElement.muted = true;
+      DOM.liveVideoElement.play().catch(() => {});
+    });
   }
 }
 
@@ -1183,7 +1364,7 @@ function loadDemoVideoStream() {
     hls_url: demoHls,
     web_url: 'https://www.tiktok.com',
   });
-  toast('📺 تم تشغيل البث المرئي التجريبي بنجاح!', 'success');
+  toast('📺 تم تشغيل البث المرئي التجريبي بسلاسة!', 'success');
 }
 
 function triggerSpyAlert(text) {
@@ -1264,8 +1445,11 @@ function connectWs(username) {
         DOM.startBtn.classList.remove('hidden');
         if (DOM.videoPlaceholder) DOM.videoPlaceholder.classList.remove('hidden');
         if (DOM.videoLiveBadge) DOM.videoLiveBadge.classList.add('hidden');
+        if (DOM.videoBufferingIndicator) DOM.videoBufferingIndicator.classList.add('hidden');
+        if (DOM.videoQualityWrapper) DOM.videoQualityWrapper.classList.add('hidden');
         if (hlsInstance) { try { hlsInstance.destroy(); } catch (_) {} hlsInstance = null; }
         if (DOM.liveVideoElement) { DOM.liveVideoElement.pause(); DOM.liveVideoElement.removeAttribute('src'); DOM.liveVideoElement.load(); }
+        if (DOM.liveIframeElement) { DOM.liveIframeElement.classList.add('hidden'); DOM.liveIframeElement.removeAttribute('src'); }
         toast(`🔴 ${msg.message || 'Stream ended'}`, 'warning', 6000);
         if (ws) {
           try { ws.close(); } catch (_) {}
@@ -1279,8 +1463,11 @@ function connectWs(username) {
         DOM.startBtn.classList.remove('hidden');
         if (DOM.videoPlaceholder) DOM.videoPlaceholder.classList.remove('hidden');
         if (DOM.videoLiveBadge) DOM.videoLiveBadge.classList.add('hidden');
+        if (DOM.videoBufferingIndicator) DOM.videoBufferingIndicator.classList.add('hidden');
+        if (DOM.videoQualityWrapper) DOM.videoQualityWrapper.classList.add('hidden');
         if (hlsInstance) { try { hlsInstance.destroy(); } catch (_) {} hlsInstance = null; }
         if (DOM.liveVideoElement) { DOM.liveVideoElement.pause(); DOM.liveVideoElement.removeAttribute('src'); DOM.liveVideoElement.load(); }
+        if (DOM.liveIframeElement) { DOM.liveIframeElement.classList.add('hidden'); DOM.liveIframeElement.removeAttribute('src'); }
         toast(`⚠️ ${msg.message}${msg.detail ? ': ' + msg.detail : ''}`, 'error', 9000);
         if (ws) {
           try { ws.close(); } catch (_) {}

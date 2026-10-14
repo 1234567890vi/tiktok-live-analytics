@@ -290,6 +290,19 @@
 
         <!-- Player Controls Toolbar -->
         <div class="flex items-center flex-wrap gap-1.5 sm:gap-2">
+          <!-- Stream Quality Selector -->
+          <div id="videoQualityWrapper" class="hidden items-center gap-1">
+            <select id="videoQualitySelect" class="px-2.5 py-1.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-xs font-bold text-cyan-300 border border-gray-700 outline-none transition cursor-pointer" title="تغيير جودة البث (لسلاسة وسرعة أعلى)">
+              <option value="auto">⚡ تلقائي (سلس)</option>
+            </select>
+          </div>
+
+          <!-- Re-sync Stream to Live Edge -->
+          <button id="btnVideoRefresh" class="px-2.5 py-1.5 rounded-xl bg-gray-800 hover:bg-gray-700 active:scale-95 text-xs font-bold text-gray-200 border border-gray-700 transition flex items-center gap-1 shadow-sm" title="مزامنة فورية للبث الحي (في حال بطء الإنترنت)">
+            <span id="videoRefreshIcon">🔄</span>
+            <span class="hidden sm:inline">مزامنة</span>
+          </button>
+
           <!-- Mute/Unmute Audio Toggle -->
           <button id="btnVideoMute" class="px-3 py-1.5 rounded-xl bg-gray-800 hover:bg-gray-700 active:scale-95 text-xs font-bold text-gray-200 border border-gray-700 transition flex items-center gap-1.5 shadow-sm" title="تشغيل / كتم الصوت">
             <span id="videoMuteIcon">🔇</span>
@@ -333,8 +346,23 @@
           autoplay
           playsinline
           muted
+          preload="auto"
           class="w-full max-h-[460px] rounded-xl object-contain bg-black shadow-inner transition-all duration-300"
         ></video>
+
+        <!-- Fallback TikTok Embed iFrame (in case of geo-blocking / restricted direct HLS) -->
+        <iframe
+          id="liveIframeElement"
+          class="hidden w-full max-h-[460px] h-[380px] rounded-xl border-0 shadow-inner bg-black"
+          allow="autoplay; fullscreen"
+          sandbox="allow-scripts allow-same-origin allow-popups"
+        ></iframe>
+
+        <!-- Buffering Spinner Overlay -->
+        <div id="videoBufferingIndicator" class="hidden pointer-events-none absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-[2px] z-10 transition-opacity duration-200">
+          <div class="w-10 h-10 border-4 border-pink-500/30 border-t-pink-500 rounded-full animate-spin"></div>
+          <span class="text-[11px] font-bold text-pink-300 mt-2">جارٍ ضبط تدفق البث السلس...</span>
+        </div>
 
         <!-- Video Placeholder / Loading state -->
         <div id="videoPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center space-y-3 bg-gray-950/90 backdrop-blur-sm z-10">

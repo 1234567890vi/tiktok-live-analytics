@@ -569,9 +569,12 @@ def _extract_stream_video_urls(room_info: dict, username: str) -> dict:
     """
     res = {
         "hls_url": "",
+        "best_hls_url": "",
         "flv_url": "",
         "web_url": f"https://www.tiktok.com/@{username}/live",
         "embed_url": "",
+        "iframe_url": "",
+        "room_id": "",
         "qualities": {},
         "has_video": False,
     }
@@ -580,13 +583,28 @@ def _extract_stream_video_urls(room_info: dict, username: str) -> dict:
 
     stream_url = room_info.get("stream_url") or {}
     if not isinstance(stream_url, dict):
-        return res
+        stream_url = {}
 
     # 1. Direct pull URLs
     hls_direct = str(stream_url.get("hls_pull_url") or "")
     flv_direct = str(stream_url.get("flv_pull_url") or stream_url.get("rtmp_pull_url") or "")
 
-    # 2. Extract from live_core_sdk_data / pull_data / stream_data JSON
+    # 2. Extract from hls_pull_url_map & flv_pull_url_map if present
+    hls_map = stream_url.get("hls_pull_url_map") or {}
+    if isinstance(hls_map, dict):
+        for k, v in hls_map.items():
+            if v and isinstance(v, str):
+                qk = k.lower().replace("_", "")
+                res["qualities"].setdefault(qk, {})["hls"] = v
+
+    flv_map = stream_url.get("flv_pull_url_map") or {}
+    if isinstance(flv_map, dict):
+        for k, v in flv_map.items():
+            if v and isinstance(v, str):
+                qk = k.lower().replace("_", "")
+                res["qualities"].setdefault(qk, {})["flv"] = v
+
+    # 3. Extract from live_core_sdk_data / pull_data / stream_data JSON
     try:
         sdk_data = stream_url.get("live_core_sdk_data") or {}
         pull_data = sdk_data.get("pull_data") or stream_url.get("pull_data") or {}
@@ -607,27 +625,52 @@ def _extract_stream_video_urls(room_info: dict, username: str) -> dict:
                         hls = str(main.get("hls", ""))
                         flv = str(main.get("flv", "") or main.get("cmaf", ""))
                         if hls or flv:
-                            res["qualities"][q] = {"hls": hls, "flv": flv}
-                            if not res["hls_url"] and hls:
-                                res["hls_url"] = hls
-                            if not res["flv_url"] and flv:
-                                res["flv_url"] = flv
+                            res["qualities"].setdefault(q, {})
+                            if hls:
+                                res["qualities"][q]["hls"] = hls
+                            if flv:
+                                res["qualities"][q]["flv"] = flv
             except Exception as e:
                 logger.debug("Error parsing stream_data JSON: %s", e)
     except Exception as e:
         logger.debug("Error extracting pull_data: %s", e)
 
-    if not res["hls_url"] and hls_direct:
-        res["hls_url"] = hls_direct
+    # 4. Choose best HLS URL for ultra-smooth live playback:
+    # Prefer 'hd' (smooth 720p) or 'sd' (smooth 540p) over heavy 4K/1080p 'origin' to prevent stuttering
+    qualities = res["qualities"]
+    best_hls = ""
+    for pref in ("hd", "sd", "origin", "uhd", "ld"):
+        if pref in qualities and qualities[pref].get("hls"):
+            best_hls = qualities[pref]["hls"]
+            break
+
+    if not best_hls and hls_direct:
+        best_hls = hls_direct
+    if not best_hls:
+        for qinfo in qualities.values():
+            if qinfo.get("hls"):
+                best_hls = qinfo["hls"]
+                break
+
+    res["hls_url"] = best_hls
+    res["best_hls_url"] = best_hls
+
+    # Fallback FLV
     if not res["flv_url"] and flv_direct:
         res["flv_url"] = flv_direct
+    if not res["flv_url"]:
+        for qinfo in qualities.values():
+            if qinfo.get("flv"):
+                res["flv_url"] = qinfo["flv"]
+                break
 
     room_id = str(room_info.get("id") or room_info.get("room_id") or "")
     if room_id:
         res["room_id"] = room_id
-        res["embed_url"] = f"https://www.tiktok.com/embed/v2/live/{room_id}"
+        res["embed_url"] = f"https://www.tiktok.com/player/v1/live?room_id={room_id}&autoplay=1"
+        res["iframe_url"] = f"https://www.tiktok.com/embed/v2/live/{room_id}"
 
-    if res["hls_url"] or res["flv_url"]:
+    if res["hls_url"] or res["flv_url"] or res["embed_url"]:
         res["has_video"] = True
 
     return res

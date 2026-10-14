@@ -18,7 +18,7 @@ from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -107,6 +107,29 @@ def _get_lock() -> asyncio.Lock:
     return _sessions_lock
 
 
+# Persistent HTTP client with connection pooling for ultra-smooth live video streaming
+_stream_proxy_client: httpx.AsyncClient | None = None
+
+
+def _get_proxy_client() -> httpx.AsyncClient:
+    global _stream_proxy_client
+    if _stream_proxy_client is None or _stream_proxy_client.is_closed:
+        _stream_proxy_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=5.0, read=10.0, write=5.0, pool=15.0),
+            limits=httpx.Limits(max_keepalive_connections=35, max_connections=70, keepalive_expiry=30.0),
+            follow_redirects=True,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+                ),
+                "Referer": "https://www.tiktok.com/",
+                "Origin": "https://www.tiktok.com",
+            },
+        )
+    return _stream_proxy_client
+
+
 # ---------------------------------------------------------------------------
 # Lifespan — replaces deprecated @app.on_event("startup/shutdown")
 # ---------------------------------------------------------------------------
@@ -124,6 +147,12 @@ async def lifespan(app: FastAPI):
     yield  # ── app runs here ────────────────────────────────────────────
 
     logger.info("🛑 Shutting down — stopping all active sessions...")
+    global _stream_proxy_client
+    if _stream_proxy_client and not _stream_proxy_client.is_closed:
+        try:
+            await _stream_proxy_client.aclose()
+        except Exception:
+            pass
     await telegram_bot.stop()
     async with _sessions_lock:
         tasks = [session.stop() for session in _active_sessions.values()]
@@ -467,66 +496,104 @@ async def admin_logout(data: dict):
 
 
 @app.get("/api/stream_proxy")
-async def stream_proxy(url: str):
+async def stream_proxy(request: Request, url: str):
     """
-    Reverse proxy for live video stream playlists (.m3u8) and video segments (.ts)
-    to bypass browser CORS restrictions and allow in-browser live video playback.
+    Ultra-smooth reverse proxy for live video stream playlists (.m3u8) and video segments (.ts / .m4s).
+    Maintains persistent connection pooling, preserves TikTok authentication tokens on sub-playlists,
+    rewrites initialization and media segment URIs, and adds CORS and browser cache headers for stutter-free playback.
     """
     if not url or not (url.startswith("http://") or url.startswith("https://")):
         return JSONResponse(status_code=400, content={"error": "Invalid stream URL"})
 
-    from urllib.parse import urljoin, quote
+    from urllib.parse import urljoin, quote, urlsplit, urlunsplit
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Referer": "https://www.tiktok.com/",
-    }
+    def _make_full_stream_url(base_url: str, rel: str) -> str:
+        joined = urljoin(base_url, rel)
+        base_p = urlsplit(base_url)
+        joined_p = urlsplit(joined)
+        # If base playlist has authentication query params (auth_key, wsSecret, etc.) and segment doesn't, preserve them
+        if base_p.query and not joined_p.query:
+            return urlunsplit((
+                joined_p.scheme,
+                joined_p.netloc,
+                joined_p.path,
+                base_p.query,
+                joined_p.fragment,
+            ))
+        return joined
+
+    req_headers = {}
+    range_hdr = request.headers.get("range")
+    if range_hdr:
+        req_headers["range"] = range_hdr
 
     try:
-        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True, headers=headers) as client:
-            resp = await client.get(url)
+        client = _get_proxy_client()
+        resp = await client.get(url, headers=req_headers)
 
-            # Check if this is an HLS playlist
-            is_playlist = ".m3u8" in url or "mpegurl" in (resp.headers.get("content-type") or "")
-            if is_playlist and resp.status_code == 200:
-                text = resp.text
-                lines = []
-                for line in text.splitlines():
-                    stripped = line.strip()
-                    if stripped and not stripped.startswith("#"):
-                        # Relative or absolute segment/variant URL
-                        full_url = urljoin(url, stripped)
-                        proxied_url = f"/api/stream_proxy?url={quote(full_url)}"
-                        lines.append(proxied_url)
-                    else:
-                        lines.append(line)
+        # Check if this is an HLS playlist
+        is_playlist = ".m3u8" in url or "mpegurl" in (resp.headers.get("content-type") or "")
+        if is_playlist and resp.status_code == 200:
+            text = resp.text
+            lines = []
+            for line in text.splitlines():
+                stripped = line.strip()
+                if stripped and not stripped.startswith("#"):
+                    # Variant playlist or segment URL
+                    full_url = _make_full_stream_url(url, stripped)
+                    proxied_url = f"/api/stream_proxy?url={quote(full_url)}"
+                    lines.append(proxied_url)
+                elif stripped.startswith("#"):
+                    # Handle tags like #EXT-X-MAP:URI="init.mp4" or #EXT-X-KEY:...,URI="..."
+                    def _rewrite_uri(m):
+                        u = m.group(1)
+                        full_u = _make_full_stream_url(url, u)
+                        return f'URI="/api/stream_proxy?url={quote(full_u)}"'
+                    line_rewritten = re.sub(r'URI="([^"]+)"', _rewrite_uri, line)
+                    lines.append(line_rewritten)
+                else:
+                    lines.append(line)
 
-                rewritten = "\n".join(lines)
-                return Response(
-                    content=rewritten,
-                    media_type="application/vnd.apple.mpegurl",
-                    headers={
-                        "Access-Control-Allow-Origin": "*",
-                        "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
-                        "Cache-Control": "no-cache, no-store, must-revalidate",
-                    }
-                )
-
-            # Direct binary streaming for video chunks (.ts) or other formats
-            media_type = resp.headers.get("content-type") or "video/mp2t"
+            rewritten = "\n".join(lines)
             return Response(
-                content=resp.content,
-                status_code=resp.status_code,
-                media_type=media_type,
+                content=rewritten,
+                media_type="application/vnd.apple.mpegurl",
                 headers={
                     "Access-Control-Allow-Origin": "*",
                     "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+                    "Access-Control-Allow-Headers": "*",
                     "Cache-Control": "no-cache, no-store, must-revalidate",
                 }
             )
+
+        # Direct video segment chunk (.ts / .mp4 / .m4s)
+        media_type = resp.headers.get("content-type") or "video/mp2t"
+        status_code = resp.status_code
+        resp_headers = {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            # Immutable segments can be safely cached by browser to eliminate re-buffering
+            "Cache-Control": "public, max-age=86400, immutable" if status_code == 200 else "no-cache",
+        }
+        if "content-range" in resp.headers:
+            resp_headers["Content-Range"] = resp.headers["content-range"]
+        if "accept-ranges" in resp.headers:
+            resp_headers["Accept-Ranges"] = resp.headers["accept-ranges"]
+
+        return Response(
+            content=resp.content,
+            status_code=status_code,
+            media_type=media_type,
+            headers=resp_headers,
+        )
     except Exception as exc:
         logger.debug("stream_proxy error: %s", exc)
-        return JSONResponse(status_code=502, content={"error": "Proxy error", "detail": str(exc)})
+        return JSONResponse(
+            status_code=502,
+            content={"error": "Proxy error", "detail": str(exc)},
+            headers={"Access-Control-Allow-Origin": "*"},
+        )
 
 
 # ---------------------------------------------------------------------------
