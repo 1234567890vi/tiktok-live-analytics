@@ -1142,9 +1142,9 @@ let lastAdminData = null;
 
 const I18N = {
   ar: {
-    appBrand: "راصد تيك توك",
+    appBrand: "TIKTOK VRF",
     sidebarBtn: "القائمة والإعدادات",
-    sidebarTitle: "لوحة التحكم والإعدادات",
+    sidebarTitle: "TIKTOK VRF — لوحة التحكم",
     usernamePlaceholder: "اسم المستخدم بدون @",
     startBtn: "بدء التتبع",
     stopBtn: "قطع الاتصال",
@@ -1215,9 +1215,9 @@ const I18N = {
     enterPasswordToast: "يرجى إدخال كلمة المرور",
   },
   en: {
-    appBrand: "Live Tracker",
+    appBrand: "TIKTOK VRF",
     sidebarBtn: "Menu & Settings",
-    sidebarTitle: "Dashboard & Settings",
+    sidebarTitle: "TIKTOK VRF — Dashboard",
     usernamePlaceholder: "username",
     startBtn: "Start Tracking",
     stopBtn: "Disconnect",
