@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: tiktok-live-analytics
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: ADMIN_PASSWORD
+        value: admin123
+      - key: MAX_SESSIONS
+        value: 15
