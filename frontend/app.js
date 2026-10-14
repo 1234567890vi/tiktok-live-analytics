@@ -150,14 +150,18 @@ function fmtUsd(n) {
 // ---------------------------------------------------------------------------
 // KPI bump animation
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// KPI bump animation — layout-friendly without forced synchronous reflow
+// ---------------------------------------------------------------------------
 function bumpKpi(el, newVal, formatter = fmt) {
   if (!el) return;
   const str = formatter(newVal);
   if (el.textContent !== str) {
     el.textContent = str;
-    el.classList.remove('bump');
-    void el.offsetWidth; // force reflow
-    el.classList.add('bump');
+    if (!el.classList.contains('bump')) {
+      el.classList.add('bump');
+      setTimeout(() => el.classList.remove('bump'), 250);
+    }
   }
 }
 
@@ -197,11 +201,66 @@ function clearPlaceholder(container, selector = '.text-gray-600') {
 }
 
 // ---------------------------------------------------------------------------
-// Comments
+// High-Performance Batched DOM Rendering (requestAnimationFrame)
 // ---------------------------------------------------------------------------
-function addComment(data) {
-  clearPlaceholder(DOM.commentsFeed);
+const commentQueue = [];
+const giftQueue    = [];
+let batchRafScheduled = false;
 
+function scheduleBatchRender() {
+  if (batchRafScheduled) return;
+  batchRafScheduled = true;
+  requestAnimationFrame(flushBatchRenders);
+}
+
+function flushBatchRenders() {
+  batchRafScheduled = false;
+
+  // 1. Batch append comments
+  if (commentQueue.length > 0) {
+    clearPlaceholder(DOM.commentsFeed);
+    const frag = document.createDocumentFragment();
+    const batch = commentQueue.splice(0, commentQueue.length);
+    for (let i = 0; i < batch.length; i++) {
+      frag.appendChild(createCommentNode(batch[i]));
+    }
+    DOM.commentsFeed.appendChild(frag);
+
+    // Prune oldest comments in single pass
+    while (DOM.commentsFeed.children.length > MAX_COMMENTS) {
+      DOM.commentsFeed.removeChild(DOM.commentsFeed.firstChild);
+    }
+
+    if (autoScroll) {
+      DOM.commentsFeed.scrollTop = DOM.commentsFeed.scrollHeight;
+    }
+    DOM.commentCount.textContent = fmt(commentCount);
+    bumpKpi(DOM.kpiComments, commentCount);
+  }
+
+  // 2. Batch prepend gifts (newest first)
+  if (giftQueue.length > 0) {
+    clearPlaceholder(DOM.giftFeed);
+    const frag = document.createDocumentFragment();
+    const batch = giftQueue.splice(0, giftQueue.length);
+    // Reverse batch so newest gift ends up at the top
+    for (let i = batch.length - 1; i >= 0; i--) {
+      frag.appendChild(createGiftNode(batch[i]));
+    }
+    DOM.giftFeed.prepend(frag);
+
+    // Prune oldest gifts from bottom in single pass
+    while (DOM.giftFeed.children.length > MAX_GIFTS) {
+      DOM.giftFeed.removeChild(DOM.giftFeed.lastChild);
+    }
+    DOM.giftCount.textContent = `${fmt(giftCount)} gifts`;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// DOM Node Factories
+// ---------------------------------------------------------------------------
+function createCommentNode(data) {
   const entry = document.createElement('div');
   entry.className = 'comment-entry';
 
@@ -236,28 +295,10 @@ function addComment(data) {
 
   body.append(nameRow, msg);
   entry.append(av, body);
-
-  // Maintain max buffer size
-  while (DOM.commentsFeed.children.length >= MAX_COMMENTS) {
-    DOM.commentsFeed.firstChild.remove();
-  }
-  DOM.commentsFeed.appendChild(entry);
-
-  if (autoScroll) {
-    DOM.commentsFeed.scrollTop = DOM.commentsFeed.scrollHeight;
-  }
-
-  commentCount++;
-  DOM.commentCount.textContent = fmt(commentCount);
-  bumpKpi(DOM.kpiComments, commentCount);
+  return entry;
 }
 
-// ---------------------------------------------------------------------------
-// Gifts
-// ---------------------------------------------------------------------------
-function addGift(data) {
-  clearPlaceholder(DOM.giftFeed);
-
+function createGiftNode(data) {
   const txn      = data.transaction || {};
   const user     = data.user || {};
   const giftName = txn.gift_name     || 'Gift';
@@ -348,18 +389,35 @@ function addGift(data) {
   comboDiv.textContent = `x${combo}`;
 
   card.append(avDiv, info, comboDiv);
+  return card;
+}
 
-  while (DOM.giftFeed.children.length >= MAX_GIFTS) {
-    DOM.giftFeed.firstChild.remove();
+// ---------------------------------------------------------------------------
+// Comments
+// ---------------------------------------------------------------------------
+function addComment(data) {
+  commentCount++;
+  commentQueue.push(data);
+  if (commentQueue.length > 250) {
+    commentQueue.splice(0, commentQueue.length - 250);
   }
-  DOM.giftFeed.prepend(card);
+  scheduleBatchRender();
+}
 
+// ---------------------------------------------------------------------------
+// Gifts
+// ---------------------------------------------------------------------------
+function addGift(data) {
   if (data.total_gifts != null && data.total_gifts > 0) {
     giftCount = Math.max(giftCount + 1, data.total_gifts);
   } else {
     giftCount++;
   }
-  DOM.giftCount.textContent = `${fmt(giftCount)} gifts`;
+
+  const txn      = data.transaction || {};
+  const giftName = txn.gift_name     || 'Gift';
+  const iconUrl  = txn.gift_icon_url || '';
+  const combo    = data.repeat_count || txn.repeat_count || 1;
 
   // Show combo burst popup for streaks >= 5
   if (combo >= 5) showComboBurst(giftName, iconUrl || '🎁', combo);
@@ -373,6 +431,12 @@ function addGift(data) {
     DOM.lbGrossUsd.textContent      = fmtUsd(data.estimated_usd);
     DOM.lbNetUsd.textContent        = fmtUsd(data.net_payout_usd);
   }
+
+  giftQueue.push(data);
+  if (giftQueue.length > 150) {
+    giftQueue.splice(0, giftQueue.length - 150);
+  }
+  scheduleBatchRender();
 }
 
 // ---------------------------------------------------------------------------
@@ -856,6 +920,8 @@ function connectWs(username) {
 
 function disconnectWs() {
   stopDemoSimulation();
+  commentQueue.length = 0;
+  giftQueue.length = 0;
   if (ws) {
     const _ws = ws;     // capture before nulling
     ws = null;          // null first so onclose sees ws===null

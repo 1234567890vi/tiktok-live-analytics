@@ -210,7 +210,8 @@ async def admin_stats(request: Request, token: str = ""):
         "status": "ok",
         "server_uptime_seconds": uptime,
         "total_connections": _total_connections,
-        "active_users_count": len(_active_sessions),
+        "active_users_count": sum(len(s) for s in _active_websockets.values()),
+        "active_streamers_count": len(_active_sessions),
         "active_sessions": list(_active_sessions.keys()),
         "search_history": history_copy,
         "tracking_enabled": _tracking_enabled,
@@ -485,24 +486,6 @@ async def ws_track(websocket: WebSocket, username: str):
 
     lock = _get_lock()
 
-    async with lock:
-        if len(_active_sessions) >= MAX_SESSIONS:
-            await websocket.send_text(json.dumps({
-                "type":    "error",
-                "message": "Server at capacity",
-                "detail":  f"Maximum of {MAX_SESSIONS} concurrent sessions reached.",
-            }))
-            await websocket.close()
-            return
-
-        # If a session already exists for this username (e.g. page refresh), stop it first
-        if clean_username in _active_sessions:
-            old = _active_sessions.pop(clean_username)
-            await old.stop()
-
-    # Register active websocket for this target
-    _active_websockets.setdefault(clean_username, set()).add(websocket)
-
     # Track search history & connection count
     global _total_connections
     _total_connections += 1
@@ -520,27 +503,77 @@ async def ws_track(websocket: WebSocket, username: str):
     if len(_search_history) > 100:
         _search_history.pop()
 
-    # ---- Broadcast function (called from TikTokSession event handlers) ----
-    async def broadcast(payload: dict) -> None:
-        try:
-            await websocket.send_text(json.dumps(payload, default=str))
-        except Exception:
-            pass  # WebSocket may have closed; TikTokSession handles cleanup
+    session: TikTokSession | None = None
+    is_session_creator = False
 
-    # ---- Create and register session ----
-    session = TikTokSession(clean_username, broadcast)
     async with lock:
-        _active_sessions[clean_username] = session
+        # Check if a session is already active for this streamer
+        if clean_username in _active_sessions:
+            session = _active_sessions[clean_username]
+        else:
+            if len(_active_sessions) >= MAX_SESSIONS:
+                await websocket.send_text(json.dumps({
+                    "type":    "error",
+                    "message": "Server at capacity",
+                    "detail":  f"Maximum of {MAX_SESSIONS} concurrent streamer sessions reached.",
+                }))
+                await websocket.close()
+                return
 
-    logger.info("Starting session for @%s", clean_username)
+            # Broadcast fan-out coroutine to all subscribed WebSockets for this streamer
+            async def broadcast(payload: dict) -> None:
+                sockets = list(_active_websockets.get(clean_username, set()))
+                if not sockets:
+                    return
+                data_str = json.dumps(payload, default=str)
 
-    await websocket.send_text(json.dumps({
-        "type":     "connecting",
-        "username": clean_username,
-        "message":  f"Connecting to @{clean_username}...",
-    }))
+                async def _send_one(ws: WebSocket):
+                    try:
+                        await ws.send_text(data_str)
+                    except Exception:
+                        _active_websockets.get(clean_username, set()).discard(ws)
 
-    await session.start()
+                await asyncio.gather(*[_send_one(ws) for ws in sockets], return_exceptions=True)
+
+            session = TikTokSession(clean_username, broadcast)
+            _active_sessions[clean_username] = session
+            is_session_creator = True
+
+    # Register this client's WebSocket for the target streamer
+    _active_websockets.setdefault(clean_username, set()).add(websocket)
+
+    if is_session_creator:
+        logger.info("Starting new background TikTok session for @%s (first viewer)", clean_username)
+        await websocket.send_text(json.dumps({
+            "type":     "connecting",
+            "username": clean_username,
+            "message":  f"Connecting to @{clean_username}...",
+        }))
+        await session.start()
+    else:
+        logger.info(
+            "Client connected to existing active session for @%s (viewers: %d)",
+            clean_username,
+            len(_active_websockets.get(clean_username, set()))
+        )
+        # If the session is already fully connected to TikTok, notify client immediately
+        if session._is_connected or getattr(session, "is_connected", False):
+            await websocket.send_text(json.dumps({
+                "type":     "connected",
+                "username": clean_username,
+                "room_id":  session.room_id or "live",
+            }))
+        else:
+            await websocket.send_text(json.dumps({
+                "type":     "connecting",
+                "username": clean_username,
+                "message":  f"Connecting to @{clean_username}...",
+            }))
+        # Send instant snapshot of current stream metrics
+        try:
+            await websocket.send_text(json.dumps(session.get_snapshot_payload(), default=str))
+        except Exception:
+            pass
 
     # ---- Heartbeat + client message loop ----
     try:
@@ -557,17 +590,18 @@ async def ws_track(websocket: WebSocket, username: str):
                     logger.info("Client requested disconnect for @%s", clean_username)
                     break
                 elif action == "snapshot":
-                    await session.send_snapshot()
+                    await websocket.send_text(json.dumps(session.get_snapshot_payload(), default=str))
                 else:
                     logger.debug("Unknown client action: %s", action)
 
             except asyncio.TimeoutError:
-                # Send heartbeat ping & periodic snapshot
+                # Send heartbeat ping & periodic snapshot directly to this client
                 await websocket.send_text(json.dumps({
                     "type": "heartbeat",
                     "ts":   int(time.time()),
                 }))
-                await session.send_snapshot()
+                if session._running:
+                    await websocket.send_text(json.dumps(session.get_snapshot_payload(), default=str))
 
             # Break out if the background TikTok task died
             if not session._running and (
@@ -583,15 +617,22 @@ async def ws_track(websocket: WebSocket, username: str):
         session_record["total_diamonds"] = getattr(session._engine, "get_total_diamonds", lambda: 0)()
         session_record["status"] = "completed"
 
+        # Remove this specific websocket from the room's subscriber set
         if clean_username in _active_websockets:
             _active_websockets[clean_username].discard(websocket)
-            if not _active_websockets[clean_username]:
+            remaining_viewers = len(_active_websockets[clean_username])
+            if remaining_viewers == 0:
                 _active_websockets.pop(clean_username, None)
-
-        async with lock:
-            _active_sessions.pop(clean_username, None)
-        await session.stop()
-        logger.info("Session cleaned up for @%s", clean_username)
+                # No more clients watching this streamer — shut down the TikTok session
+                async with lock:
+                    # Double-check if another client joined before popping
+                    if not _active_websockets.get(clean_username):
+                        ended_session = _active_sessions.pop(clean_username, None)
+                        if ended_session:
+                            await ended_session.stop()
+                            logger.info("Session cleaned up for @%s (0 active viewers)", clean_username)
+            else:
+                logger.info("Client disconnected from @%s (%d viewers still watching)", clean_username, remaining_viewers)
 
 
 # ---------------------------------------------------------------------------

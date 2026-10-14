@@ -596,6 +596,8 @@ class TikTokSession:
         self._client: TikTokLiveClient | None = None
         self._running   = False
         self._task: asyncio.Task | None = None
+        self._is_connected       = False
+        self._room_id            = ""
         self._streamer_user_id   = ""
         self._streamer_unique_id = ""
         self._streamer_nickname  = ""
@@ -606,6 +608,14 @@ class TikTokSession:
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+
+    @property
+    def is_connected(self) -> bool:
+        return self._is_connected
+
+    @property
+    def room_id(self) -> str:
+        return self._room_id
 
     async def start(self) -> None:
         """Connect to the TikTok Live room and start event processing."""
@@ -625,6 +635,7 @@ class TikTokSession:
     async def stop(self) -> None:
         """Gracefully stop the tracking session."""
         self._running = False
+        self._is_connected = False
         if self._client:
             try:
                 await self._client.disconnect()
@@ -638,8 +649,8 @@ class TikTokSession:
                 pass
         logger.info("Session stopped for @%s", self.username)
 
-    async def send_snapshot(self) -> None:
-        """Push the current dashboard snapshot to the WebSocket client."""
+    def get_snapshot_payload(self) -> dict:
+        """Return the current dashboard snapshot formatted as a WebSocket payload."""
         snap = self._engine.get_dashboard_snapshot()
         data = snap.to_dict() if hasattr(snap, "to_dict") else snap
 
@@ -652,8 +663,11 @@ class TikTokSession:
         data["net_payout_usd"] = round(
             data.get("estimated_usd", 0.0) * NET_PAYOUT_RATIO, 4
         )
+        return {"type": "snapshot", "data": data}
 
-        await self._send({"type": "snapshot", "data": data})
+    async def send_snapshot(self) -> None:
+        """Push the current dashboard snapshot to the WebSocket client."""
+        await self._send(self.get_snapshot_payload())
 
     # ------------------------------------------------------------------
     # Internal
@@ -791,6 +805,8 @@ class TikTokSession:
         # ---- Connect ----
         @client.on(ConnectEvent)
         async def on_connect(event: ConnectEvent):
+            self._is_connected = True
+            self._room_id = str(event.room_id)
             logger.info("Connected to @%s (room_id=%s)", self.username, event.room_id)
             await self._send({
                 "type":     "connected",
@@ -880,6 +896,7 @@ class TikTokSession:
         # ---- Disconnect ----
         @client.on(DisconnectEvent)
         async def on_disconnect(event: DisconnectEvent):
+            self._is_connected = False
             logger.info("Disconnected event from @%s", self.username)
             if not self._running:
                 await self._send({"type": "disconnected", "username": self.username})

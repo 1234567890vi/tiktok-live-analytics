@@ -27,7 +27,7 @@ NET_PAYOUT_RATIO:    float = 0.50    # TikTok pays ~50% of gross to creator
 WS_HEARTBEAT_INTERVAL: float = 15.0
 
 # Maximum concurrent tracking sessions
-MAX_SESSIONS: int = int(os.getenv("MAX_SESSIONS", "10"))
+MAX_SESSIONS: int = int(os.getenv("MAX_SESSIONS", "100"))
 
 # Re-connection retry attempts on disconnect
 RECONNECT_ATTEMPTS: int = 3
