@@ -100,7 +100,10 @@
           <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 2l-6 8 12 12L24 10 18 2H6zm1.5 2h9l4.5 6H3L7.5 4zM12 17.5L4.8 10h14.4L12 17.5z"/></svg>
         </div>
         <div>
-          <p class="kpi-label">Diamonds / Revenue</p>
+          <p class="kpi-label flex items-center justify-between">
+            <span>Live Diamonds</span>
+            <span class="text-[11px] text-yellow-300/80 font-normal">ألماسات البث الكاملة</span>
+          </p>
           <p class="kpi-value" id="kpiDiamonds">0</p>
           <p class="text-xs text-yellow-400 font-semibold mt-0.5">
             ≈ $<span id="kpiUsd">0.00</span>
@@ -357,15 +360,15 @@
         <!-- Room Total Bar -->
         <div class="p-4 border-t border-gray-800 bg-gray-900/50 space-y-1">
           <div class="flex justify-between text-xs text-gray-400">
-            <span>Session Revenue</span>
+            <span>إجمالي ألماسات البث (Diamonds)</span>
             <span class="text-yellow-400 font-bold">💎 <span id="lbTotalDiamonds">0</span></span>
           </div>
           <div class="flex justify-between text-xs text-gray-400">
-            <span>Gross USD</span>
+            <span>القيمة الإجمالية (Gross USD)</span>
             <span class="text-green-400 font-semibold">$<span id="lbGrossUsd">0.00</span></span>
           </div>
           <div class="flex justify-between text-xs text-gray-400">
-            <span>Streamer Net (~50%)</span>
+            <span>صافي صاحب البث (Net Payout)</span>
             <span class="text-green-300 font-bold">$<span id="lbNetUsd">0.00</span></span>
           </div>
         </div>

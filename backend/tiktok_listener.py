@@ -96,6 +96,7 @@ except ModuleNotFoundError:
             self._diamonds   = 0
             self._comments   = 0
             self._viewers    = 0
+            self._gift_count = 0
             self._likers:     dict = {}
             self._supporters: dict = {}
             self._streaks:    dict = {}
@@ -191,6 +192,7 @@ except ModuleNotFoundError:
             sup["total_diamonds"] += val
             if delta > 0:
                 sup["gift_count"] += 1
+                self._gift_count += max(1, delta)
 
             txn = {
                 "gift_id": gid, "gift_name": gname, "gift_icon_url": gicon,
@@ -279,6 +281,7 @@ except ModuleNotFoundError:
         def get_total_diamonds(self) -> int: return self._diamonds
         def get_total_likes(self)    -> int: return self._likes
         def get_total_comments(self) -> int: return self._comments
+        def get_total_gifts(self)    -> int: return self._gift_count
 
         def get_pk_state(self):
             pk = dict(self._pk)
@@ -300,6 +303,7 @@ except ModuleNotFoundError:
                 "likes_per_second": self.get_lps(),
                 "viewer_count":     self._viewers,
                 "total_diamonds":   self._diamonds,
+                "total_gifts":      self._gift_count,
                 "estimated_usd":    self._diamonds * 0.005,
                 "net_payout_usd":   self._diamonds * 0.005 * 0.5,
                 "total_comments":   self._comments,
@@ -627,6 +631,7 @@ class TikTokSession:
 
         # Enrich computed fields
         data["total_coins"]    = data.get("total_diamonds", 0)
+        data["total_gifts"]    = getattr(self._engine, "get_total_gifts", lambda: 0)()
         data["estimated_usd"]  = round(
             data.get("total_diamonds", 0) * DIAMOND_TO_USD_RATE, 4
         )
@@ -646,7 +651,11 @@ class TikTokSession:
             try:
                 logger.info("Connecting to @%s (backoff=%ds)...", self.username, backoff)
                 # Use connect() with process_connect_events=True — blocks while stream is running
-                await self._client.connect(process_connect_events=True)
+                await self._client.connect(
+                    process_connect_events=True,
+                    fetch_room_info=True,
+                    fetch_gift_info=True,
+                )
 
                 if not self._running:
                     break
@@ -697,7 +706,7 @@ class TikTokSession:
 
             # Fetch initial room info safely
             try:
-                r_info = await client._web.fetch_room_info()
+                r_info = client.room_info or await client._web.fetch_room_info(room_id=event.room_id)
                 if r_info and isinstance(r_info, dict):
                     owner = r_info.get("owner", {}) or {}
                     if owner:
@@ -706,17 +715,41 @@ class TikTokSession:
                         self._streamer_nickname  = str(owner.get("nickname", "") or self.username)
                         self._streamer_avatar    = _extract_avatar(owner)
 
-                    init_likes = int(r_info.get("like_count", 0) or 0)
+                    stats = r_info.get("stats") or {}
+                    room_view_stats = r_info.get("room_view_stats") or {}
+
+                    init_likes = int(
+                        r_info.get("like_count") or
+                        stats.get("like_count") or
+                        stats.get("total_like_count") or
+                        stats.get("digg_count") or
+                        0
+                    )
                     if init_likes > 0:
                         self._engine.set_total_likes(init_likes)
 
-                    init_viewers = int(r_info.get("user_count", 0) or 0)
+                    init_viewers = int(
+                        r_info.get("user_count") or
+                        stats.get("user_count") or
+                        stats.get("total_user") or
+                        r_info.get("total_user") or
+                        0
+                    )
                     if init_viewers > 0:
                         self._engine.update_viewer_count(init_viewers)
 
-                    init_diamonds = int(r_info.get("fan_ticket_count", 0) or 0)
+                    init_diamonds = int(
+                        r_info.get("fan_ticket_count") or
+                        stats.get("fan_ticket_count") or
+                        stats.get("total_diamonds") or
+                        stats.get("total_diamond_count") or
+                        room_view_stats.get("fan_ticket_count") or
+                        owner.get("fan_ticket_count") or
+                        0
+                    )
                     if init_diamonds > 0:
                         self._engine.set_total_diamonds(init_diamonds)
+                        logger.info("Initialized @%s with %d total diamonds since live opened", self.username, init_diamonds)
             except Exception as e:
                 logger.debug("Optional initial room_info fetch: %s", e)
 
@@ -765,18 +798,24 @@ class TikTokSession:
                 self._engine.update_viewer_count(viewers)
 
             ranks = _safe(event, "ranks")
+            contributors_total = 0
             if ranks and isinstance(ranks, (list, tuple)):
                 for contributor in ranks:
                     c_user = _safe(contributor, "user")
                     if c_user:
                         c_uinfo = _user_info(c_user)
                         c_score = int(_safe(contributor, "score", default=0))
-                        if c_score > 0 and c_uinfo["user_id"]:
-                            self._engine.update_supporter_score(
-                                c_uinfo["user_id"], c_uinfo["unique_id"],
-                                c_uinfo["nickname"], c_uinfo["avatar_url"],
-                                c_score
-                            )
+                        if c_score > 0:
+                            contributors_total += c_score
+                            if c_uinfo["user_id"]:
+                                self._engine.update_supporter_score(
+                                    c_uinfo["user_id"], c_uinfo["unique_id"],
+                                    c_uinfo["nickname"], c_uinfo["avatar_url"],
+                                    c_score
+                                )
+
+            if contributors_total > 0:
+                self._engine.set_total_diamonds(contributors_total)
 
             supporters = self._engine.get_top_supporters(10)
             leaderboard = [
@@ -784,9 +823,18 @@ class TikTokSession:
                 for s in supporters
             ]
 
+            total_diamonds = self._engine.get_total_diamonds()
+            estimated_usd  = round(total_diamonds * DIAMOND_TO_USD_RATE, 4)
+            net_payout     = round(estimated_usd * NET_PAYOUT_RATIO, 4)
+
             await self._send({
                 "type": "viewers",
-                "data": {"viewer_count": getattr(self._engine, "_viewers", viewers)},
+                "data": {
+                    "viewer_count":   getattr(self._engine, "_viewers", viewers),
+                    "total_diamonds": total_diamonds,
+                    "estimated_usd":  estimated_usd,
+                    "net_payout_usd": net_payout,
+                },
                 "leaderboard": leaderboard,
             })
 
@@ -946,6 +994,7 @@ class TikTokSession:
                     "combo_diamonds":    combo_diamonds,
                     "combo_usd":         combo_usd,
                     "total_diamonds":    total_diamonds,
+                    "total_gifts":       getattr(self._engine, "get_total_gifts", lambda: 0)(),
                     "estimated_usd":     estimated_usd,
                     "net_payout_usd":    net_payout,
                     "recipient_side":    recipient_side,

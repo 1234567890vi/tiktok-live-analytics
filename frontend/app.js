@@ -331,7 +331,11 @@ function addGift(data) {
   }
   DOM.giftFeed.prepend(card);
 
-  giftCount++;
+  if (data.total_gifts != null && data.total_gifts > 0) {
+    giftCount = Math.max(giftCount + 1, data.total_gifts);
+  } else {
+    giftCount++;
+  }
   DOM.giftCount.textContent = `${fmt(giftCount)} gifts`;
 
   // Show combo burst popup for streaks >= 5
@@ -661,6 +665,11 @@ function applySnapshot(data) {
   DOM.lbGrossUsd.textContent      = fmtUsd(data.estimated_usd  || 0);
   DOM.lbNetUsd.textContent        = fmtUsd(data.net_payout_usd || 0);
 
+  if (data.total_gifts != null && data.total_gifts > 0) {
+    giftCount = Math.max(giftCount, data.total_gifts);
+    DOM.giftCount.textContent = `${fmt(giftCount)} gifts`;
+  }
+
   if (data.pk_state)       updatePK(data.pk_state, 'snapshot');
   if (data.top_supporters) updateLeaderboard(data.top_supporters);
   if (data.top_likers)     renderLikers(data.top_likers);
@@ -738,8 +747,18 @@ function connectWs(username) {
         break;
 
       case 'viewers':
-        if (msg.data && msg.data.viewer_count != null) {
-          bumpKpi(DOM.kpiViewers, msg.data.viewer_count);
+        if (msg.data) {
+          if (msg.data.viewer_count != null) {
+            bumpKpi(DOM.kpiViewers, msg.data.viewer_count);
+          }
+          if (msg.data.total_diamonds != null && msg.data.total_diamonds > 0) {
+            bumpKpi(DOM.kpiDiamonds, msg.data.total_diamonds);
+            bumpKpi(DOM.kpiUsd, msg.data.estimated_usd, fmtUsd);
+            bumpKpi(DOM.kpiNet, msg.data.net_payout_usd, fmtUsd);
+            DOM.lbTotalDiamonds.textContent = fmt(msg.data.total_diamonds);
+            DOM.lbGrossUsd.textContent      = fmtUsd(msg.data.estimated_usd);
+            DOM.lbNetUsd.textContent        = fmtUsd(msg.data.net_payout_usd);
+          }
         }
         if (msg.leaderboard) updateLeaderboard(msg.leaderboard);
         break;
