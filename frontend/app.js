@@ -3852,12 +3852,12 @@ function applyLanguage(lang) {
   if ($('descAdmin')) $('descAdmin').textContent = t.descAdmin;
   if ($('btnOpenAdminText')) $('btnOpenAdminText').textContent = t.openAdminBtn;
 
-  // TikTok Inspector & Downloader Controls
+  if ($('labelTikTokTools')) $('labelTikTokTools').textContent = (lang === 'ar' ? 'أدوات تيك توك (TikTok Tools)' : 'TikTok Tools');
+  if ($('labelInspector')) $('labelInspector').textContent = (lang === 'ar' ? 'فحص الفيديوهات والقصص' : 'Inspect Videos & Stories');
+  if ($('descInspector')) $('descInspector').textContent = (lang === 'ar' ? 'مشاهدات، إعجابات، ناشر، والمتفاعلين' : 'Views, likes, creator & interactors');
+  if ($('labelDownloaderSidebar')) $('labelDownloaderSidebar').textContent = (lang === 'ar' ? 'تنزيل الفيديوهات (HD)' : 'Download Videos (HD)');
+  if ($('descDownloaderSidebar')) $('descDownloaderSidebar').textContent = (lang === 'ar' ? 'بدون علامة مائية بدقة 1080p و MP3' : 'No watermark in 1080p & MP3');
   if ($('btnNavInspector')) $('btnNavInspector').textContent = (lang === 'ar' ? 'فحص الفيديوهات والقصص' : 'Inspect Videos & Stories');
-  if ($('labelInspector')) $('labelInspector').textContent = (lang === 'ar' ? 'فاحص الفيديوهات والقصص' : 'Video & Story Inspector');
-  if ($('descInspector')) $('descInspector').textContent = (lang === 'ar' ? 'استخراج فوري لعدد المشاهدات، الإعجابات، المشاركات، جودة الفيديو، الناشر وقائمة المتفاعلين مع القصة.' : 'Instant metrics for views, likes, shares, video quality, creator info, and story interactors.');
-  if ($('btnOpenInspectorText')) $('btnOpenInspectorText').textContent = (lang === 'ar' ? 'فتح فاحص الفيديوهات والقصص' : 'Open Video & Story Inspector');
-
   if ($('labelTtDownloader')) $('labelTtDownloader').textContent = t.labelTtDownloader;
   if ($('descTtDownloader')) $('descTtDownloader').textContent = t.descTtDownloader;
   if ($('btnNavDownloader')) $('btnNavDownloader').textContent = (lang === 'ar' ? 'تنزيل الفيديوهات' : 'Downloader');
