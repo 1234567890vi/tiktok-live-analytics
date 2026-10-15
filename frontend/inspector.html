@@ -484,18 +484,18 @@
         </div>
       </div>
 
-      <!-- 4. Story Likers & Interactors Section (أسماء من قاموا بوضع إعجاب وتفاعلوا مع القصة) -->
+      <!-- 4. Story Likers & Interactors Section (أسماء من قاموا بوضع إعجاب وتفاعلوا مع فيديوا) -->
       <div class="glass-panel p-5 sm:p-6 rounded-2xl bg-[#16161f]/90 border border-pink-900/40 shadow-xl space-y-5">
         <!-- Section Header with Quick Actions -->
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-800 pb-4">
           <div>
             <h4 class="text-base sm:text-lg font-black text-white flex items-center gap-2">
               <span class="text-xl">❤️</span>
-              <span id="labelLikersSectionTitle">أسماء من قاموا بوضع إعجاب وتفاعلوا مع القصة</span>
+              <span id="labelLikersSectionTitle">أسماء من قاموا بوضع إعجاب وتفاعلوا مع فيديوا</span>
               <span id="resStoryLikersBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-pink-950 text-pink-300 border border-pink-700/60 font-mono font-bold">0 اسم</span>
             </h4>
             <p class="text-xs text-gray-400 mt-1" id="descLikersSection">
-              استعراض كامل لأسماء وحسابات وصور الأشخاص الذين أبدوا إعجابهم وتفاعلوا مع القصة، مع إمكانية نسخ قائمة الأسماء مباشرة.
+              استعراض كامل لأسماء وحسابات وصور الأشخاص الذين أبدوا إعجابهم وتفاعلوا مع فيديوا، مع إمكانية نسخ قائمة الأسماء مباشرة.
             </p>
           </div>
 
@@ -688,8 +688,8 @@
         specLabelSdSize: 'حجم ملف Standard SD:',
         labelDownloadLinks: 'روابط التنزيل المباشر الصافي بدون علامة:',
         labelPhotosTitle: 'صور ألبوم القصة / المنشور (Photo Slideshow):',
-        labelLikersSectionTitle: 'أسماء من قاموا بوضع إعجاب وتفاعلوا مع القصة',
-        descLikersSection: 'استعراض كامل لأسماء وحسابات وصور الأشخاص الذين أبدوا إعجابهم وتفاعلوا مع القصة، مع إمكانية نسخ قائمة الأسماء مباشرة.',
+        labelLikersSectionTitle: 'أسماء من قاموا بوضع إعجاب وتفاعلوا مع فيديوا',
+        descLikersSection: 'استعراض كامل لأسماء وحسابات وصور الأشخاص الذين أبدوا إعجابهم وتفاعلوا مع فيديوا، مع إمكانية نسخ قائمة الأسماء مباشرة.',
         textBtnCopyLikers: 'نسخ جميع أسماء المعجبين',
         labelQuickNamesTitle: 'شريط الأسماء السريع (Quick Names Cloud):',
         tabLikersAll: 'جميع المعجبين والمتفاعلين',
@@ -1059,7 +1059,7 @@
         resPhotosSection.classList.add('hidden');
       }
 
-      // 4. Story Likers & Interactors (أسماء من قاموا بوضع إعجاب وتفاعلوا مع القصة)
+      // 4. Story Likers & Interactors (أسماء من قاموا بوضع إعجاب وتفاعلوا مع فيديوا)
       if (d.story_likers && Array.isArray(d.story_likers) && d.story_likers.length > 0) {
         loadedLikers = d.story_likers;
       } else if (d.interactors && Array.isArray(d.interactors)) {
@@ -1112,8 +1112,8 @@
       boxLikersNamesCloud.classList.remove('hidden');
       if (resTotalLikesNote) {
         resTotalLikesNote.textContent = isAr
-          ? `إجمالي إعجابات القصة: ${fmt(totalLikes)} ❤️`
-          : `Total Story Likes: ${fmt(totalLikes)} ❤️`;
+          ? `إجمالي إعجابات الفيديو: ${fmt(totalLikes)} ❤️`
+          : `Total Video Likes: ${fmt(totalLikes)} ❤️`;
       }
 
       resLikersPillsWrap.innerHTML = '';
@@ -1225,7 +1225,7 @@
 
             <!-- Reaction or Comment Text -->
             <div class="text-xs text-gray-300 leading-relaxed break-words bg-black/25 p-2 rounded-lg border border-gray-800/60">
-              ${safeComment || (isAr ? '❤️ وضع إعجاب وتفاعل مع القصة' : '❤️ Liked and interacted with story')}
+              ${safeComment || (isAr ? '❤️ وضع إعجاب وتفاعل مع فيديوا' : '❤️ Liked and interacted with video')}
             </div>
 
             <!-- Footer: Timestamp + Followers + Profile Link -->
@@ -1289,8 +1289,8 @@
           return `${idx + 1}. ${u.nickname} (@${u.unique_id})${verifiedBadge} | رابط الحساب: ${u.profile_url}`;
         });
         const header = isAr
-          ? `❤️ قائمة أسماء من أبدوا إعجابهم وتفاعلوا مع القصة (${loadedLikers.length} اسم):\n`
-          : `❤️ List of users who liked and interacted with the story (${loadedLikers.length} users):\n`;
+          ? `❤️ قائمة أسماء من أبدوا إعجابهم وتفاعلوا مع فيديوا (${loadedLikers.length} اسم):\n`
+          : `❤️ List of users who liked and interacted with the video (${loadedLikers.length} users):\n`;
         const fullText = header + lines.join('\n');
 
         try {
