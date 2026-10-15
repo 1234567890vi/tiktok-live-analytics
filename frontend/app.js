@@ -343,6 +343,28 @@ const DOM = {
   // Admin Link
   linkOpenAdmin: $('linkOpenAdmin'),
 
+  // TikTok Downloader
+  ttDownloaderSidebarSection: $('ttDownloaderSidebarSection'),
+  ttVideoUrlInput:            $('ttVideoUrlInput'),
+  btnPasteTtUrl:              $('btnPasteTtUrl'),
+  btnFetchTtVideo:            $('btnFetchTtVideo'),
+  btnFetchTtIcon:             $('btnFetchTtIcon'),
+  btnFetchTtText:             $('btnFetchTtText'),
+  ttDownloaderError:          $('ttDownloaderError'),
+  ttDownloaderErrorText:      $('ttDownloaderErrorText'),
+  ttDownloaderResult:         $('ttDownloaderResult'),
+  ttVideoThumb:               $('ttVideoThumb'),
+  ttVideoDuration:            $('ttVideoDuration'),
+  ttAuthorAvatar:             $('ttAuthorAvatar'),
+  ttAuthorName:               $('ttAuthorName'),
+  ttVideoTitle:               $('ttVideoTitle'),
+  ttVideoStats:               $('ttVideoStats'),
+  ttVideoPlays:               $('ttVideoPlays'),
+  ttVideoLikes:               $('ttVideoLikes'),
+  labelChooseQuality:         $('labelChooseQuality'),
+  badgeNoWatermark:           $('badgeNoWatermark'),
+  ttQualitiesList:            $('ttQualitiesList'),
+
   // Live Video Player
   liveVideoSection:       $('liveVideoSection'),
   playerTitle:            $('playerTitle'),
@@ -2870,6 +2892,14 @@ const I18N = {
     statusCompleted: "مكتمل",
     loginError: "⚠️ كلمة المرور غير صحيحة!",
     enterPasswordToast: "يرجى إدخال كلمة المرور",
+    labelTtDownloader: "تنزيل فيديوهات تيك توك",
+    descTtDownloader: "حمّل أي فيديو تيك توك بأعلى دقة (1080p Ultra HD / SD / MP3) بدون علامة مائية بنقرة واحدة.",
+    ttUrlPlaceholder: "الصق رابط فيديو تيك توك هنا...",
+    btnPasteTt: "لصق",
+    btnFetchTt: "استخراج الفيديو والجودات",
+    btnFetchingTt: "جارٍ استخراج الجودات...",
+    labelChooseQuality: "اختر الجودة للتحميل المباشر:",
+    badgeNoWatermark: "بدون علامة مائية ✔",
   },
   en: {
     appBrand: "TIKTOK VRF",
@@ -2943,6 +2973,14 @@ const I18N = {
     statusCompleted: "Completed",
     loginError: "⚠️ Invalid password!",
     enterPasswordToast: "Please enter your admin password",
+    labelTtDownloader: "TikTok Video Downloader",
+    descTtDownloader: "Download any TikTok video in highest quality (1080p Ultra HD / SD / MP3) without watermark in one click.",
+    ttUrlPlaceholder: "Paste TikTok video URL here...",
+    btnPasteTt: "Paste",
+    btnFetchTt: "Extract Video & Qualities",
+    btnFetchingTt: "Extracting qualities...",
+    labelChooseQuality: "Choose download quality:",
+    badgeNoWatermark: "No Watermark ✔",
   }
 };
 
@@ -3006,6 +3044,15 @@ function applyLanguage(lang) {
   if ($('labelAdmin')) $('labelAdmin').textContent = t.labelAdmin;
   if ($('descAdmin')) $('descAdmin').textContent = t.descAdmin;
   if ($('btnOpenAdminText')) $('btnOpenAdminText').textContent = t.openAdminBtn;
+
+  // TikTok Downloader Controls
+  if ($('labelTtDownloader')) $('labelTtDownloader').textContent = t.labelTtDownloader;
+  if ($('descTtDownloader')) $('descTtDownloader').textContent = t.descTtDownloader;
+  if ($('btnPasteTtText')) $('btnPasteTtText').textContent = t.btnPasteTt;
+  if (DOM.btnFetchTtText) DOM.btnFetchTtText.textContent = t.btnFetchTt;
+  if (DOM.ttVideoUrlInput) DOM.ttVideoUrlInput.placeholder = t.ttUrlPlaceholder;
+  if (DOM.labelChooseQuality) DOM.labelChooseQuality.textContent = t.labelChooseQuality;
+  if (DOM.badgeNoWatermark) DOM.badgeNoWatermark.textContent = t.badgeNoWatermark;
   // Active button styling
   if (DOM.langArBtn && DOM.langEnBtn) {
     if (lang === 'ar') {
@@ -3182,6 +3229,225 @@ if (DOM.langEnBtn) DOM.langEnBtn.addEventListener('click', () => applyLanguage('
 if (DOM.themeDarkBtn) DOM.themeDarkBtn.addEventListener('click', () => applyTheme('dark'));
 if (DOM.themeLightBtn) DOM.themeLightBtn.addEventListener('click', () => applyTheme('light'));
 if (DOM.themeOledBtn) DOM.themeOledBtn.addEventListener('click', () => applyTheme('oled'));
+
+// ---------------------------------------------------------------------------
+// TikTok Video Downloader (تنزيل فيديوهات تيك توك بدون علامة مائية والجودات)
+// ---------------------------------------------------------------------------
+let isFetchingTtVideo = false;
+
+function formatTtNumber(num) {
+  if (num == null || isNaN(num)) return '0';
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+  return Number(num).toLocaleString();
+}
+
+function showTtError(msg) {
+  if (DOM.ttDownloaderError && DOM.ttDownloaderErrorText) {
+    DOM.ttDownloaderErrorText.textContent = msg;
+    DOM.ttDownloaderError.classList.remove('hidden');
+  } else {
+    toast(msg, 'error');
+  }
+}
+
+function hideTtError() {
+  if (DOM.ttDownloaderError) DOM.ttDownloaderError.classList.add('hidden');
+}
+
+async function handlePasteTikTokUrl() {
+  try {
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      const text = await navigator.clipboard.readText();
+      if (text && text.trim()) {
+        const trimmed = text.trim();
+        if (DOM.ttVideoUrlInput) DOM.ttVideoUrlInput.value = trimmed;
+        toast('تم لصق الرابط من الحافظة! 📋', 'success');
+        if (trimmed.includes('tiktok.com') || trimmed.includes('douyin.com')) {
+          fetchTikTokVideo();
+        }
+        return;
+      }
+    }
+  } catch (err) {
+    console.debug('Clipboard error:', err);
+  }
+  if (DOM.ttVideoUrlInput) DOM.ttVideoUrlInput.focus();
+  toast('يرجى لصق رابط الفيديو في الخانة 📋', 'info');
+}
+
+async function fetchTikTokVideo() {
+  if (isFetchingTtVideo) return;
+  const rawUrl = DOM.ttVideoUrlInput ? DOM.ttVideoUrlInput.value.trim() : '';
+
+  if (!rawUrl) {
+    showTtError('يرجى إدخال أو لصق رابط فيديو تيك توك أولاً.');
+    if (DOM.ttVideoUrlInput) DOM.ttVideoUrlInput.focus();
+    return;
+  }
+
+  if (!rawUrl.includes('tiktok.com') && !rawUrl.includes('douyin.com')) {
+    showTtError('الرابط المدخل ليس رابط فيديو تيك توك صالح.');
+    return;
+  }
+
+  hideTtError();
+  if (DOM.ttDownloaderResult) DOM.ttDownloaderResult.classList.add('hidden');
+
+  isFetchingTtVideo = true;
+  if (DOM.btnFetchTtVideo) DOM.btnFetchTtVideo.disabled = true;
+  if (DOM.btnFetchTtIcon) DOM.btnFetchTtIcon.textContent = '⏳';
+  if (DOM.btnFetchTtText) DOM.btnFetchTtText.textContent = (I18N[currentLang] || I18N.ar).btnFetchingTt;
+
+  try {
+    const res = await fetch('/api/tiktok/video-info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: rawUrl }),
+    });
+
+    const data = await res.json();
+    if (!res.ok || data.status !== 'ok' || !data.video) {
+      throw new Error(data.message || 'فشل استخراج الفيديو. تأكد من أن الحساب ليس خاصاً وأن الرابط صحيح.');
+    }
+
+    renderTikTokVideoResult(data.video);
+    toast('تم استخراج الفيديو بنجاح! اختر الجودة للتحميل 📥', 'success');
+  } catch (err) {
+    console.error('TikTok fetch error:', err);
+    showTtError(err.message || 'حدث خطأ أثناء فحص الرابط.');
+  } finally {
+    isFetchingTtVideo = false;
+    if (DOM.btnFetchTtVideo) DOM.btnFetchTtVideo.disabled = false;
+    if (DOM.btnFetchTtIcon) DOM.btnFetchTtIcon.textContent = '⚡';
+    if (DOM.btnFetchTtText) DOM.btnFetchTtText.textContent = (I18N[currentLang] || I18N.ar).btnFetchTt;
+  }
+}
+
+function renderTikTokVideoResult(video) {
+  if (!DOM.ttDownloaderResult) return;
+
+  if (DOM.ttVideoThumb) {
+    DOM.ttVideoThumb.src = video.cover || '';
+    DOM.ttVideoThumb.alt = video.title || 'TikTok Video';
+  }
+
+  if (DOM.ttVideoDuration) {
+    DOM.ttVideoDuration.textContent = video.duration_formatted || '00:00';
+  }
+
+  if (DOM.ttAuthorAvatar) {
+    DOM.ttAuthorAvatar.src = video.author?.avatar || 'https://p16-va.tiktokcdn.com/img/musically-maliva-obj/default-avatar.jpeg';
+  }
+  if (DOM.ttAuthorName) {
+    DOM.ttAuthorName.textContent = '@' + (video.author?.unique_id || 'user');
+  }
+
+  if (DOM.ttVideoTitle) {
+    DOM.ttVideoTitle.textContent = video.title || 'بدون عنوان';
+  }
+
+  if (DOM.ttVideoPlays) {
+    DOM.ttVideoPlays.textContent = `👁️ ${formatTtNumber(video.stats?.plays || 0)}`;
+  }
+  if (DOM.ttVideoLikes) {
+    DOM.ttVideoLikes.textContent = `❤️ ${formatTtNumber(video.stats?.likes || 0)}`;
+  }
+
+  if (DOM.ttQualitiesList) {
+    DOM.ttQualitiesList.innerHTML = '';
+    const isAr = currentLang === 'ar';
+    const qualities = video.qualities || [];
+
+    if (qualities.length === 0 && (!video.images || video.images.length === 0)) {
+      DOM.ttQualitiesList.innerHTML = `
+        <div class="text-xs text-amber-300 p-2 bg-amber-950/30 rounded-lg text-center">
+          لا تتوفر روابط تنزيل مباشرة لهذا الفيديو.
+        </div>
+      `;
+    } else {
+      qualities.forEach(q => {
+        const item = document.createElement('a');
+        item.href = q.download_url;
+        item.setAttribute('download', '');
+        item.className = 'w-full flex items-center justify-between p-2.5 rounded-xl bg-gray-900/90 hover:bg-pink-950/40 border border-gray-800 hover:border-pink-500/60 transition active:scale-98 group cursor-pointer shadow-sm';
+
+        const labelText = isAr ? q.label : (q.label_en || q.label);
+        const badgeText = isAr ? q.badge : (q.badge_en || q.badge);
+        const icon = q.id === 'audio' ? '🎵' : (q.id === 'hd' ? '⭐' : '🎬');
+        const badgeColor = q.id === 'hd' 
+          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' 
+          : (q.id === 'audio' ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40' : 'bg-pink-500/20 text-pink-300 border-pink-500/40');
+
+        item.innerHTML = `
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div class="w-8 h-8 rounded-lg bg-pink-500/20 text-pink-400 flex items-center justify-center text-sm group-hover:bg-pink-500 group-hover:text-white transition shrink-0">
+              ${icon}
+            </div>
+            <div class="text-right truncate">
+              <div class="text-xs font-bold text-white group-hover:text-pink-300 transition truncate">${labelText}</div>
+              <div class="text-[10px] text-gray-400 font-mono">${q.size ? q.size + ' • ' : ''}${isAr ? 'بدون علامة مائية' : 'No Watermark'}</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <span class="text-[10px] px-2 py-0.5 rounded-full ${badgeColor} border font-bold">
+              ${badgeText}
+            </span>
+            <span class="text-xs text-pink-400 font-bold group-hover:translate-y-0.5 transition">⬇️</span>
+          </div>
+        `;
+
+        item.addEventListener('click', () => {
+          toast(`جاري بدء تنزيل ${labelText}... 📥`, 'info', 4000);
+        });
+
+        DOM.ttQualitiesList.appendChild(item);
+      });
+
+      if (Array.isArray(video.images) && video.images.length > 0) {
+        const photoSection = document.createElement('div');
+        photoSection.className = 'pt-2 space-y-1.5';
+        photoSection.innerHTML = `
+          <div class="text-[11px] font-bold text-indigo-300 flex items-center gap-1">
+            <span>🖼️</span>
+            <span>${isAr ? `صور الألبوم (${video.images.length} صورة بدقة أصلية):` : `Album Photos (${video.images.length} high-res photos):`}</span>
+          </div>
+          <div class="grid grid-cols-2 gap-1.5">
+            ${video.images.map(img => `
+              <a href="${img.download_url}" download class="p-1.5 rounded-lg bg-gray-900 border border-gray-800 hover:border-indigo-500 text-center text-[10px] font-bold text-gray-300 hover:text-white transition flex items-center justify-center gap-1">
+                <span>⬇️ ${isAr ? `صورة ${img.index}` : `Photo ${img.index}`}</span>
+              </a>
+            `).join('')}
+          </div>
+        `;
+        DOM.ttQualitiesList.appendChild(photoSection);
+      }
+    }
+  }
+
+  DOM.ttDownloaderResult.classList.remove('hidden');
+
+  setTimeout(() => {
+    if (DOM.mainSidebar) {
+      DOM.mainSidebar.scrollTo({
+        top: DOM.ttDownloaderSidebarSection?.offsetTop || 0,
+        behavior: 'smooth'
+      });
+    }
+  }, 100);
+}
+
+// Bind TikTok Downloader event triggers
+if (DOM.btnPasteTtUrl) DOM.btnPasteTtUrl.addEventListener('click', handlePasteTikTokUrl);
+if (DOM.btnFetchTtVideo) DOM.btnFetchTtVideo.addEventListener('click', fetchTikTokVideo);
+if (DOM.ttVideoUrlInput) {
+  DOM.ttVideoUrlInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      fetchTikTokVideo();
+    }
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Secret Owner Entry Triggers (الانتقال إلى لوحة التحكم للمالك)
