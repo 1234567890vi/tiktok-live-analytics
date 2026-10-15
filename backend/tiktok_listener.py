@@ -32,6 +32,7 @@ from TikTokLive.events import (
     CommentEvent,
     GiftEvent,
     LikeEvent,
+    JoinEvent,
     RoomUserSeqEvent,
     LinkMicBattleEvent,
     LinkMicArmiesEvent,
@@ -208,6 +209,13 @@ except ModuleNotFoundError:
             if n > 0:
                 self._viewers = n
 
+        def get_viewer_count(self) -> int:
+            return self._viewers
+
+        @property
+        def viewer_count(self) -> int:
+            return self._viewers
+
         def set_total_diamonds(self, n: int) -> None:
             self._diamonds = max(self._diamonds, n)
 
@@ -279,7 +287,8 @@ except ModuleNotFoundError:
         def process_gift(
             self, uid, uniq, nick, av, gid, gname, gicon, udiam, rc, streak,
             is_hidden: bool = False, is_unmasked: bool = False,
-            revealed_username: str = "", revealed_nickname: str = "", revealed_avatar: str = ""
+            revealed_username: str = "", revealed_nickname: str = "", revealed_avatar: str = "",
+            is_host_gift: bool = True,
         ):
             key = f"{uid}_{gid}"
             prev = self._streaks.get(key, 0)
@@ -295,27 +304,28 @@ except ModuleNotFoundError:
                 delta = max(0, rc - already_charged)
 
             val = delta * udiam
-            self._diamonds += val
-            sup = self._supporters.setdefault(uid, {
-                "user_id": uid, "unique_id": uniq, "nickname": nick,
-                "avatar_url": av, "total_diamonds": 0, "gift_count": 0,
-                "is_hidden": is_hidden, "is_unmasked": is_unmasked,
-                "revealed_username": revealed_username,
-                "revealed_nickname": revealed_nickname,
-                "revealed_avatar": revealed_avatar,
-            })
-            sup["total_diamonds"] += val
-            if is_hidden:
-                sup["is_hidden"] = True
-            if is_unmasked:
-                sup["is_unmasked"] = True
-                if revealed_username: sup["revealed_username"] = revealed_username
-                if revealed_nickname: sup["revealed_nickname"] = revealed_nickname
-                if revealed_avatar: sup["revealed_avatar"] = revealed_avatar
+            if is_host_gift:
+                self._diamonds += val
+                sup = self._supporters.setdefault(uid, {
+                    "user_id": uid, "unique_id": uniq, "nickname": nick,
+                    "avatar_url": av, "total_diamonds": 0, "gift_count": 0,
+                    "is_hidden": is_hidden, "is_unmasked": is_unmasked,
+                    "revealed_username": revealed_username,
+                    "revealed_nickname": revealed_nickname,
+                    "revealed_avatar": revealed_avatar,
+                })
+                sup["total_diamonds"] += val
+                if is_hidden:
+                    sup["is_hidden"] = True
+                if is_unmasked:
+                    sup["is_unmasked"] = True
+                    if revealed_username: sup["revealed_username"] = revealed_username
+                    if revealed_nickname: sup["revealed_nickname"] = revealed_nickname
+                    if revealed_avatar: sup["revealed_avatar"] = revealed_avatar
 
-            if delta > 0:
-                sup["gift_count"] += 1
-                self._gift_count += max(1, delta)
+                if delta > 0:
+                    sup["gift_count"] += 1
+                    self._gift_count += max(1, delta)
 
             txn = {
                 "gift_id": gid, "gift_name": gname, "gift_icon_url": gicon,
@@ -550,12 +560,29 @@ except ModuleNotFoundError:
 
         def get_lps(self) -> float:
             now = time.time()
-            self._like_times = [(t, c) for t, c in self._like_times if now - t <= 5.0]
+            # Retain likes within sliding 4-second window
+            self._like_times = [(t, c) for t, c in self._like_times if (now - t) <= 4.0]
             if not self._like_times:
                 return 0.0
-            total = sum(c for _, c in self._like_times)
-            window = min(now - self._like_times[0][0], 5.0)
-            return total / window if window > 0 else 0.0
+
+            last_like_time = self._like_times[-1][0]
+            idle_time = now - last_like_time
+            if idle_time >= 4.0:
+                self._like_times.clear()
+                return 0.0
+
+            total_recent_likes = sum(c for _, c in self._like_times)
+            first_like_time = self._like_times[0][0]
+            # Duration bounded to [1.0, 4.0] to prevent huge spikes on initial burst
+            duration = max(min(now - first_like_time, 4.0), 1.0)
+            raw_lps = total_recent_likes / duration
+
+            # Gracefully decay to 0.0 if tapping paused in last 1.5 - 4.0 seconds
+            if idle_time > 1.5:
+                decay = max(0.0, 1.0 - ((idle_time - 1.5) / 2.5))
+                raw_lps *= decay
+
+            return max(0.0, round(raw_lps, 1))
 
         def get_total_diamonds(self) -> int: return self._diamonds
         def get_total_likes(self)    -> int: return self._likes
@@ -583,8 +610,8 @@ except ModuleNotFoundError:
                 "viewer_count":     self._viewers,
                 "total_diamonds":   self._diamonds,
                 "total_gifts":      self._gift_count,
-                "estimated_usd":    self._diamonds * 0.005,
-                "net_payout_usd":   self._diamonds * 0.005 * 0.5,
+                "estimated_usd":    round(self._diamonds * DIAMOND_TO_USD_RATE, 2),
+                "net_payout_usd":   round(self._diamonds * DIAMOND_TO_USD_RATE * NET_PAYOUT_RATIO, 2),
                 "total_comments":   self._comments,
                 "pk_state":         dict(self._pk),
                 "top_supporters":   sups,
@@ -1706,10 +1733,10 @@ class TikTokSession:
         data["total_coins"]    = data.get("total_diamonds", 0)
         data["total_gifts"]    = getattr(self._engine, "get_total_gifts", lambda: 0)()
         data["estimated_usd"]  = round(
-            data.get("total_diamonds", 0) * DIAMOND_TO_USD_RATE, 4
+            data.get("total_diamonds", 0) * DIAMOND_TO_USD_RATE, 2
         )
         data["net_payout_usd"] = round(
-            data.get("estimated_usd", 0.0) * NET_PAYOUT_RATIO, 4
+            data.get("estimated_usd", 0.0) * NET_PAYOUT_RATIO, 2
         )
         data["stream_video"]   = getattr(self, "_stream_video_data", None) or _extract_stream_video_urls({}, self.username)
         data["live_friends"]   = sorted(
@@ -1923,6 +1950,7 @@ class TikTokSession:
 
                     # Initial top supporters if available in room info
                     ranks = r_info.get("top_fans") or r_info.get("ranks") or stats.get("top_fans") or []
+                    ranks_total = 0
                     if ranks and isinstance(ranks, (list, tuple)):
                         for contributor in ranks:
                             c_user = contributor.get("user") or contributor
@@ -1932,6 +1960,7 @@ class TikTokSession:
                             c_av = _extract_avatar(c_user)
                             c_score = int(contributor.get("fan_ticket") or contributor.get("score") or 0)
                             if c_score > 0 and c_uid:
+                                ranks_total += c_score
                                 id_res = self.resolve_supporter_identity({
                                     "user_id": c_uid, "unique_id": c_uniq,
                                     "nickname": c_nick, "avatar_url": c_av,
@@ -1944,6 +1973,10 @@ class TikTokSession:
                                     revealed_nickname=id_res["revealed_nickname"],
                                     revealed_avatar=id_res["revealed_avatar"],
                                 )
+
+                    if init_diamonds == 0 and ranks_total > 0:
+                        self._engine.set_total_diamonds(ranks_total)
+                        logger.info("Initialized @%s with %d total diamonds from contributor ranks", self.username, ranks_total)
 
                     # Check if stream is ALREADY in an active battle upon connection!
                     link_mic = r_info.get("link_mic") or r_info.get("linkmic_info") or r_info.get("battle_info") or {}
@@ -2045,10 +2078,44 @@ class TikTokSession:
             if not self._running:
                 await self._send({"type": "disconnected", "username": self.username})
 
+        # ---- Join Event (Continuous real-time viewer count on member entry) ----
+        self._last_join_viewer_broadcast = 0.0
+
+        @client.on(JoinEvent)
+        async def on_join(event: JoinEvent):
+            member_count = int(
+                _safe(event, "member_count", default=0)
+                or getattr(event, "member_count", 0)
+                or 0
+            )
+            if member_count > 0:
+                self._engine.update_viewer_count(member_count)
+                now = time.time()
+                # Broadcast viewer updates smoothly with rate limiting (at most once every 0.7s)
+                if (now - self._last_join_viewer_broadcast) >= 0.7:
+                    self._last_join_viewer_broadcast = now
+                    total_diamonds = self._engine.get_total_diamonds()
+                    estimated_usd = round(total_diamonds * DIAMOND_TO_USD_RATE, 2)
+                    net_payout = round(estimated_usd * NET_PAYOUT_RATIO, 2)
+                    await self._send({
+                        "type": "viewers",
+                        "data": {
+                            "viewer_count":   member_count,
+                            "total_diamonds": total_diamonds,
+                            "estimated_usd":  estimated_usd,
+                            "net_payout_usd": net_payout,
+                        },
+                    })
+
         # ---- Viewer Count (RoomUserSeqEvent in TikTokLive v7) ----
         @client.on(RoomUserSeqEvent)
         async def on_viewers(event: RoomUserSeqEvent):
-            viewers = int(_safe(event, "total", default=0) or _safe(event, "total_user", default=0))
+            viewers = int(
+                _safe(event, "total", default=0)
+                or _safe(event, "total_user", default=0)
+                or _safe(event, "popularity", default=0)
+                or 0
+            )
             if viewers > 0:
                 self._engine.update_viewer_count(viewers)
 
@@ -2084,13 +2151,15 @@ class TikTokSession:
             ]
 
             total_diamonds = self._engine.get_total_diamonds()
-            estimated_usd  = round(total_diamonds * DIAMOND_TO_USD_RATE, 4)
-            net_payout     = round(estimated_usd * NET_PAYOUT_RATIO, 4)
+            estimated_usd  = round(total_diamonds * DIAMOND_TO_USD_RATE, 2)
+            net_payout     = round(estimated_usd * NET_PAYOUT_RATIO, 2)
+
+            current_viewers = getattr(self._engine, "_viewers", viewers) or viewers
 
             await self._send({
                 "type": "viewers",
                 "data": {
-                    "viewer_count":   getattr(self._engine, "_viewers", viewers),
+                    "viewer_count":   current_viewers,
                     "total_diamonds": total_diamonds,
                     "estimated_usd":  estimated_usd,
                     "net_payout_usd": net_payout,
@@ -2158,7 +2227,7 @@ class TikTokSession:
                     "avatar_url":       uinfo["avatar_url"],
                     "like_count":       like_count,
                     "total_likes":      total,
-                    "likes_per_second": round(lps, 2),
+                    "likes_per_second": round(lps, 1),
                 },
             })
 
@@ -2269,6 +2338,9 @@ class TikTokSession:
                     if not is_opp and to_user and not recipient_name:
                         recipient_name = _safe(to_user, "nickname") or _safe(to_user, "display_id") or recipient_name
 
+            # Guard host diamonds: only host gifts increase host stream diamonds
+            is_host_gift = (recipient_side != "opponent")
+
             txn = self._engine.process_gift(
                 uinfo["user_id"], uinfo["unique_id"],
                 uinfo["nickname"], uinfo["avatar_url"],
@@ -2278,9 +2350,10 @@ class TikTokSession:
                 revealed_username=revealed_username,
                 revealed_nickname=revealed_nickname,
                 revealed_avatar=revealed_avatar,
+                is_host_gift=is_host_gift,
             )
 
-            if room_fan_tickets > 0:
+            if room_fan_tickets > 0 and is_host_gift:
                 self._engine.set_total_diamonds(room_fan_tickets)
 
             txn_dict = txn.to_dict() if hasattr(txn, "to_dict") else txn
@@ -2292,8 +2365,8 @@ class TikTokSession:
             ]
 
             total_diamonds = self._engine.get_total_diamonds()
-            estimated_usd  = round(total_diamonds * DIAMOND_TO_USD_RATE, 4)
-            net_payout     = round(estimated_usd * NET_PAYOUT_RATIO, 4)
+            estimated_usd  = round(total_diamonds * DIAMOND_TO_USD_RATE, 2)
+            net_payout     = round(estimated_usd * NET_PAYOUT_RATIO, 2)
 
             await self._send({
                 "type": "gift",
@@ -2554,8 +2627,8 @@ class TikTokSession:
                         "combo_diamonds": diam_count,
                         "combo_usd": round(diam_count * DIAMOND_TO_USD_RATE, 2),
                         "total_diamonds": self._engine.get_total_diamonds(),
-                        "estimated_usd": round(self._engine.get_total_diamonds() * DIAMOND_TO_USD_RATE, 4),
-                        "net_payout_usd": round(self._engine.get_total_diamonds() * DIAMOND_TO_USD_RATE * NET_PAYOUT_RATIO, 4),
+                        "estimated_usd": round(self._engine.get_total_diamonds() * DIAMOND_TO_USD_RATE, 2),
+                        "net_payout_usd": round(self._engine.get_total_diamonds() * DIAMOND_TO_USD_RATE * NET_PAYOUT_RATIO, 2),
                         "recipient_side": battle_rec_side,
                         "recipient_name": battle_rec_name,
                         "is_battle_gift": True,

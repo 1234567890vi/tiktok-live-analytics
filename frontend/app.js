@@ -529,10 +529,33 @@ function fmt(n) {
   if (n >= 1_000)     return (n / 1_000).toFixed(1) + 'K';
   return String(Math.round(n));
 }
+function fmtInt(n) {
+  if (n == null || isNaN(n)) return '0';
+  return Number(Math.round(n)).toLocaleString('en-US');
+}
 function fmtUsd(n) {
   if (n == null || isNaN(n)) return '0.00';
   return Number(n).toFixed(2);
 }
+
+// Real-time LPS tracking & smooth decay
+let lastLikeReceivedAt = 0;
+let currentLps = 0.0;
+
+setInterval(() => {
+  if (lastLikeReceivedAt > 0) {
+    const elapsed = Date.now() - lastLikeReceivedAt;
+    if (elapsed > 2000) {
+      if (elapsed > 3800) {
+        currentLps = 0.0;
+      } else {
+        currentLps = Math.max(0.0, currentLps * 0.6);
+      }
+      if (DOM.kpiLps) DOM.kpiLps.textContent = currentLps.toFixed(1);
+      if (DOM.pkSoloLps) DOM.pkSoloLps.textContent = currentLps.toFixed(1);
+    }
+  }
+}, 500);
 
 // ---------------------------------------------------------------------------
 // KPI bump animation
@@ -1144,7 +1167,7 @@ function createGiftNode(data) {
 
   const usdEst = (data.combo_usd !== undefined && data.combo_usd !== null)
     ? Number(data.combo_usd).toFixed(2)
-    : (totalComboDiamonds * 0.005).toFixed(2);
+    : (totalComboDiamonds * 0.01).toFixed(2);
 
   const isStreak = !!data.streak_active;
 
@@ -1338,7 +1361,7 @@ function addGift(data) {
 
   const usdEst = (data.combo_usd !== undefined && data.combo_usd !== null)
     ? Number(data.combo_usd).toFixed(2)
-    : (totalComboDiamonds * 0.005).toFixed(2);
+    : (totalComboDiamonds * 0.01).toFixed(2);
 
   // Recipient side tracking & separate team counters
   const recipientSide = data.recipient_side || (data.is_battle_gift ? 'host' : 'host');
@@ -1389,12 +1412,14 @@ function addGift(data) {
 
   // Update revenue KPIs immediately
   if (data.total_diamonds !== undefined) {
-    bumpKpi(DOM.kpiDiamonds, data.total_diamonds);
+    bumpKpi(DOM.kpiDiamonds, data.total_diamonds, fmtInt);
     bumpKpi(DOM.kpiUsd, data.estimated_usd, fmtUsd);
     bumpKpi(DOM.kpiNet, data.net_payout_usd, fmtUsd);
-    DOM.lbTotalDiamonds.textContent = fmt(data.total_diamonds);
+    DOM.lbTotalDiamonds.textContent = fmtInt(data.total_diamonds);
     DOM.lbGrossUsd.textContent      = fmtUsd(data.estimated_usd);
     DOM.lbNetUsd.textContent        = fmtUsd(data.net_payout_usd);
+    if (DOM.pkSoloDiamonds) DOM.pkSoloDiamonds.textContent = fmtInt(data.total_diamonds);
+    if (DOM.pkSoloUsd) DOM.pkSoloUsd.textContent = `$${fmtUsd(data.net_payout_usd)}`;
   }
 
   // In-place streak upgrade (zero delay, prevents DOM flooding on long streaks)
@@ -2879,18 +2904,25 @@ function renderPkMvps(container, armies, scoreClass) {
 function applySnapshot(data) {
   if (!data) return;
 
-  bumpKpi(DOM.kpiViewers,  data.viewer_count);
-  bumpKpi(DOM.kpiLikes,    data.total_likes);
-  bumpKpi(DOM.kpiComments, data.total_comments);
-  bumpKpi(DOM.kpiDiamonds, data.total_diamonds);
-  bumpKpi(DOM.kpiUsd,      data.estimated_usd,  fmtUsd);
-  bumpKpi(DOM.kpiNet,      data.net_payout_usd, fmtUsd);
+  bumpKpi(DOM.kpiViewers,  data.viewer_count,   fmtInt);
+  bumpKpi(DOM.kpiLikes,    data.total_likes,     fmtInt);
+  bumpKpi(DOM.kpiComments, data.total_comments,  fmtInt);
+  bumpKpi(DOM.kpiDiamonds, data.total_diamonds,  fmtInt);
+  bumpKpi(DOM.kpiUsd,      data.estimated_usd,   fmtUsd);
+  bumpKpi(DOM.kpiNet,      data.net_payout_usd,  fmtUsd);
 
-  DOM.kpiLps.textContent = ((data.likes_per_second) || 0).toFixed(1);
+  currentLps = Number(data.likes_per_second) || 0.0;
+  if (currentLps > 0) lastLikeReceivedAt = Date.now();
+  DOM.kpiLps.textContent = currentLps.toFixed(1);
 
-  DOM.lbTotalDiamonds.textContent = fmt(data.total_diamonds  || 0);
+  DOM.lbTotalDiamonds.textContent = fmtInt(data.total_diamonds  || 0);
   DOM.lbGrossUsd.textContent      = fmtUsd(data.estimated_usd  || 0);
   DOM.lbNetUsd.textContent        = fmtUsd(data.net_payout_usd || 0);
+
+  if (DOM.pkSoloViewers)  DOM.pkSoloViewers.textContent = fmtInt(data.viewer_count || 0);
+  if (DOM.pkSoloDiamonds) DOM.pkSoloDiamonds.textContent = fmtInt(data.total_diamonds || 0);
+  if (DOM.pkSoloUsd)      DOM.pkSoloUsd.textContent = `$${fmtUsd(data.net_payout_usd || 0)}`;
+  if (DOM.pkSoloLps)      DOM.pkSoloLps.textContent = currentLps.toFixed(1);
 
   if (data.total_gifts != null && data.total_gifts > 0) {
     giftCount = Math.max(giftCount, data.total_gifts);
@@ -3513,8 +3545,11 @@ function connectWs(username) {
 
       case 'like':
         if (msg.data) {
-          bumpKpi(DOM.kpiLikes, msg.data.total_likes || 0);
-          DOM.kpiLps.textContent = ((msg.data.likes_per_second) || 0).toFixed(1);
+          bumpKpi(DOM.kpiLikes, msg.data.total_likes || 0, fmtInt);
+          lastLikeReceivedAt = Date.now();
+          currentLps = Number(msg.data.likes_per_second) || 0.0;
+          DOM.kpiLps.textContent = currentLps.toFixed(1);
+          if (DOM.pkSoloLps) DOM.pkSoloLps.textContent = currentLps.toFixed(1);
           updateLiker(msg.data);
         }
         break;
@@ -3522,15 +3557,18 @@ function connectWs(username) {
       case 'viewers':
         if (msg.data) {
           if (msg.data.viewer_count != null) {
-            bumpKpi(DOM.kpiViewers, msg.data.viewer_count);
+            bumpKpi(DOM.kpiViewers, msg.data.viewer_count, fmtInt);
+            if (DOM.pkSoloViewers) DOM.pkSoloViewers.textContent = fmtInt(msg.data.viewer_count);
           }
           if (msg.data.total_diamonds != null && msg.data.total_diamonds > 0) {
-            bumpKpi(DOM.kpiDiamonds, msg.data.total_diamonds);
+            bumpKpi(DOM.kpiDiamonds, msg.data.total_diamonds, fmtInt);
             bumpKpi(DOM.kpiUsd, msg.data.estimated_usd, fmtUsd);
             bumpKpi(DOM.kpiNet, msg.data.net_payout_usd, fmtUsd);
-            DOM.lbTotalDiamonds.textContent = fmt(msg.data.total_diamonds);
+            DOM.lbTotalDiamonds.textContent = fmtInt(msg.data.total_diamonds);
             DOM.lbGrossUsd.textContent      = fmtUsd(msg.data.estimated_usd);
             DOM.lbNetUsd.textContent        = fmtUsd(msg.data.net_payout_usd);
+            if (DOM.pkSoloDiamonds) DOM.pkSoloDiamonds.textContent = fmtInt(msg.data.total_diamonds);
+            if (DOM.pkSoloUsd) DOM.pkSoloUsd.textContent = `$${fmtUsd(msg.data.net_payout_usd)}`;
           }
           updateFloatingLiveTracker(msg.data);
         }
@@ -3840,6 +3878,14 @@ function applyLanguage(lang) {
   if (DOM.usernameInput) DOM.usernameInput.placeholder = t.usernamePlaceholder;
   if (DOM.startBtn) DOM.startBtn.textContent = t.startBtn;
   if (DOM.stopBtn) DOM.stopBtn.textContent = t.stopBtn;
+
+  // KPI Card Labels
+  if ($('labelKpiViewers')) $('labelKpiViewers').textContent = (lang === 'ar' ? 'الحضور الآن' : 'Live Viewers');
+  if ($('labelKpiLikes')) $('labelKpiLikes').textContent = (lang === 'ar' ? 'إجمالي التكبيس' : 'Total Likes');
+  if ($('labelKpiLps')) $('labelKpiLps').textContent = (lang === 'ar' ? 'سرعة التكبيس/ث' : 'LPS');
+  if ($('labelKpiDiamonds')) $('labelKpiDiamonds').textContent = (lang === 'ar' ? 'ألماسات البث' : 'Live Diamonds');
+  if ($('labelKpiDiamondsSub')) $('labelKpiDiamondsSub').textContent = (lang === 'ar' ? 'ألماسات البث الكاملة' : 'Total Stream Diamonds');
+  if ($('labelKpiNetText')) $('labelKpiNetText').textContent = (lang === 'ar' ? 'صافي الأرباح' : 'Net Payout');
 
   // Sidebar Controls
   if ($('sidebarTitle')) $('sidebarTitle').textContent = t.sidebarTitle;
@@ -4418,14 +4464,14 @@ function startDemoSimulation() {
   }
 
   // Update initial KPIs
-  bumpKpi(DOM.kpiViewers, demoViewers);
-  bumpKpi(DOM.kpiLikes, demoLikes);
-  bumpKpi(DOM.kpiDiamonds, demoDiamonds);
-  bumpKpi(DOM.kpiUsd, (demoDiamonds * 0.005).toFixed(2), fmtUsd);
-  bumpKpi(DOM.kpiNet, (demoDiamonds * 0.005 * 0.5).toFixed(2), fmtUsd);
-  DOM.lbTotalDiamonds.textContent = fmt(demoDiamonds);
-  DOM.lbGrossUsd.textContent = fmtUsd(demoDiamonds * 0.005);
-  DOM.lbNetUsd.textContent = fmtUsd(demoDiamonds * 0.005 * 0.5);
+  bumpKpi(DOM.kpiViewers, demoViewers, fmtInt);
+  bumpKpi(DOM.kpiLikes, demoLikes, fmtInt);
+  bumpKpi(DOM.kpiDiamonds, demoDiamonds, fmtInt);
+  bumpKpi(DOM.kpiUsd, (demoDiamonds * 0.01).toFixed(2), fmtUsd);
+  bumpKpi(DOM.kpiNet, (demoDiamonds * 0.005).toFixed(2), fmtUsd);
+  DOM.lbTotalDiamonds.textContent = fmtInt(demoDiamonds);
+  DOM.lbGrossUsd.textContent = fmtUsd(demoDiamonds * 0.01);
+  DOM.lbNetUsd.textContent = fmtUsd(demoDiamonds * 0.005);
 
   // Live Friends demo simulation
   const demoFriends = [
@@ -4531,12 +4577,12 @@ function startDemoSimulation() {
       }
 
       // Update diamond KPIs
-      bumpKpi(DOM.kpiDiamonds, demoDiamonds);
-      bumpKpi(DOM.kpiUsd, (demoDiamonds * 0.005).toFixed(2), fmtUsd);
-      bumpKpi(DOM.kpiNet, (demoDiamonds * 0.005 * 0.5).toFixed(2), fmtUsd);
-      DOM.lbTotalDiamonds.textContent = fmt(demoDiamonds);
-      DOM.lbGrossUsd.textContent = fmtUsd(demoDiamonds * 0.005);
-      DOM.lbNetUsd.textContent = fmtUsd(demoDiamonds * 0.005 * 0.5);
+      bumpKpi(DOM.kpiDiamonds, demoDiamonds, fmtInt);
+      bumpKpi(DOM.kpiUsd, (demoDiamonds * 0.01).toFixed(2), fmtUsd);
+      bumpKpi(DOM.kpiNet, (demoDiamonds * 0.005).toFixed(2), fmtUsd);
+      DOM.lbTotalDiamonds.textContent = fmtInt(demoDiamonds);
+      DOM.lbGrossUsd.textContent = fmtUsd(demoDiamonds * 0.01);
+      DOM.lbNetUsd.textContent = fmtUsd(demoDiamonds * 0.005);
 
       // Update PK points matched to recipient side
       if (recSide === 'host') {
@@ -4593,9 +4639,9 @@ function startDemoSimulation() {
         recipient_side: 'host',
         recipient_name: 'المضيف',
       });
-      bumpKpi(DOM.kpiDiamonds, demoDiamonds);
-      bumpKpi(DOM.kpiUsd, (demoDiamonds * 0.005).toFixed(2), fmtUsd);
-      bumpKpi(DOM.kpiNet, (demoDiamonds * 0.005 * 0.5).toFixed(2), fmtUsd);
+      bumpKpi(DOM.kpiDiamonds, demoDiamonds, fmtInt);
+      bumpKpi(DOM.kpiUsd, (demoDiamonds * 0.01).toFixed(2), fmtUsd);
+      bumpKpi(DOM.kpiNet, (demoDiamonds * 0.005).toFixed(2), fmtUsd);
     }
 
     // 3.8. Legendary Lion Support Takeover at tick 10 & 25
@@ -4619,9 +4665,9 @@ function startDemoSimulation() {
         recipient_side: 'host',
         recipient_name: 'فريقنا',
       });
-      bumpKpi(DOM.kpiDiamonds, demoDiamonds);
-      bumpKpi(DOM.kpiUsd, (demoDiamonds * 0.005).toFixed(2), fmtUsd);
-      bumpKpi(DOM.kpiNet, (demoDiamonds * 0.005 * 0.5).toFixed(2), fmtUsd);
+      bumpKpi(DOM.kpiDiamonds, demoDiamonds, fmtInt);
+      bumpKpi(DOM.kpiUsd, (demoDiamonds * 0.01).toFixed(2), fmtUsd);
+      bumpKpi(DOM.kpiNet, (demoDiamonds * 0.005).toFixed(2), fmtUsd);
     }
 
     // 4. Random liker every 4 ticks
@@ -4933,11 +4979,11 @@ function updateFloatingLiveTracker(data) {
     if (DOM.floatingBarStreamer) DOM.floatingBarStreamer.textContent = '@' + activeStreamer;
     if (DOM.floatingBarDiamonds) {
       const curDiam = data?.total_diamonds != null ? data.total_diamonds : (DOM.kpiDiamonds ? parseInt(DOM.kpiDiamonds.textContent.replace(/[^0-9]/g, '') || '0', 10) : 0);
-      DOM.floatingBarDiamonds.textContent = fmt(curDiam);
+      DOM.floatingBarDiamonds.textContent = fmtInt(curDiam);
     }
     if (DOM.floatingBarViewers) {
       const curViewers = data?.viewer_count != null ? data.viewer_count : (DOM.kpiViewers ? parseInt(DOM.kpiViewers.textContent.replace(/[^0-9]/g, '') || '0', 10) : 0);
-      DOM.floatingBarViewers.textContent = fmt(curViewers);
+      DOM.floatingBarViewers.textContent = fmtInt(curViewers);
     }
     DOM.floatingLiveTrackerBar.classList.remove('hidden');
   } else if (DOM.floatingLiveTrackerBar) {
