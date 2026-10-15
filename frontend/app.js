@@ -2559,7 +2559,6 @@ function applyViewerPermissions(perms) {
   // 1. Comments Section
   const commentsSec = document.getElementById('commentsSection');
   setVisibility(commentsSec, currentViewerPermissions.comments);
-  document.querySelector('.nav-dock-btn[data-target="commentsSection"]')?.classList.toggle('hidden', !currentViewerPermissions.comments);
 
   // 2. Likes KPI Card and Likers Row
   const likesCard = DOM.kpiLikes ? DOM.kpiLikes.closest('.kpi-card') : null;
@@ -2572,22 +2571,18 @@ function applyViewerPermissions(perms) {
   const lbSec = document.getElementById('leaderboardSection');
   setVisibility(diamondsCard, currentViewerPermissions.supporters);
   setVisibility(lbSec, currentViewerPermissions.supporters);
-  document.querySelector('.nav-dock-btn[data-target="leaderboardSection"]')?.classList.toggle('hidden', !currentViewerPermissions.supporters);
 
   // 4. Gift Alerts Section
   const giftsSec = document.getElementById('giftsSection');
   setVisibility(giftsSec, currentViewerPermissions.gifts);
-  document.querySelector('.nav-dock-btn[data-target="giftsSection"]')?.classList.toggle('hidden', !currentViewerPermissions.gifts);
 
   // 5. PK Battle Arena
   const pkSec = document.getElementById('pkSection');
   setVisibility(pkSec, currentViewerPermissions.pk_battles);
-  document.querySelector('.nav-dock-btn[data-target="pkSection"]')?.classList.toggle('hidden', !currentViewerPermissions.pk_battles);
 
   // 6. Live Friends Section
   const friendsSec = document.getElementById('liveFriendsSection');
   setVisibility(friendsSec, currentViewerPermissions.live_friends);
-  document.querySelector('.nav-dock-btn[data-target="liveFriendsSection"]')?.classList.toggle('hidden', !currentViewerPermissions.live_friends);
 }
 
 // ---------------------------------------------------------------------------
@@ -3605,7 +3600,7 @@ if (sessionStorage.getItem('tt_admin_token')) {
 // 1. Dynamic Tactile Ripple Effect (تموج ضوئي ناعم مع كل ضغطة)
 function initTactileRipple() {
   document.addEventListener('pointerdown', (e) => {
-    const target = e.target.closest('button, a[role="button"], .quick-stream-btn, .gift-filter-tab, .tactile-btn, .friend-track-btn, .friend-tiktok-btn, .kpi-card, .nav-dock-btn');
+    const target = e.target.closest('button, a[role="button"], .quick-stream-btn, .gift-filter-tab, .tactile-btn, .friend-track-btn, .friend-tiktok-btn, .kpi-card');
     if (!target) return;
 
     target.classList.add('ripple-container');
@@ -3706,62 +3701,9 @@ function initAllKineticScrolls() {
   document.querySelectorAll('.drag-scrollable').forEach(el => makeKineticScrollable(el));
 }
 
-// 3. Floating Quick Navigation Dock Controller (شريط التنقل السريع التفاعلي)
-function initFloatingNavDock() {
-  const dock = $('floatingNavDock');
-  if (!dock) return;
-
-  const buttons = dock.querySelectorAll('.nav-dock-btn[data-target]');
-  const scrollTopBtn = $('navDockScrollTop');
-
-  buttons.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const targetId = btn.getAttribute('data-target');
-      const targetEl = document.getElementById(targetId);
-      if (targetEl) {
-        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        buttons.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-      }
-    });
-  });
-
-  if (scrollTopBtn) {
-    scrollTopBtn.addEventListener('click', () => {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
-  }
-
-  const sectionIds = ['pkSection', 'commentsSection', 'giftsSection', 'leaderboardSection', 'liveFriendsSection'];
-  const sections = sectionIds.map(id => document.getElementById(id)).filter(Boolean);
-
-  if ('IntersectionObserver' in window && sections.length > 0) {
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          const id = entry.target.id;
-          buttons.forEach(btn => {
-            if (btn.getAttribute('data-target') === id) {
-              btn.classList.add('active');
-            } else {
-              btn.classList.remove('active');
-            }
-          });
-        }
-      });
-    }, {
-      rootMargin: '-15% 0px -65% 0px',
-      threshold: 0.1
-    });
-
-    sections.forEach(sec => observer.observe(sec));
-  }
-}
-
 // Initialize all fluidity modules
 initTactileRipple();
 initAllKineticScrolls();
-initFloatingNavDock();
 
 console.log('🎯 TIKTOK VRF initialized successfully with Fluid UI & Kinetic Navigation.');
 
