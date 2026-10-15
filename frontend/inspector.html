@@ -166,6 +166,31 @@
     </div>
   </header>
 
+  <!-- Active Live Stream Banner (يظهر تلقائياً عندما يكون التتبع المباشر نشطاً في الخلفية) -->
+  <div id="liveStreamActiveBanner" class="hidden max-w-5xl mx-auto px-4 sm:px-6 pt-4">
+    <div class="flex items-center justify-between p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/90 via-emerald-900/70 to-gray-900/90 border border-emerald-500/50 shadow-lg backdrop-blur-md">
+      <div class="flex items-center gap-3">
+        <div class="relative flex h-3 w-3">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+        </div>
+        <div>
+          <div class="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
+            <span>البث المباشر يعمل حالياً في الخلفية:</span>
+            <span id="bannerStreamerUser" class="text-emerald-300 font-mono font-black">@user</span>
+          </div>
+          <div class="text-[11px] text-emerald-400/80 hidden sm:block">
+            جميع الإحصائيات والألماسات ونقاط الجولة مستمرة في التجميع دون أي انقطاع.
+          </div>
+        </div>
+      </div>
+      <a href="/" class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-gray-950 font-black text-xs transition active:scale-95 shadow-md">
+        <span>📺</span>
+        <span>العودة للايف</span>
+      </a>
+    </div>
+  </div>
+
   <!-- ════════════════════════════════════════════════════════════════
        MAIN HERO SECTION & SMART SEARCH INPUT
   ════════════════════════════════════════════════════════════════ -->
@@ -1336,10 +1361,21 @@
       applyLanguage(currentLang === 'ar' ? 'en' : 'ar');
     });
 
+    function checkActiveLiveStream() {
+      const activeStreamer = localStorage.getItem('tt_active_streamer');
+      const banner = document.getElementById('liveStreamActiveBanner');
+      const bannerUser = document.getElementById('bannerStreamerUser');
+      if (activeStreamer && banner && bannerUser) {
+        bannerUser.textContent = '@' + activeStreamer;
+        banner.classList.remove('hidden');
+      }
+    }
+
     // Auto-check URL parameters (e.g. /inspector?url=...)
     window.addEventListener('DOMContentLoaded', () => {
       applyTheme(currentTheme);
       applyLanguage(currentLang);
+      checkActiveLiveStream();
 
       const params = new URLSearchParams(window.location.search);
       const urlParam = params.get('url');
