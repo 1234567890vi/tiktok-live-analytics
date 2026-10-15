@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تنزيل فيديوهات تيك توك بدون علامة مائية — TIKTOK VRF</title>
+  <meta name="description" content="أداة تنزيل فيديوهات تيك توك بدون علامة مائية مجاناً بأعلى جودة Ultra HD 1080p و MP3 لجميع الأجهزة." />
+
+  <!-- Google Fonts: Cairo, Inter, Fira Code -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Inter:wght@400;500;600;700;800;900&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              pink: '#ff0050',
+              cyan: '#00f2fe',
+              purple: '#8b5cf6',
+              dark: '#0d0d12',
+              card: '#16161f',
+            }
+          },
+          fontFamily: {
+            sans: ['Cairo', 'Inter', 'system-ui', 'sans-serif'],
+            mono: ['Fira Code', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/static/styles.css" />
+  <style>
+    /* Theme overrides */
+    html.theme-oled {
+      --bg-base: #000000;
+      background-color: #000000 !important;
+    }
+    html.theme-oled body {
+      background-color: #000000 !important;
+    }
+    html.theme-oled .glass-panel {
+      background-color: #050508 !important;
+      border-color: #1a1a24 !important;
+    }
+    html.theme-light {
+      --bg-base: #f8fafc;
+      background-color: #f8fafc !important;
+      color: #0f172a !important;
+    }
+    html.theme-light body {
+      background-color: #f8fafc !important;
+      color: #0f172a !important;
+    }
+    html.theme-light .glass-panel {
+      background-color: #ffffff !important;
+      border-color: #e2e8f0 !important;
+      color: #0f172a !important;
+      box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+    }
+    html.theme-light .text-white {
+      color: #0f172a !important;
+    }
+    html.theme-light .text-gray-200 {
+      color: #1e293b !important;
+    }
+    html.theme-light .text-gray-300 {
+      color: #334155 !important;
+    }
+    html.theme-light .text-gray-400 {
+      color: #64748b !important;
+    }
+    html.theme-light .bg-gray-900,
+    html.theme-light .bg-gray-900\/80,
+    html.theme-light .bg-gray-900\/90 {
+      background-color: #ffffff !important;
+      border-color: #e2e8f0 !important;
+    }
+    html.theme-light .bg-gray-950,
+    html.theme-light .bg-gray-950\/80,
+    html.theme-light .bg-gray-950\/90 {
+      background-color: #f1f5f9 !important;
+      border-color: #cbd5e1 !important;
+    }
+    html.theme-light .border-gray-800 {
+      border-color: #e2e8f0 !important;
+    }
+    html.theme-light .border-gray-700 {
+      border-color: #cbd5e1 !important;
+    }
+    .pulse-glow {
+      box-shadow: 0 0 35px -5px rgba(255, 0, 80, 0.35);
+    }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen flex flex-col font-sans selection:bg-pink-600 selection:text-white">
+
+  <!-- ════════════════════════════════════════════════════════════════
+       NAVBAR / HEADER
+  ════════════════════════════════════════════════════════════════ -->
+  <header class="bg-gray-900/80 backdrop-blur-md border-b border-gray-800 sticky top-0 z-40">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+      
+      <!-- Logo & Branding -->
+      <a href="/" class="flex items-center gap-2.5 group">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-pink-500 via-purple-600 to-indigo-600 flex items-center justify-center text-white font-black text-lg shadow-lg shadow-pink-500/25 group-hover:scale-105 transition">
+          📥
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-black text-white text-base tracking-wide" id="brandTitle">TIKTOK VRF</span>
+            <span class="text-[10px] px-2 py-0.5 rounded-full bg-pink-500/20 border border-pink-500/40 text-pink-300 font-bold">Downloader HD</span>
+          </div>
+          <p class="text-[11px] text-gray-400" id="brandSubtitle">تنزيل الفيديوهات بدون علامة مائية</p>
+        </div>
+      </a>
+
+      <!-- Navigation & Actions -->
+      <div class="flex items-center gap-2 sm:gap-3">
+        <!-- Live Tracker Link -->
+        <a href="/" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-200 text-xs font-bold transition active:scale-95 shadow-sm">
+          <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+          <span id="navLiveTracker">البث المباشر</span>
+        </a>
+
+        <!-- Admin Panel Link -->
+        <a href="/admin" class="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-950/60 hover:bg-purple-900/60 border border-purple-700/50 text-purple-300 text-xs font-bold transition active:scale-95">
+          <span>👑</span>
+          <span id="navAdmin">لوحة الأدمن</span>
+        </a>
+
+        <!-- Theme Toggle -->
+        <button id="themeToggleBtn" type="button" class="p-2 rounded-xl bg-gray-800/80 hover:bg-gray-700 border border-gray-700 text-gray-300 transition active:scale-90" title="تبديل المظهر">
+          <span id="themeIcon">🌙</span>
+        </button>
+
+        <!-- Language Toggle -->
+        <button id="langToggleBtn" type="button" class="px-2.5 py-1.5 rounded-xl bg-gray-800/80 hover:bg-gray-700 border border-gray-700 text-gray-300 text-xs font-bold transition active:scale-90">
+          <span id="langFlag">🌐</span> <span id="langText">EN</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       MAIN CONTENT CONTAINER
+  ════════════════════════════════════════════════════════════════ -->
+  <main class="flex-1 max-w-5xl mx-auto w-full px-4 sm:px-6 py-8 sm:py-12 space-y-8">
+
+    <!-- Hero Section -->
+    <section class="text-center space-y-3.5 max-w-2xl mx-auto">
+      <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-pink-500/10 border border-pink-500/30 text-pink-300 text-xs font-bold shadow-sm">
+        <span>✨</span>
+        <span id="heroBadge">دقة فائقة 1080p Ultra HD — مجاني 100% بدون علامة مائية</span>
+      </div>
+
+      <h1 class="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-tight" id="heroTitle">
+        تنزيل فيديوهات <span class="bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-400 bg-clip-text text-transparent">تيك توك</span> بدون علامة مائية
+      </h1>
+
+      <p class="text-sm sm:text-base text-gray-400 leading-relaxed" id="heroSubtitle">
+        الصق رابط أي فيديو أو ألبوم صور من تيك توك، واحصل فوراً على خيارات التنزيل المباشر بأعلى جودة متوفرة (1080p Ultra HD / SD / MP3) بنقرة واحدة فقط.
+      </p>
+    </section>
+
+    <!-- Main Downloader Box -->
+    <section class="glass-panel bg-gray-900/90 border border-gray-800 rounded-3xl p-4 sm:p-7 shadow-2xl relative overflow-hidden pulse-glow">
+      <!-- Glow ambient background -->
+      <div class="absolute -top-24 -right-24 w-72 h-72 bg-pink-500/15 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="absolute -bottom-24 -left-24 w-72 h-72 bg-purple-500/15 rounded-full blur-3xl pointer-events-none"></div>
+
+      <form id="dlForm" class="relative z-10 space-y-4" onsubmit="event.preventDefault(); fetchVideoDetails();">
+        <div class="flex flex-col sm:flex-row items-stretch gap-2.5">
+          
+          <!-- Input field with Paste & Clear buttons -->
+          <div class="relative flex-1 flex items-center">
+            <input 
+              type="text" 
+              id="videoUrlInput" 
+              dir="ltr"
+              placeholder="https://www.tiktok.com/@username/video/..." 
+              autocomplete="off"
+              spellcheck="false"
+              class="w-full bg-gray-950 border-2 border-gray-700/80 focus:border-pink-500 rounded-2xl py-3.5 sm:py-4 px-4 sm:px-5 text-sm sm:text-base text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-pink-500/30 transition shadow-inner font-mono pr-20"
+            />
+            
+            <div class="absolute left-2.5 flex items-center gap-1">
+              <!-- Clear button -->
+              <button 
+                type="button" 
+                id="btnClearInput" 
+                class="hidden p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition text-xs" 
+                title="مسح الرابط"
+              >
+                ✕
+              </button>
+              <!-- Paste button -->
+              <button 
+                type="button" 
+                id="btnPasteUrl" 
+                class="px-2.5 py-1.5 rounded-xl bg-gray-800/90 hover:bg-gray-700 text-gray-200 border border-gray-600/60 text-xs font-bold transition active:scale-90 flex items-center gap-1 shadow-sm cursor-pointer"
+                title="لصق من الحافظة"
+              >
+                <span>📋</span>
+                <span id="btnPasteText">لصق</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Submit CTA Button -->
+          <button 
+            type="submit" 
+            id="btnFetchVideo" 
+            class="bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:from-pink-500 hover:to-indigo-500 text-white font-extrabold py-3.5 sm:py-4 px-6 sm:px-8 rounded-2xl shadow-lg shadow-pink-600/30 transition active:scale-95 flex items-center justify-center gap-2 text-sm sm:text-base shrink-0 cursor-pointer"
+          >
+            <span id="btnFetchIcon">⚡</span>
+            <span id="btnFetchText">استخراج وتحميل</span>
+          </button>
+        </div>
+
+        <!-- Hint / Supported URL examples -->
+        <div class="flex flex-wrap items-center justify-between text-[11px] sm:text-xs text-gray-400 px-1 pt-0.5 gap-2">
+          <div class="flex items-center gap-1.5">
+            <span class="text-emerald-400">✔</span>
+            <span id="hintSupported">يدعم جميع روابط تيك توك: العادية، المختصرة (vt.tiktok.com)، ودويين (Douyin)</span>
+          </div>
+          <span class="text-pink-400 font-mono font-semibold">100% Watermark Free</span>
+        </div>
+      </form>
+
+      <!-- Error Notice Box -->
+      <div id="dlErrorBox" class="hidden mt-4 p-4 rounded-2xl bg-red-950/50 border border-red-500/50 text-red-200 text-xs sm:text-sm flex items-start gap-3">
+        <span class="text-lg">⚠️</span>
+        <div class="space-y-1 flex-1">
+          <div class="font-bold text-red-300" id="errorTitle">تعذر استخراج الفيديو</div>
+          <div id="errorMessage" class="text-red-200/90 leading-relaxed"></div>
+        </div>
+      </div>
+
+      <!-- Loading State Indicator -->
+      <div id="dlLoadingBox" class="hidden mt-6 p-6 rounded-2xl bg-gray-950/60 border border-gray-800 text-center space-y-3">
+        <div class="inline-block w-10 h-10 border-4 border-pink-500/30 border-t-pink-500 rounded-full animate-spin"></div>
+        <div class="text-sm font-bold text-gray-200" id="loadingText">جارٍ فحص الرابط واستخراج الفيديو والجودات الفائقة...</div>
+        <p class="text-xs text-gray-400" id="loadingSub">يرجى الانتظار بضع ثوانٍ بينما يتم فك التشفير وتجهيز روابط التحميل المباشر</p>
+      </div>
+    </section>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         VIDEO SHOWCASE & DOWNLOAD QUALITIES CARD (The Main Result)
+    ════════════════════════════════════════════════════════════════ -->
+    <section id="dlResultCard" class="hidden glass-panel bg-gray-900/90 border border-gray-800 rounded-3xl p-5 sm:p-7 shadow-2xl space-y-6">
+      
+      <!-- Video Metadata Header -->
+      <div class="flex flex-col lg:flex-row gap-6 items-start">
+        
+        <!-- Media Preview: Video Player or Poster -->
+        <div class="w-full lg:w-72 xl:w-80 shrink-0 space-y-2">
+          <div class="relative w-full aspect-[9/16] max-h-[360px] rounded-2xl overflow-hidden bg-black border border-gray-800 shadow-xl group">
+            <video 
+              id="resVideoPlayer" 
+              controls 
+              playsinline
+              preload="metadata" 
+              poster=""
+              class="w-full h-full object-cover"
+            ></video>
+            <span id="resDurationBadge" class="absolute bottom-2.5 right-2.5 bg-black/85 text-white text-xs px-2 py-0.5 rounded-md font-mono font-bold backdrop-blur-sm">
+              00:00
+            </span>
+            <span class="absolute top-2.5 left-2.5 bg-pink-600/90 text-white text-[10px] px-2 py-0.5 rounded-full font-bold backdrop-blur-sm">
+              HD No Watermark
+            </span>
+          </div>
+          <p class="text-[11px] text-gray-400 text-center font-mono" id="playerHint">يمكنك تشغيل الفيديو للمعاينة قبل التحميل</p>
+        </div>
+
+        <!-- Video Details & Download Options -->
+        <div class="flex-1 space-y-5 w-full">
+          
+          <!-- Author Card & Stats -->
+          <div class="p-3.5 sm:p-4 rounded-2xl bg-gray-950/70 border border-gray-800/80 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <img id="resAuthorAvatar" src="" alt="Author" class="w-12 h-12 rounded-full border-2 border-pink-500/50 object-cover" />
+              <div>
+                <div class="text-sm font-bold text-white flex items-center gap-1.5" id="resAuthorNickname">
+                  Creator Name
+                </div>
+                <div class="text-xs text-pink-400 font-mono font-semibold" id="resAuthorHandle">
+                  @username
+                </div>
+              </div>
+            </div>
+
+            <!-- Stats badges -->
+            <div class="flex items-center gap-3 text-xs text-gray-300 font-mono">
+              <span class="flex items-center gap-1 bg-gray-900 px-2.5 py-1 rounded-lg border border-gray-800" title="المشاهدات">
+                <span>👁️</span> <span id="resPlaysCount">0</span>
+              </span>
+              <span class="flex items-center gap-1 bg-gray-900 px-2.5 py-1 rounded-lg border border-gray-800" title="الإعجابات">
+                <span>❤️</span> <span id="resLikesCount">0</span>
+              </span>
+              <span class="flex items-center gap-1 bg-gray-900 px-2.5 py-1 rounded-lg border border-gray-800" title="التعليقات">
+                <span>💬</span> <span id="resCommentsCount">0</span>
+              </span>
+            </div>
+          </div>
+
+          <!-- Video Caption / Title -->
+          <div class="space-y-1">
+            <label class="text-xs font-bold text-gray-400 uppercase tracking-wider" id="labelCaption">وصف الفيديو:</label>
+            <p id="resVideoTitle" class="text-sm sm:text-base text-gray-100 font-medium leading-relaxed bg-gray-950/40 p-3 rounded-xl border border-gray-800/60"></p>
+          </div>
+
+          <!-- Available Download Qualities Section -->
+          <div class="space-y-3 pt-2">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-lg">🎯</span>
+                <span class="text-sm font-black text-white" id="labelQualitiesTitle">اختر الجودة المراد تحميل الفيديو بها:</span>
+              </div>
+              <span class="text-xs text-emerald-400 font-bold font-mono">100% Direct Download</span>
+            </div>
+
+            <!-- Qualities Grid / List -->
+            <div id="resQualitiesList" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <!-- Dynamically populated download buttons -->
+            </div>
+          </div>
+
+          <!-- Photo Album Slideshow Section (if photo mode) -->
+          <div id="resPhotosSection" class="hidden space-y-3 pt-3 border-t border-gray-800">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="text-lg">🖼️</span>
+                <span class="text-sm font-black text-indigo-300" id="labelPhotosTitle">صور الألبوم (Photo Mode):</span>
+              </div>
+              <span id="resPhotosCount" class="text-xs text-gray-400 font-mono">0 صور</span>
+            </div>
+            <div id="resPhotosGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              <!-- Photo download cards -->
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         FEATURES & HOW-TO SECTION
+    ════════════════════════════════════════════════════════════════ -->
+    <section class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
+      <div class="glass-panel bg-gray-900/60 border border-gray-800/80 rounded-2xl p-5 space-y-2">
+        <div class="w-10 h-10 rounded-xl bg-pink-500/20 text-pink-400 flex items-center justify-center text-xl font-bold">⭐</div>
+        <h3 class="text-sm font-bold text-white" id="feat1Title">بدون أي علامة مائية</h3>
+        <p class="text-xs text-gray-400 leading-relaxed" id="feat1Desc">يتم استخراج الفيديو الأصلي الصافي بدون شعار تيك توك أو اسم الحساب المزعج.</p>
+      </div>
+
+      <div class="glass-panel bg-gray-900/60 border border-gray-800/80 rounded-2xl p-5 space-y-2">
+        <div class="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center text-xl font-bold">🎬</div>
+        <h3 class="text-sm font-bold text-white" id="feat2Title">أعلى جودة 1080p Ultra HD</h3>
+        <p class="text-xs text-gray-400 leading-relaxed" id="feat2Desc">نوفر لك الجودة الفائقة الأصلية التي رُفع بها المقطع بالإضافة إلى الجودة القياسية السريعة.</p>
+      </div>
+
+      <div class="glass-panel bg-gray-900/60 border border-gray-800/80 rounded-2xl p-5 space-y-2">
+        <div class="w-10 h-10 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-xl font-bold">⚡</div>
+        <h3 class="text-sm font-bold text-white" id="feat3Title">تنزيل مباشر بنقرة واحدة</h3>
+        <p class="text-xs text-gray-400 leading-relaxed" id="feat3Desc">تنزيل مباشر وفوري إلى جهازك (آيفون، أندرويد، كمبيوتر) مع خيار استخراج ملف MP3 الصوتي.</p>
+      </div>
+    </section>
+
+    <!-- How it works -->
+    <section class="glass-panel bg-gray-900/40 border border-gray-800/70 rounded-2xl p-6 space-y-4">
+      <h3 class="text-base font-bold text-white flex items-center gap-2" id="howTitle">
+        <span>📖</span> <span>طريقة التنزيل في 3 خطوات بسيطة:</span>
+      </h3>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs text-gray-300">
+        <div class="flex items-start gap-3 p-3 rounded-xl bg-gray-950/60 border border-gray-800/70">
+          <span class="w-6 h-6 rounded-full bg-pink-600 text-white flex items-center justify-center font-bold shrink-0">1</span>
+          <div>
+            <div class="font-bold text-white mb-0.5" id="step1Title">انسخ الرابط</div>
+            <p class="text-gray-400" id="step1Desc">افتح تطبيق تيك توك، اضغط على زر المشاركة ثم اختر «نسخ الرابط».</p>
+          </div>
+        </div>
+
+        <div class="flex items-start gap-3 p-3 rounded-xl bg-gray-950/60 border border-gray-800/70">
+          <span class="w-6 h-6 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold shrink-0">2</span>
+          <div>
+            <div class="font-bold text-white mb-0.5" id="step2Title">الصق الرابط هنا</div>
+            <p class="text-gray-400" id="step2Desc">اضغط على زر «📋 لصق» ثم اضغط على «استخراج وتحميل».</p>
+          </div>
+        </div>
+
+        <div class="flex items-start gap-3 p-3 rounded-xl bg-gray-950/60 border border-gray-800/70">
+          <span class="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold shrink-0">3</span>
+          <div>
+            <div class="font-bold text-white mb-0.5" id="step3Title">اختر الجودة وحمّل</div>
+            <p class="text-gray-400" id="step3Desc">اختر الجودة المطلوبة (1080p Ultra HD / SD / MP3) وسيبدأ التحميل فوراً.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       FOOTER
+  ════════════════════════════════════════════════════════════════ -->
+  <footer class="bg-gray-900/60 border-t border-gray-800 py-6 mt-12">
+    <div class="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-500">
+      <div class="flex items-center gap-2">
+        <span class="font-bold text-gray-300">TIKTOK VRF Downloader</span>
+        <span>— أداة مجانية لتنزيل فيديوهات تيك توك بدون علامة مائية</span>
+      </div>
+      <div class="flex items-center gap-4 text-gray-400">
+        <a href="/" class="hover:text-pink-400 transition">منصة البث المباشر</a>
+        <span>•</span>
+        <a href="/admin" class="hover:text-purple-400 transition">لوحة الأدمن</a>
+        <span>•</span>
+        <a href="https://www.instagram.com/abd_jalile013" target="_blank" rel="noopener" class="hover:text-pink-400 transition">Instagram</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 pointer-events-none w-full max-w-sm px-4"></div>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       CLIENT SCRIPT
+  ════════════════════════════════════════════════════════════════ -->
+  <script>
+    // State
+    let currentLang = localStorage.getItem('tt_dl_lang') || localStorage.getItem('tt_lang') || 'ar';
+    let currentTheme = localStorage.getItem('tt_dl_theme') || localStorage.getItem('tt_theme') || 'dark';
+    let isFetching = false;
+
+    // DOM Elements
+    const $ = id => document.getElementById(id);
+    const videoUrlInput = $('videoUrlInput');
+    const btnPasteUrl = $('btnPasteUrl');
+    const btnClearInput = $('btnClearInput');
+    const btnFetchVideo = $('btnFetchVideo');
+    const btnFetchIcon = $('btnFetchIcon');
+    const btnFetchText = $('btnFetchText');
+    const dlErrorBox = $('dlErrorBox');
+    const errorMessage = $('errorMessage');
+    const dlLoadingBox = $('dlLoadingBox');
+    const dlResultCard = $('dlResultCard');
+    const resVideoPlayer = $('resVideoPlayer');
+    const resDurationBadge = $('resDurationBadge');
+    const resAuthorAvatar = $('resAuthorAvatar');
+    const resAuthorNickname = $('resAuthorNickname');
+    const resAuthorHandle = $('resAuthorHandle');
+    const resPlaysCount = $('resPlaysCount');
+    const resLikesCount = $('resLikesCount');
+    const resCommentsCount = $('resCommentsCount');
+    const resVideoTitle = $('resVideoTitle');
+    const resQualitiesList = $('resQualitiesList');
+    const resPhotosSection = $('resPhotosSection');
+    const resPhotosCount = $('resPhotosCount');
+    const resPhotosGrid = $('resPhotosGrid');
+    const toastContainer = $('toastContainer');
+    const themeToggleBtn = $('themeToggleBtn');
+    const themeIcon = $('themeIcon');
+    const langToggleBtn = $('langToggleBtn');
+    const langText = $('langText');
+
+    // Localization Dictionary
+    const I18N = {
+      ar: {
+        brandSubtitle: 'تنزيل الفيديوهات بدون علامة مائية',
+        navLiveTracker: 'البث المباشر',
+        navAdmin: 'لوحة الأدمن',
+        heroBadge: 'دقة فائقة 1080p Ultra HD — مجاني 100% بدون علامة مائية',
+        heroTitle: 'تنزيل فيديوهات <span class="bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-400 bg-clip-text text-transparent">تيك توك</span> بدون علامة مائية',
+        heroSubtitle: 'الصق رابط أي فيديو أو ألبوم صور من تيك توك، واحصل فوراً على خيارات التنزيل المباشر بأعلى جودة متوفرة (1080p Ultra HD / SD / MP3) بنقرة واحدة فقط.',
+        urlPlaceholder: 'https://www.tiktok.com/@username/video/... أو الصق الرابط هنا',
+        btnPasteText: 'لصق',
+        btnFetchText: 'استخراج وتحميل',
+        btnFetchingText: 'جارٍ استخراج الجودات...',
+        hintSupported: 'يدعم جميع روابط تيك توك: العادية، المختصرة (vt.tiktok.com)، ودويين (Douyin)',
+        errorDefault: 'فشل استخراج الفيديو. يرجى التأكد من أن الحساب ليس خاصاً (Private) وأن الرابط صحيح.',
+        loadingText: 'جارٍ فحص الرابط واستخراج الفيديو والجودات الفائقة...',
+        loadingSub: 'يرجى الانتظار بضع ثوانٍ بينما يتم فك التشفير وتجهيز روابط التحميل المباشر',
+        playerHint: 'يمكنك تشغيل الفيديو للمعاينة قبل التحميل',
+        labelCaption: 'وصف الفيديو:',
+        labelQualitiesTitle: 'اختر الجودة المراد تحميل الفيديو بها:',
+        labelPhotosTitle: 'صور الألبوم (Photo Mode):',
+        feat1Title: 'بدون أي علامة مائية',
+        feat1Desc: 'يتم استخراج الفيديو الأصلي الصافي بدون شعار تيك توك أو اسم الحساب المزعج.',
+        feat2Title: 'أعلى جودة 1080p Ultra HD',
+        feat2Desc: 'نوفر لك الجودة الفائقة الأصلية التي رُفع بها المقطع بالإضافة إلى الجودة القياسية السريعة.',
+        feat3Title: 'تنزيل مباشر بنقرة واحدة',
+        feat3Desc: 'تنزيل مباشر وفوري إلى جهازك (آيفون، أندرويد، كمبيوتر) مع خيار استخراج ملف MP3 الصوتي.',
+        howTitle: 'طريقة التنزيل في 3 خطوات بسيطة:',
+        step1Title: 'انسخ الرابط',
+        step1Desc: 'افتح تطبيق تيك توك، اضغط على زر المشاركة ثم اختر «نسخ الرابط».',
+        step2Title: 'الصق الرابط هنا',
+        step2Desc: 'اضغط على زر «📋 لصق» ثم اضغط على «استخراج وتحميل».',
+        step3Title: 'اختر الجودة وحمّل',
+        step3Desc: 'اختر الجودة المطلوبة (1080p Ultra HD / SD / MP3) وسيبدأ التحميل فوراً.',
+        toastSuccess: 'تم استخراج الفيديو بنجاح! اختر الجودة للتحميل 📥',
+        toastStartingDl: 'بدأ تحميل الملف المباشر الآن... 📥',
+        noWatermarkText: 'بدون علامة مائية',
+        directDlBtn: 'تحميل مباشر',
+      },
+      en: {
+        brandSubtitle: 'Download Videos Without Watermark',
+        navLiveTracker: 'Live Tracker',
+        navAdmin: 'Admin Panel',
+        heroBadge: 'Ultra HD 1080p — 100% Free Without Watermark',
+        heroTitle: 'Download <span class="bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-400 bg-clip-text text-transparent">TikTok Videos</span> Without Watermark',
+        heroSubtitle: 'Paste any TikTok video or photo slide link and get instant direct download options in highest quality (1080p Ultra HD / SD / MP3) with just one click.',
+        urlPlaceholder: 'https://www.tiktok.com/@username/video/... or paste link here',
+        btnPasteText: 'Paste',
+        btnFetchText: 'Extract & Download',
+        btnFetchingText: 'Extracting qualities...',
+        hintSupported: 'Supports all TikTok links: standard, short URLs (vt.tiktok.com), and Douyin',
+        errorDefault: 'Failed to extract video. Please ensure the account is not private and the URL is correct.',
+        loadingText: 'Analyzing video link and extracting ultra high quality streams...',
+        loadingSub: 'Please wait a few seconds while direct download streams are being prepared',
+        playerHint: 'You can play the video for preview before downloading',
+        labelCaption: 'Video Caption:',
+        labelQualitiesTitle: 'Choose the quality you want to download:',
+        labelPhotosTitle: 'Photo Album Slides (Photo Mode):',
+        feat1Title: 'Zero Watermark',
+        feat1Desc: 'Extract the original clean video without TikTok logo or username watermark overlay.',
+        feat2Title: 'Ultra HD 1080p Quality',
+        feat2Desc: 'Provides the original ultra high-definition resolution as well as lightweight fast SD.',
+        feat3Title: 'One-Click Direct Download',
+        feat3Desc: 'Instant file download directly to your device (iPhone, Android, PC) plus MP3 audio extraction.',
+        howTitle: 'How to download in 3 simple steps:',
+        step1Title: 'Copy the link',
+        step1Desc: 'Open TikTok app, tap the Share button and select "Copy Link".',
+        step2Title: 'Paste the link here',
+        step2Desc: 'Tap the "📋 Paste" button then click "Extract & Download".',
+        step3Title: 'Choose quality & download',
+        step3Desc: 'Select your preferred quality (1080p Ultra HD / SD / MP3) and download begins immediately.',
+        toastSuccess: 'Video extracted successfully! Choose quality to download 📥',
+        toastStartingDl: 'Direct file download started... 📥',
+        noWatermarkText: 'No Watermark',
+        directDlBtn: 'Direct Download',
+      }
+    };
+
+    // Toast Function
+    function showToast(msg, type = 'info') {
+      const el = document.createElement('div');
+      const colors = {
+        success: 'bg-emerald-600 text-white border-emerald-400/50',
+        error: 'bg-red-600 text-white border-red-400/50',
+        info: 'bg-gray-800 text-gray-100 border-pink-500/60 shadow-pink-500/20',
+      };
+      el.className = `px-4 py-2.5 rounded-xl border text-xs sm:text-sm font-bold shadow-xl transition-all duration-300 transform translate-y-3 opacity-0 flex items-center gap-2 ${colors[type] || colors.info} pointer-events-auto`;
+      el.innerHTML = `<span>${type === 'success' ? '✔' : (type === 'error' ? '⚠️' : '📥')}</span><span>${msg}</span>`;
+      toastContainer.appendChild(el);
+      requestAnimationFrame(() => {
+        el.classList.remove('translate-y-3', 'opacity-0');
+      });
+      setTimeout(() => {
+        el.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => el.remove(), 350);
+      }, 4000);
+    }
+
+    // Number formatter
+    function fmtNum(n) {
+      if (n == null || isNaN(n)) return '0';
+      if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+      if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+      return Number(n).toLocaleString();
+    }
+
+    // Apply Language
+    function applyLang(lang) {
+      currentLang = lang;
+      localStorage.setItem('tt_dl_lang', lang);
+      document.documentElement.lang = lang;
+      document.documentElement.dir = (lang === 'ar' ? 'rtl' : 'ltr');
+      langText.textContent = (lang === 'ar' ? 'EN' : 'عربي');
+
+      const t = I18N[lang] || I18N.ar;
+      $('brandSubtitle').textContent = t.brandSubtitle;
+      $('navLiveTracker').textContent = t.navLiveTracker;
+      $('navAdmin').textContent = t.navAdmin;
+      $('heroBadge').textContent = t.heroBadge;
+      $('heroTitle').innerHTML = t.heroTitle;
+      $('heroSubtitle').textContent = t.heroSubtitle;
+      videoUrlInput.placeholder = t.urlPlaceholder;
+      $('btnPasteText').textContent = t.btnPasteText;
+      if (!isFetching) btnFetchText.textContent = t.btnFetchText;
+      $('hintSupported').textContent = t.hintSupported;
+      $('loadingText').textContent = t.loadingText;
+      $('loadingSub').textContent = t.loadingSub;
+      $('playerHint').textContent = t.playerHint;
+      $('labelCaption').textContent = t.labelCaption;
+      $('labelQualitiesTitle').textContent = t.labelQualitiesTitle;
+      $('labelPhotosTitle').textContent = t.labelPhotosTitle;
+      $('feat1Title').textContent = t.feat1Title;
+      $('feat1Desc').textContent = t.feat1Desc;
+      $('feat2Title').textContent = t.feat2Title;
+      $('feat2Desc').textContent = t.feat2Desc;
+      $('feat3Title').textContent = t.feat3Title;
+      $('feat3Desc').textContent = t.feat3Desc;
+      $('howTitle').innerHTML = `<span>📖</span> <span>${t.howTitle}</span>`;
+      $('step1Title').textContent = t.step1Title;
+      $('step1Desc').textContent = t.step1Desc;
+      $('step2Title').textContent = t.step2Title;
+      $('step2Desc').textContent = t.step2Desc;
+      $('step3Title').textContent = t.step3Title;
+      $('step3Desc').textContent = t.step3Desc;
+    }
+
+    // Apply Theme
+    function applyTheme(theme) {
+      currentTheme = theme;
+      localStorage.setItem('tt_dl_theme', theme);
+      document.documentElement.classList.remove('theme-dark', 'theme-light', 'theme-oled');
+      if (theme === 'light') {
+        document.documentElement.classList.add('theme-light');
+        themeIcon.textContent = '☀️';
+      } else if (theme === 'oled') {
+        document.documentElement.classList.add('theme-oled');
+        themeIcon.textContent = '🖤';
+      } else {
+        document.documentElement.classList.add('theme-dark');
+        themeIcon.textContent = '🌙';
+      }
+    }
+
+    // Paste from Clipboard
+    async function handlePaste() {
+      try {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          const text = await navigator.clipboard.readText();
+          if (text && text.trim()) {
+            videoUrlInput.value = text.trim();
+            btnClearInput.classList.remove('hidden');
+            showToast((currentLang === 'ar' ? 'تم لصق الرابط من الحافظة! 📋' : 'URL pasted from clipboard! 📋'), 'info');
+            fetchVideoDetails();
+            return;
+          }
+        }
+      } catch (err) {
+        console.debug('Clipboard error:', err);
+      }
+      videoUrlInput.focus();
+      showToast((currentLang === 'ar' ? 'يرجى لصق الرابط في الحقل (Ctrl+V)' : 'Please paste URL in the input field'), 'info');
+    }
+
+    // Clear input
+    btnClearInput.addEventListener('click', () => {
+      videoUrlInput.value = '';
+      btnClearInput.classList.add('hidden');
+      videoUrlInput.focus();
+    });
+
+    videoUrlInput.addEventListener('input', () => {
+      if (videoUrlInput.value.trim()) {
+        btnClearInput.classList.remove('hidden');
+      } else {
+        btnClearInput.classList.add('hidden');
+      }
+    });
+
+    // Fetch Video Details
+    async function fetchVideoDetails() {
+      if (isFetching) return;
+      const rawUrl = videoUrlInput.value.trim();
+      const t = I18N[currentLang] || I18N.ar;
+
+      if (!rawUrl) {
+        showError(currentLang === 'ar' ? 'يرجى إدخال أو لصق رابط فيديو تيك توك.' : 'Please enter or paste a TikTok video URL.');
+        videoUrlInput.focus();
+        return;
+      }
+
+      if (!rawUrl.includes('tiktok.com') && !rawUrl.includes('douyin.com')) {
+        showError(currentLang === 'ar' ? 'الرابط المدخل ليس رابط فيديو تيك توك صالح.' : 'The entered URL is not a valid TikTok URL.');
+        return;
+      }
+
+      // Hide errors & results, show loading
+      hideError();
+      dlResultCard.classList.add('hidden');
+      dlLoadingBox.classList.remove('hidden');
+      isFetching = true;
+      btnFetchVideo.disabled = true;
+      btnFetchIcon.textContent = '⏳';
+      btnFetchText.textContent = t.btnFetchingText;
+
+      try {
+        const resp = await fetch('/api/tiktok/video-info', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: rawUrl }),
+        });
+
+        const data = await resp.json();
+        if (!resp.ok || data.status !== 'ok' || !data.video) {
+          throw new Error(data.message || t.errorDefault);
+        }
+
+        renderVideoResult(data.video);
+        showToast(t.toastSuccess, 'success');
+      } catch (err) {
+        console.error('Fetch error:', err);
+        showError(err.message || t.errorDefault);
+      } finally {
+        isFetching = false;
+        btnFetchVideo.disabled = false;
+        btnFetchIcon.textContent = '⚡';
+        btnFetchText.textContent = t.btnFetchText;
+        dlLoadingBox.classList.add('hidden');
+      }
+    }
+
+    function showError(msg) {
+      errorMessage.textContent = msg;
+      dlErrorBox.classList.remove('hidden');
+      showToast(msg, 'error');
+    }
+
+    function hideError() {
+      dlErrorBox.classList.add('hidden');
+    }
+
+    // Render Video Result Card
+    function renderVideoResult(video) {
+      const isAr = currentLang === 'ar';
+      const t = I18N[currentLang] || I18N.ar;
+
+      // Video preview & duration
+      resVideoPlayer.poster = video.cover || '';
+      resDurationBadge.textContent = video.duration_formatted || '00:00';
+
+      // Pick first stream for preview player (HD or SD)
+      const primaryStream = video.qualities?.find(q => q.id === 'hd') || video.qualities?.find(q => q.id === 'sd');
+      if (primaryStream && primaryStream.direct_url) {
+        resVideoPlayer.src = primaryStream.direct_url;
+      } else {
+        resVideoPlayer.removeAttribute('src');
+      }
+
+      // Author Details
+      resAuthorAvatar.src = video.author?.avatar || 'https://p16-va.tiktokcdn.com/img/musically-maliva-obj/default-avatar.jpeg';
+      resAuthorNickname.textContent = video.author?.nickname || 'TikTok Creator';
+      resAuthorHandle.textContent = '@' + (video.author?.unique_id || 'user');
+
+      // Stats
+      resPlaysCount.textContent = fmtNum(video.stats?.plays || 0);
+      resLikesCount.textContent = fmtNum(video.stats?.likes || 0);
+      resCommentsCount.textContent = fmtNum(video.stats?.comments || 0);
+
+      // Title / Caption
+      resVideoTitle.textContent = video.title || (isAr ? 'بدون عنوان' : 'No Caption');
+
+      // Qualities rendering
+      resQualitiesList.innerHTML = '';
+      const qualities = video.qualities || [];
+
+      if (qualities.length === 0 && (!video.images || video.images.length === 0)) {
+        resQualitiesList.innerHTML = `
+          <div class="col-span-full p-4 rounded-xl bg-amber-950/40 border border-amber-600/40 text-amber-200 text-xs text-center font-bold">
+            ${isAr ? 'لا تتوفر روابط تنزيل مباشرة لهذا المقطع.' : 'No direct download links available for this video.'}
+          </div>
+        `;
+      } else {
+        qualities.forEach(q => {
+          const card = document.createElement('a');
+          card.href = q.download_url;
+          card.setAttribute('download', '');
+          
+          const labelText = isAr ? q.label : (q.label_en || q.label);
+          const badgeText = isAr ? q.badge : (q.badge_en || q.badge);
+          const icon = q.id === 'audio' ? '🎵' : (q.id === 'hd' ? '⭐' : '🎬');
+          
+          let colorTheme = 'from-pink-950/40 to-gray-900 border-pink-500/40 hover:border-pink-500 text-pink-300';
+          let btnGradient = 'bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500';
+          let badgeBg = 'bg-pink-500/20 text-pink-300 border-pink-500/30';
+
+          if (q.id === 'hd') {
+            colorTheme = 'from-amber-950/40 to-gray-900 border-amber-500/40 hover:border-amber-500 text-amber-300';
+            btnGradient = 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500';
+            badgeBg = 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+          } else if (q.id === 'audio') {
+            colorTheme = 'from-indigo-950/40 to-gray-900 border-indigo-500/40 hover:border-indigo-500 text-indigo-300';
+            btnGradient = 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500';
+            badgeBg = 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40';
+          }
+
+          card.className = `p-4 rounded-2xl bg-gradient-to-br ${colorTheme} border transition active:scale-98 group flex flex-col justify-between gap-3 shadow-lg cursor-pointer`;
+          card.innerHTML = `
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex items-center gap-2.5">
+                <div class="w-10 h-10 rounded-xl bg-gray-900/90 border border-gray-700/80 flex items-center justify-center text-lg shadow-sm group-hover:scale-110 transition">
+                  ${icon}
+                </div>
+                <div>
+                  <div class="text-sm font-bold text-white group-hover:text-pink-300 transition">${labelText}</div>
+                  <div class="text-[11px] text-gray-400 font-mono flex items-center gap-1.5 pt-0.5">
+                    <span>${q.size || 'MP4'}</span>
+                    <span>•</span>
+                    <span class="text-emerald-400">${t.noWatermarkText} ✔</span>
+                  </div>
+                </div>
+              </div>
+              <span class="text-[10px] px-2 py-0.5 rounded-full ${badgeBg} border font-bold shrink-0">
+                ${badgeText}
+              </span>
+            </div>
+
+            <button type="button" class="w-full ${btnGradient} text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-md transition group-hover:shadow-lg">
+              <span>⬇️</span>
+              <span>${t.directDlBtn} (${q.size || 'Download'})</span>
+            </button>
+          `;
+
+          card.addEventListener('click', () => {
+            showToast(`${t.toastStartingDl} (${labelText})`, 'success');
+          });
+
+          resQualitiesList.appendChild(card);
+        });
+
+        // Photo Slideshow Album
+        if (Array.isArray(video.images) && video.images.length > 0) {
+          resPhotosCount.textContent = `${video.images.length} ${isAr ? 'صور عالية الدقة' : 'High-Res Photos'}`;
+          resPhotosGrid.innerHTML = '';
+          video.images.forEach(img => {
+            const photoCard = document.createElement('a');
+            photoCard.href = img.download_url;
+            photoCard.setAttribute('download', '');
+            photoCard.className = 'group relative rounded-xl overflow-hidden bg-gray-950 border border-gray-800 hover:border-indigo-500 transition active:scale-95 shadow-md flex flex-col';
+            photoCard.innerHTML = `
+              <div class="relative w-full aspect-square overflow-hidden bg-gray-900">
+                <img src="${img.url}" alt="Photo ${img.index}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" loading="lazy" />
+                <span class="absolute top-1.5 right-1.5 bg-black/80 text-white text-[9px] px-1.5 py-0.5 rounded font-mono font-bold">#${img.index}</span>
+              </div>
+              <div class="p-2 bg-gray-900 text-center text-[11px] font-bold text-gray-200 group-hover:text-indigo-300 transition flex items-center justify-center gap-1">
+                <span>⬇️</span>
+                <span>${isAr ? `تحميل صورة ${img.index}` : `Download #${img.index}`}</span>
+              </div>
+            `;
+            photoCard.addEventListener('click', () => {
+              showToast(`${t.toastStartingDl} (#${img.index})`, 'info');
+            });
+            resPhotosGrid.appendChild(photoCard);
+          });
+          resPhotosSection.classList.remove('hidden');
+        } else {
+          resPhotosSection.classList.add('hidden');
+        }
+      }
+
+      // Show Result Card and scroll smoothly to it
+      dlResultCard.classList.remove('hidden');
+      setTimeout(() => {
+        dlResultCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 150);
+    }
+
+    // Event Listeners
+    btnPasteUrl.addEventListener('click', handlePaste);
+    
+    themeToggleBtn.addEventListener('click', () => {
+      const themes = ['dark', 'light', 'oled'];
+      let nextIndex = (themes.indexOf(currentTheme) + 1) % themes.length;
+      applyTheme(themes[nextIndex]);
+    });
+
+    langToggleBtn.addEventListener('click', () => {
+      applyLang(currentLang === 'ar' ? 'en' : 'ar');
+    });
+
+    // Check URL query parameters (e.g. ?url=...)
+    window.addEventListener('DOMContentLoaded', () => {
+      applyTheme(currentTheme);
+      applyLang(currentLang);
+
+      const params = new URLSearchParams(window.location.search);
+      const qUrl = params.get('url');
+      if (qUrl) {
+        videoUrlInput.value = qUrl;
+        btnClearInput.classList.remove('hidden');
+        fetchVideoDetails();
+      }
+    });
+  </script>
+
+</body>
+</html>

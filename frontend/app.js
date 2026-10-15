@@ -3048,11 +3048,9 @@ function applyLanguage(lang) {
   // TikTok Downloader Controls
   if ($('labelTtDownloader')) $('labelTtDownloader').textContent = t.labelTtDownloader;
   if ($('descTtDownloader')) $('descTtDownloader').textContent = t.descTtDownloader;
-  if ($('btnPasteTtText')) $('btnPasteTtText').textContent = t.btnPasteTt;
-  if (DOM.btnFetchTtText) DOM.btnFetchTtText.textContent = t.btnFetchTt;
+  if ($('btnNavDownloader')) $('btnNavDownloader').textContent = (lang === 'ar' ? 'تنزيل الفيديوهات' : 'Downloader');
+  if ($('btnOpenDownloaderText')) $('btnOpenDownloaderText').textContent = (lang === 'ar' ? 'فتح واجهة تنزيل الفيديوهات' : 'Open Video Downloader');
   if (DOM.ttVideoUrlInput) DOM.ttVideoUrlInput.placeholder = t.ttUrlPlaceholder;
-  if (DOM.labelChooseQuality) DOM.labelChooseQuality.textContent = t.labelChooseQuality;
-  if (DOM.badgeNoWatermark) DOM.badgeNoWatermark.textContent = t.badgeNoWatermark;
   // Active button styling
   if (DOM.langArBtn && DOM.langEnBtn) {
     if (lang === 'ar') {
@@ -3437,14 +3435,48 @@ function renderTikTokVideoResult(video) {
   }, 100);
 }
 
-// Bind TikTok Downloader event triggers
-if (DOM.btnPasteTtUrl) DOM.btnPasteTtUrl.addEventListener('click', handlePasteTikTokUrl);
-if (DOM.btnFetchTtVideo) DOM.btnFetchTtVideo.addEventListener('click', fetchTikTokVideo);
+// Bind TikTok Downloader event triggers (الانتقال للواجهة المستقلة)
+if (DOM.btnPasteTtUrl) {
+  DOM.btnPasteTtUrl.addEventListener('click', async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text && text.trim()) {
+          const trimmed = text.trim();
+          if (DOM.ttVideoUrlInput) DOM.ttVideoUrlInput.value = trimmed;
+          toast('تم لصق الرابط من الحافظة! 📋', 'success');
+          if (trimmed.includes('tiktok.com') || trimmed.includes('douyin.com')) {
+            window.location.href = `/downloader?url=${encodeURIComponent(trimmed)}`;
+          }
+          return;
+        }
+      }
+    } catch (_) {}
+    if (DOM.ttVideoUrlInput) DOM.ttVideoUrlInput.focus();
+  });
+}
+
 if (DOM.ttVideoUrlInput) {
   DOM.ttVideoUrlInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      fetchTikTokVideo();
+      const val = DOM.ttVideoUrlInput.value.trim();
+      if (val) {
+        window.location.href = `/downloader?url=${encodeURIComponent(val)}`;
+      } else {
+        window.location.href = '/downloader';
+      }
+    }
+  });
+}
+
+const btnOpenDl = $('btnOpenDownloader');
+if (btnOpenDl) {
+  btnOpenDl.addEventListener('click', (e) => {
+    const val = DOM.ttVideoUrlInput ? DOM.ttVideoUrlInput.value.trim() : '';
+    if (val && (val.includes('tiktok.com') || val.includes('douyin.com'))) {
+      e.preventDefault();
+      window.location.href = `/downloader?url=${encodeURIComponent(val)}`;
     }
   });
 }

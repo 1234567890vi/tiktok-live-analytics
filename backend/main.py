@@ -310,6 +310,20 @@ async def serve_admin_page():
     return FileResponse(str(admin_path), media_type="text/html")
 
 
+@app.get("/downloader", response_class=FileResponse)
+@app.get("/download", response_class=FileResponse)
+async def serve_downloader_page():
+    """Direct route for standalone TikTok video downloader interface."""
+    dl_path = FRONTEND_DIR / "downloader.html"
+    if not dl_path.exists():
+        return HTMLResponse(
+            "<h1>Downloader page not found</h1>"
+            "<p>Place downloader.html inside the <code>frontend/</code> directory.</p>",
+            status_code=404,
+        )
+    return FileResponse(str(dl_path), media_type="text/html")
+
+
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     """Silence browser favicon requests to avoid 404 log noise."""
