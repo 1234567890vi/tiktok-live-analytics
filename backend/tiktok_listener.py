@@ -188,11 +188,12 @@ except ModuleNotFoundError:
                 "opponent_points": 0,
                 "host_username": host,
                 "opponent_username": "الخصم",
-                "battle_type": "1v1",
+                "battle_type": "solo",
                 "host_anchors": [],
                 "opponent_anchors": [],
                 "host_armies": [],
                 "opponent_armies": [],
+                "participants": [],
                 "duration": 300,
                 "start_time": 0.0,
                 "remaining_seconds": 300,
@@ -388,6 +389,43 @@ except ModuleNotFoundError:
             else:
                 rem_sec = 0
 
+            h_anchors = host_anchors if host_anchors is not None else prev_host_anchors
+            o_anchors = opponent_anchors if opponent_anchors is not None else prev_opp_anchors
+            tot_anchors = len(h_anchors) + len(o_anchors)
+
+            if not active or status == "IDLE":
+                final_battle_type = "solo"
+            elif battle_type and battle_type not in ("1v1", "auto"):
+                final_battle_type = battle_type
+            elif tot_anchors <= 1:
+                final_battle_type = "solo"
+            elif tot_anchors == 2:
+                final_battle_type = "1v1"
+            elif tot_anchors == 3:
+                final_battle_type = "3-way"
+            else:
+                final_battle_type = "2v2"
+
+            # Build unified participants list with ranks and individual points
+            participants = []
+            for a in h_anchors:
+                p = dict(a)
+                p["is_host_side"] = True
+                if "points" not in p:
+                    p["points"] = hs if len(h_anchors) == 1 else 0
+                participants.append(p)
+            for a in o_anchors:
+                p = dict(a)
+                p["is_host_side"] = False
+                if "points" not in p:
+                    p["points"] = os_ if len(o_anchors) == 1 else 0
+                participants.append(p)
+
+            # Sort participants by points descending to assign ranks (1st, 2nd, 3rd, 4th)
+            participants_sorted = sorted(participants, key=lambda x: x.get("points", 0), reverse=True)
+            for r_idx, p in enumerate(participants_sorted, start=1):
+                p["rank"] = r_idx
+
             self._pk = {
                 "is_active": active,
                 "status": status,
@@ -399,11 +437,12 @@ except ModuleNotFoundError:
                 "host_wins": host_wins,
                 "opponent_wins": opponent_wins,
                 "round_number": round_number,
-                "battle_type": battle_type or self._pk.get("battle_type", "1v1"),
-                "host_anchors": host_anchors if host_anchors is not None else prev_host_anchors,
-                "opponent_anchors": opponent_anchors if opponent_anchors is not None else prev_opp_anchors,
+                "battle_type": final_battle_type,
+                "host_anchors": h_anchors,
+                "opponent_anchors": o_anchors,
                 "host_armies": host_armies if host_armies is not None else prev_host_armies,
                 "opponent_armies": opponent_armies if opponent_armies is not None else prev_opp_armies,
+                "participants": participants,
                 "duration": cur_dur,
                 "start_time": cur_start,
                 "end_time": cur_end,
@@ -829,17 +868,26 @@ def _parse_battle_anchors_and_teams(
             "avatar_url": streamer_avatar,
             "is_host_side": True,
         }]
-    if not opponent_anchors:
-        opponent_anchors = [{
-            "anchor_id": "opp",
-            "user_id": "opp",
-            "unique_id": "opponent",
-            "nickname": "الخصم",
-            "avatar_url": "",
-            "is_host_side": False,
-        }]
 
-    battle_type = "2v2" if (len(host_anchors) + len(opponent_anchors)) > 2 else "1v1"
+    total_count = len(host_anchors) + len(opponent_anchors)
+    if total_count <= 1 and not opponent_anchors:
+        battle_type = "solo"
+    elif total_count == 3:
+        battle_type = "3-way"
+    elif total_count >= 4:
+        battle_type = "2v2"
+    else:
+        battle_type = "1v1"
+        if not opponent_anchors:
+            opponent_anchors = [{
+                "anchor_id": "opp",
+                "user_id": "opp",
+                "unique_id": "opponent",
+                "nickname": "الخصم",
+                "avatar_url": "",
+                "is_host_side": False,
+            }]
+
     return host_anchors, opponent_anchors, battle_type
 
 
@@ -890,16 +938,19 @@ def _parse_armies_dict(armies_field) -> dict:
 
 
 def _aggregate_team_armies(anchors: list, armies_dict: dict):
-    """Calculates total team score and top 3 contributors (MVPs)."""
+    """Calculates total team score, attaches individual anchor points and top 3 contributors (MVPs)."""
     team_score = 0
     all_contributors = []
     seen_users = set()
 
     for a in anchors:
-        aid = a.get("anchor_id", "")
-        uid = a.get("user_id", "")
+        aid = str(a.get("anchor_id", "") or "")
+        uid = str(a.get("user_id", "") or "")
         entry = armies_dict.get(aid) or armies_dict.get(uid) or {}
-        team_score += entry.get("score", 0)
+        p_score = int(entry.get("score", 0) or 0)
+        team_score += p_score
+        a["points"] = p_score
+        a["contributors"] = entry.get("contributors", [])[:3]
         for c in entry.get("contributors", []):
             if c["user_id"] not in seen_users:
                 seen_users.add(c["user_id"])
