@@ -3217,7 +3217,7 @@ DOM.commentsFeed.addEventListener('scroll', () => {
     autoScroll = true;
     DOM.scrollIcon.textContent = '⬇️';
   }
-});
+}, { passive: true });
 
 // Sidebar drawer triggers
 if (DOM.sidebarToggleBtn) DOM.sidebarToggleBtn.addEventListener('click', openSidebar);
@@ -3933,6 +3933,7 @@ function makeKineticScrollable(container) {
 
   let isDown = false;
   let startX = 0;
+  let startY = 0;
   let startScroll = 0;
   let lastX = 0;
   let lastTime = 0;
@@ -3947,22 +3948,38 @@ function makeKineticScrollable(container) {
     isDown = true;
     hasMoved = false;
     cancelAnimationFrame(momentumRaf);
-    container.classList.add('drag-scrolling');
 
     startX = e.clientX;
+    startY = e.clientY;
     startScroll = container.scrollLeft;
     lastX = e.clientX;
     lastTime = performance.now();
     velocity = 0;
-
-    try { container.setPointerCapture(e.pointerId); } catch (_) {}
   });
 
   container.addEventListener('pointermove', (e) => {
     if (!isDown) return;
 
     const deltaX = e.clientX - startX;
-    if (Math.abs(deltaX) > 4) hasMoved = true;
+    const deltaY = e.clientY - startY;
+
+    // If movement is predominantly vertical, release horizontal drag so page scrolls smoothly
+    if (!hasMoved && Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 5) {
+      isDown = false;
+      return;
+    }
+
+    if (Math.abs(deltaX) > 4) {
+      hasMoved = true;
+      container.classList.add('drag-scrolling');
+      try {
+        if (!container.hasPointerCapture(e.pointerId)) {
+          container.setPointerCapture(e.pointerId);
+        }
+      } catch (_) {}
+    }
+
+    if (!hasMoved) return;
 
     const now = performance.now();
     const dt = Math.max(1, now - lastTime);
@@ -4034,9 +4051,24 @@ function initAllKineticScrolls() {
   document.querySelectorAll('.drag-scrollable').forEach(el => makeKineticScrollable(el));
 }
 
+// 3. Ultra-Smooth Page Vertical Scrolling (إلغاء التقطيع والتهنيج أثناء الصعود والنزول)
+function initSmoothScrollEngine() {
+  let isScrollingTimer = null;
+  window.addEventListener('scroll', () => {
+    if (!document.body.classList.contains('is-scrolling')) {
+      document.body.classList.add('is-scrolling');
+    }
+    clearTimeout(isScrollingTimer);
+    isScrollingTimer = setTimeout(() => {
+      document.body.classList.remove('is-scrolling');
+    }, 120);
+  }, { passive: true });
+}
+
 // Initialize all fluidity modules
 initTactileRipple();
 initAllKineticScrolls();
+initSmoothScrollEngine();
 
 console.log('🎯 TIKTOK VRF initialized successfully with Fluid UI & Kinetic Navigation.');
 

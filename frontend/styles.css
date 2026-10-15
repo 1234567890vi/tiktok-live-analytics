@@ -12,13 +12,23 @@
 html {
   scroll-padding-top: 85px;
   -webkit-tap-highlight-color: transparent;
-  text-rendering: optimizeLegibility;
+  text-rendering: optimizeSpeed;
+  scroll-behavior: auto;
+  overscroll-behavior-y: none;
 }
 
 body {
   font-family: 'Cairo', 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  overflow-y: scroll;
+}
+
+/* ── Eliminate Hover Jitter & Layout Thrashing During Active Scroll ── */
+body.is-scrolling,
+body.is-scrolling * {
+  pointer-events: none !important;
 }
 
 /* ── Universal Tactile Button & Press Responsiveness ─────────── */
@@ -72,24 +82,22 @@ a[role="button"]:active,
   }
 }
 
-/* ── Glassmorphism Card ───────────────────────────────────────── */
+/* ── High-Performance Dark Glass Cards (Zero GPU Composite Lag) ────────── */
 .glass-card {
-  background: rgba(17, 24, 39, 0.85);
+  background: #111827;
+  background: rgba(17, 24, 39, 0.94);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 1rem;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
   overflow: hidden;
-  transform: translateZ(0);
+  contain: content;
 }
 
 /* ── KPI Cards ────────────────────────────────────────────────── */
 .kpi-card {
-  background: rgba(17, 24, 39, 0.85);
+  background: #111827;
+  background: rgba(17, 24, 39, 0.94);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 1rem;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -97,8 +105,8 @@ a[role="button"]:active,
   padding: 1rem;
   position: relative;
   cursor: default;
-  transform: translateZ(0);
-  transition: transform 0.18s ease, border-color 0.18s ease;
+  contain: content;
+  transition: transform 0.15s ease, border-color 0.15s ease;
 }
 .kpi-card:hover {
   transform: translateY(-2px);
@@ -457,7 +465,7 @@ a[role="button"]:active,
   -webkit-user-select: none;
   scroll-behavior: auto !important;
   -webkit-overflow-scrolling: touch;
-  touch-action: pan-x pan-y;
+  touch-action: pan-y; /* Allows seamless vertical page scrolling across horizontal lists */
 }
 .drag-scrolling {
   cursor: grabbing !important;
@@ -468,21 +476,24 @@ a[role="button"]:active,
 /* ── Hardware Acceleration & High-FPS Optimization ────────────── */
 #commentsFeed,
 #giftFeed,
+#giftFeedHost,
+#giftFeedOpp,
 #pkHostGiftsFeed,
 #pkOppGiftsFeed,
 #liveFriendsGrid,
-#leaderboardFeed {
-  transform: translateZ(0);
-  backface-visibility: hidden;
+#leaderboardList,
+#likersRow {
+  contain: content;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  scroll-behavior: auto;
 }
 
 /* Off-screen rendering optimization: skips painting when out of viewport */
-#rulesSection,
+#likersSection,
 #liveFriendsSection {
   content-visibility: auto;
-  contain-intrinsic-size: 0 400px;
+  contain-intrinsic-size: 0 350px;
 }
 
 /* ── Toast ────────────────────────────────────────────────────── */
@@ -1141,8 +1152,8 @@ html.theme-oled #mainSidebar {
    ══════════════════════════════════════════════════════════════════ */
 .friend-live-card {
   position: relative;
-  background: rgba(17, 24, 39, 0.75);
-  backdrop-filter: blur(12px);
+  background: #111827;
+  background: rgba(17, 24, 39, 0.94);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 1rem;
   padding: 1rem;
@@ -1150,8 +1161,9 @@ html.theme-oled #mainSidebar {
   flex-direction: column;
   justify-content: space-between;
   gap: 0.85rem;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.2s ease, border-color 0.2s ease;
   overflow: hidden;
+  contain: content;
 }
 
 .friend-live-card:hover {
