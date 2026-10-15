@@ -484,34 +484,74 @@
         </div>
       </div>
 
-      <!-- 4. Story & Video Interactors / Commenters / Likers -->
-      <div class="glass-panel p-5 sm:p-6 rounded-2xl bg-[#16161f]/90 border border-purple-900/40 shadow-xl space-y-4">
+      <!-- 4. Story Likers & Interactors Section (أسماء من قاموا بوضع إعجاب وتفاعلوا مع القصة) -->
+      <div class="glass-panel p-5 sm:p-6 rounded-2xl bg-[#16161f]/90 border border-pink-900/40 shadow-xl space-y-5">
+        <!-- Section Header with Quick Actions -->
         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-800 pb-4">
           <div>
-            <h4 class="text-sm font-bold text-white flex items-center gap-2">
-              <span>👥</span>
-              <span id="labelInteractorsTitle">قائمة المتفاعلين والمعلقين وأبرز المعجبين بالقصة/الفيديو</span>
-              <span id="resInteractorsBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-purple-950 text-purple-300 border border-purple-700/60 font-mono font-bold">0 متفاعل</span>
+            <h4 class="text-base sm:text-lg font-black text-white flex items-center gap-2">
+              <span class="text-xl">❤️</span>
+              <span id="labelLikersSectionTitle">أسماء من قاموا بوضع إعجاب وتفاعلوا مع القصة</span>
+              <span id="resStoryLikersBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-pink-950 text-pink-300 border border-pink-700/60 font-mono font-bold">0 اسم</span>
             </h4>
-            <p class="text-xs text-gray-400 mt-1" id="descInteractors">
-              يعرض الأشخاص الذين أبدوا إعجابهم وتفاعلوا مع المحتوى، مع عداد إعجابات تفاعلهم وروابط حساباتهم المباشرة.
+            <p class="text-xs text-gray-400 mt-1" id="descLikersSection">
+              استعراض كامل لأسماء وحسابات وصور الأشخاص الذين أبدوا إعجابهم وتفاعلوا مع القصة، مع إمكانية نسخ قائمة الأسماء مباشرة.
             </p>
           </div>
 
-          <!-- Quick Search Filter for Interactors -->
-          <div class="relative w-full sm:w-64">
-            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">🔍</span>
-            <input
-              type="text"
-              id="filterInteractorsInput"
-              placeholder="بحث في المتفاعلين..."
-              class="w-full bg-gray-900 border border-gray-700 rounded-xl pr-8 pl-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition"
-            />
+          <!-- Buttons: Copy all names & Filter search -->
+          <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto">
+            <button
+              id="btnCopyAllLikers"
+              class="px-3.5 py-2 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow active:scale-95 whitespace-nowrap cursor-pointer"
+              title="نسخ جميع أسماء ومعرفات المعجبين"
+            >
+              <span>📋</span>
+              <span id="textBtnCopyLikers">نسخ جميع أسماء المعجبين</span>
+            </button>
+
+            <!-- Quick Search Filter -->
+            <div class="relative flex-1 sm:w-56">
+              <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">🔍</span>
+              <input
+                type="text"
+                id="filterInteractorsInput"
+                placeholder="بحث في الأسماء والمعرفات..."
+                class="w-full bg-gray-900 border border-gray-700 rounded-xl pr-8 pl-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-pink-500 transition"
+              />
+            </div>
           </div>
         </div>
 
-        <!-- Interactors Grid / List -->
-        <div id="resInteractorsList" class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[500px] overflow-y-auto scrollbar-thin p-1">
+        <!-- Likers Quick Names Cloud / Summary Bar -->
+        <div id="boxLikersNamesCloud" class="hidden p-3.5 rounded-xl bg-gray-900/60 border border-gray-800 space-y-2">
+          <div class="flex items-center justify-between text-xs font-bold text-gray-300">
+            <span class="flex items-center gap-1.5">
+              <span>🏷️</span>
+              <span id="labelQuickNamesTitle">شريط الأسماء السريع (Quick Names Cloud):</span>
+            </span>
+            <span id="resTotalLikesNote" class="text-pink-400 font-mono text-[11px]"></span>
+          </div>
+          <div id="resLikersPillsWrap" class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto scrollbar-thin">
+            <!-- Rendered via JS -->
+          </div>
+        </div>
+
+        <!-- Filter Tabs: All, With Likes, Verified -->
+        <div class="flex items-center gap-2 border-b border-gray-800/80 pb-2 overflow-x-auto text-xs">
+          <button id="btnTabLikersAll" class="px-3 py-1.5 rounded-lg bg-pink-600/20 text-pink-300 border border-pink-500/40 font-bold transition cursor-pointer">
+            <span>🌟</span> <span id="tabLikersAll">جميع المعجبين والمتفاعلين</span>
+          </button>
+          <button id="btnTabLikersHigh" class="px-3 py-1.5 rounded-lg bg-gray-800 text-gray-400 hover:text-white font-semibold transition cursor-pointer">
+            <span>🔥</span> <span id="tabLikersHigh">الأعلى تفاعلاً</span>
+          </button>
+          <button id="btnTabLikersVerified" class="px-3 py-1.5 rounded-lg bg-gray-800 text-gray-400 hover:text-white font-semibold transition cursor-pointer">
+            <span>✅</span> <span id="tabLikersVerified">الموثقون فقط</span>
+          </button>
+        </div>
+
+        <!-- Detailed Likers Cards Grid -->
+        <div id="resInteractorsList" class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[550px] overflow-y-auto scrollbar-thin p-1">
           <!-- Rendered via JS -->
         </div>
       </div>
@@ -546,7 +586,9 @@
     let currentLang = localStorage.getItem('tt_tracker_lang') || 'ar';
     let currentTheme = localStorage.getItem('tt_insp_theme') || 'dark';
     let isInspecting = false;
-    let loadedInteractors = [];
+    let loadedLikers = [];
+    let currentLikersTab = 'all'; // 'all' | 'high' | 'verified'
+    let currentInspectionData = null;
 
     // DOM Elements
     const $ = id => document.getElementById(id);
@@ -593,7 +635,15 @@
     const resPhotosCount = $('resPhotosCount');
     const resPhotosGrid = $('resPhotosGrid');
 
-    const resInteractorsBadge = $('resInteractorsBadge');
+    const resStoryLikersBadge = $('resStoryLikersBadge');
+    const btnCopyAllLikers = $('btnCopyAllLikers');
+    const textBtnCopyLikers = $('textBtnCopyLikers');
+    const boxLikersNamesCloud = $('boxLikersNamesCloud');
+    const resTotalLikesNote = $('resTotalLikesNote');
+    const resLikersPillsWrap = $('resLikersPillsWrap');
+    const btnTabLikersAll = $('btnTabLikersAll');
+    const btnTabLikersHigh = $('btnTabLikersHigh');
+    const btnTabLikersVerified = $('btnTabLikersVerified');
     const resInteractorsList = $('resInteractorsList');
     const filterInteractorsInput = $('filterInteractorsInput');
 
@@ -638,11 +688,18 @@
         specLabelSdSize: 'حجم ملف Standard SD:',
         labelDownloadLinks: 'روابط التنزيل المباشر الصافي بدون علامة:',
         labelPhotosTitle: 'صور ألبوم القصة / المنشور (Photo Slideshow):',
-        labelInteractorsTitle: 'قائمة المتفاعلين والمعلقين وأبرز المعجبين بالقصة/الفيديو',
-        descInteractors: 'يعرض الأشخاص الذين أبدوا إعجابهم وتفاعلوا مع المحتوى، مع عداد إعجابات تفاعلهم وروابط حساباتهم المباشرة.',
-        filterPlaceholder: 'بحث في المتفاعلين...',
+        labelLikersSectionTitle: 'أسماء من قاموا بوضع إعجاب وتفاعلوا مع القصة',
+        descLikersSection: 'استعراض كامل لأسماء وحسابات وصور الأشخاص الذين أبدوا إعجابهم وتفاعلوا مع القصة، مع إمكانية نسخ قائمة الأسماء مباشرة.',
+        textBtnCopyLikers: 'نسخ جميع أسماء المعجبين',
+        labelQuickNamesTitle: 'شريط الأسماء السريع (Quick Names Cloud):',
+        tabLikersAll: 'جميع المعجبين والمتفاعلين',
+        tabLikersHigh: 'الأعلى تفاعلاً',
+        tabLikersVerified: 'الموثقون فقط',
+        filterPlaceholder: 'بحث في الأسماء والمعرفات...',
         toastPasted: 'تم لصق الرابط من الحافظة! 📋',
         toastSuccess: 'تم استخراج كافة البيانات بنجاح! 🔍',
+        toastCopiedLikers: 'تم نسخ جميع أسماء المعجبين إلى الحافظة بنجاح! 📋',
+        toastNoLikersToCopy: 'لا توجد أسماء معجبين لنسخها حالياً.',
       },
       en: {
         headerSubtitle: 'TikTok Video & Story Inspector',
@@ -678,11 +735,18 @@
         specLabelSdSize: 'Standard SD File Size:',
         labelDownloadLinks: 'Clean Direct Download Streams (No Watermark):',
         labelPhotosTitle: 'Photo Slideshow Album:',
-        labelInteractorsTitle: 'Story Interactors, Commenters & Likers',
-        descInteractors: 'Displays viewers who liked, commented, or reacted to this content with like counts and direct profile links.',
-        filterPlaceholder: 'Search interactors...',
+        labelLikersSectionTitle: 'Story Likers & Interactors Names',
+        descLikersSection: 'Complete display of users who liked, reacted, and interacted with this story, with 1-click clipboard copy.',
+        textBtnCopyLikers: 'Copy All Likers Names',
+        labelQuickNamesTitle: 'Quick Names Cloud:',
+        tabLikersAll: 'All Likers & Interactors',
+        tabLikersHigh: 'Top Interactors',
+        tabLikersVerified: 'Verified Only',
+        filterPlaceholder: 'Search names and @handles...',
         toastPasted: 'URL pasted from clipboard! 📋',
         toastSuccess: 'Inspection completed successfully! 🔍',
+        toastCopiedLikers: 'All likers names copied to clipboard! 📋',
+        toastNoLikersToCopy: 'No liker names available to copy.',
       }
     };
 
@@ -692,6 +756,17 @@
       if (num >= 1_000_000) return (num / 1_000_000).toFixed(1) + 'M';
       if (num >= 1_000) return (num / 1_000).toFixed(1) + 'K';
       return Number(num).toLocaleString();
+    }
+
+    // Helper: Escape HTML
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     }
 
     // Toast
@@ -774,9 +849,14 @@
       $('specLabelSdSize').textContent = t.specLabelSdSize;
       $('labelDownloadLinks').textContent = t.labelDownloadLinks;
       $('labelPhotosTitle').textContent = t.labelPhotosTitle;
-      $('labelInteractorsTitle').textContent = t.labelInteractorsTitle;
-      $('descInteractors').textContent = t.descInteractors;
-      filterInteractorsInput.placeholder = t.filterPlaceholder;
+      if ($('labelLikersSectionTitle')) $('labelLikersSectionTitle').textContent = t.labelLikersSectionTitle;
+      if ($('descLikersSection')) $('descLikersSection').textContent = t.descLikersSection;
+      if ($('textBtnCopyLikers')) $('textBtnCopyLikers').textContent = t.textBtnCopyLikers;
+      if ($('labelQuickNamesTitle')) $('labelQuickNamesTitle').textContent = t.labelQuickNamesTitle;
+      if ($('tabLikersAll')) $('tabLikersAll').textContent = t.tabLikersAll;
+      if ($('tabLikersHigh')) $('tabLikersHigh').textContent = t.tabLikersHigh;
+      if ($('tabLikersVerified')) $('tabLikersVerified').textContent = t.tabLikersVerified;
+      if (filterInteractorsInput) filterInteractorsInput.placeholder = t.filterPlaceholder;
     }
 
     // Clipboard Paste
@@ -979,60 +1059,189 @@
         resPhotosSection.classList.add('hidden');
       }
 
-      // 4. Interactors & Story Likers
-      loadedInteractors = d.interactors || [];
-      resInteractorsBadge.textContent = `${loadedInteractors.length} ${isAr ? 'متفاعل' : 'Interactors'}`;
-      renderInteractorsList(loadedInteractors);
+      // 4. Story Likers & Interactors (أسماء من قاموا بوضع إعجاب وتفاعلوا مع القصة)
+      if (d.story_likers && Array.isArray(d.story_likers) && d.story_likers.length > 0) {
+        loadedLikers = d.story_likers;
+      } else if (d.interactors && Array.isArray(d.interactors)) {
+        loadedLikers = d.interactors.map(item => {
+          const u = item.user || {};
+          return {
+            id: item.id || u.id || '',
+            nickname: u.nickname || 'TikTok User',
+            unique_id: u.unique_id || 'user',
+            avatar: u.avatar || '',
+            avatar_proxy: u.avatar_proxy || '',
+            verified: Boolean(u.verified),
+            follower_count: u.follower_count || 0,
+            likes: item.likes || 0,
+            text: item.text || '',
+            created_at_formatted: item.created_at_formatted || '',
+            profile_url: u.profile_url || `https://www.tiktok.com/@${u.unique_id || 'user'}`,
+          };
+        });
+      } else {
+        loadedLikers = [];
+      }
+
+      if (resStoryLikersBadge) {
+        resStoryLikersBadge.textContent = `${loadedLikers.length} ${isAr ? 'اسم' : 'Names'}`;
+      }
+
+      // Render Quick Names Cloud
+      renderLikersCloud(loadedLikers, stats.likes || 0);
+
+      // Reset Tab and Render Interactors / Likers cards
+      currentLikersTab = 'all';
+      updateFilterTabsUI();
+      applyLikersFiltersAndRender();
 
       // Reveal Results
       boxResults.classList.remove('hidden');
       boxResults.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
-    // Render Interactors List
+    // Render Quick Names Cloud (شريط الأسماء السريع)
+    function renderLikersCloud(likers, totalLikes) {
+      if (!boxLikersNamesCloud || !resLikersPillsWrap) return;
+      if (!likers || likers.length === 0) {
+        boxLikersNamesCloud.classList.add('hidden');
+        return;
+      }
+
+      const isAr = currentLang === 'ar';
+      boxLikersNamesCloud.classList.remove('hidden');
+      if (resTotalLikesNote) {
+        resTotalLikesNote.textContent = isAr
+          ? `إجمالي إعجابات القصة: ${fmt(totalLikes)} ❤️`
+          : `Total Story Likes: ${fmt(totalLikes)} ❤️`;
+      }
+
+      resLikersPillsWrap.innerHTML = '';
+      likers.forEach(u => {
+        const a = document.createElement('a');
+        a.href = u.profile_url || `https://www.tiktok.com/@${u.unique_id}`;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-pink-950/40 hover:bg-pink-900/60 border border-pink-700/40 hover:border-pink-500/80 text-pink-200 text-[11px] font-bold transition group active:scale-95 shadow-sm';
+        a.title = `@${u.unique_id} - ${u.nickname}`;
+
+        const avatarSrc = u.avatar_proxy || u.avatar || '';
+        a.innerHTML = `
+          <span class="w-4 h-4 rounded-full overflow-hidden flex-shrink-0 border border-pink-400/50 bg-gray-800">
+            <img src="${avatarSrc}" alt="" class="w-full h-full object-cover" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'16\\' height=\\'16\\' viewBox=\\'0 0 24 24\\' fill=\\'%23ec4899\\'><path d=\\'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z\\'/></svg>'"/>
+          </span>
+          <span class="text-white group-hover:text-pink-300 font-bold max-w-[120px] truncate">${escapeHtml(u.nickname || u.unique_id)}</span>
+          <span class="font-mono text-pink-400 text-[10px] dir-ltr max-w-[90px] truncate">(@${escapeHtml(u.unique_id)})</span>
+          ${u.verified ? '<span class="text-blue-400 text-[10px]">✓</span>' : ''}
+          <span class="text-pink-400 text-[10px]">❤️</span>
+        `;
+        resLikersPillsWrap.appendChild(a);
+      });
+    }
+
+    // Filter Tabs UI Helper
+    function updateFilterTabsUI() {
+      const activeClass = 'px-3 py-1.5 rounded-lg bg-pink-600/20 text-pink-300 border border-pink-500/40 font-bold transition cursor-pointer shadow-sm';
+      const inactiveClass = 'px-3 py-1.5 rounded-lg bg-gray-800 text-gray-400 hover:text-white font-semibold transition cursor-pointer border border-transparent';
+
+      if (btnTabLikersAll) btnTabLikersAll.className = currentLikersTab === 'all' ? activeClass : inactiveClass;
+      if (btnTabLikersHigh) btnTabLikersHigh.className = currentLikersTab === 'high' ? activeClass : inactiveClass;
+      if (btnTabLikersVerified) btnTabLikersVerified.className = currentLikersTab === 'verified' ? activeClass : inactiveClass;
+    }
+
+    // Apply Filters & Search
+    function applyLikersFiltersAndRender() {
+      let list = [...loadedLikers];
+      const q = (filterInteractorsInput ? filterInteractorsInput.value : '').toLowerCase().trim();
+
+      // Tab filter
+      if (currentLikersTab === 'high') {
+        list = list.sort((a, b) => (b.likes || 0) - (a.likes || 0));
+      } else if (currentLikersTab === 'verified') {
+        list = list.filter(u => u.verified);
+      }
+
+      // Search filter
+      if (q) {
+        list = list.filter(u => {
+          return (
+            (u.nickname && u.nickname.toLowerCase().includes(q)) ||
+            (u.unique_id && u.unique_id.toLowerCase().includes(q)) ||
+            (u.text && u.text.toLowerCase().includes(q))
+          );
+        });
+      }
+
+      renderInteractorsList(list);
+    }
+
+    // Render Detailed Likers Cards
     function renderInteractorsList(list) {
       const isAr = currentLang === 'ar';
       resInteractorsList.innerHTML = '';
 
       if (!list || list.length === 0) {
         resInteractorsList.innerHTML = `
-          <div class="col-span-2 p-8 rounded-xl bg-gray-900/40 border border-gray-800 text-center text-xs text-gray-500">
-            ${isAr ? 'لا توجد تعليقات أو تفاعلات مسجلة متاحة لهذا المقطع حالياً.' : 'No comments or interactions recorded for this post yet.'}
+          <div class="col-span-1 md:col-span-2 p-8 rounded-xl bg-gray-900/40 border border-gray-800 text-center text-xs text-gray-500 space-y-1">
+            <div class="text-2xl mb-1">🔍</div>
+            <div class="font-bold text-gray-400">${isAr ? 'لم نتمكن من العثور على معجبين مطابقين' : 'No matching likers found'}</div>
+            <div>${isAr ? 'لا توجد أسماء مطابقة لخيارات التصفية والبحث الحالية.' : 'No users match your current filter or search criteria.'}</div>
           </div>
         `;
         return;
       }
 
-      list.forEach(item => {
-        const u = item.user || {};
+      list.forEach(u => {
         const card = document.createElement('div');
-        card.className = 'p-3.5 rounded-xl bg-gray-900/70 border border-gray-800 hover:border-purple-500/40 transition flex items-start gap-3';
+        card.className = 'p-3.5 rounded-xl bg-gray-900/70 border border-gray-800 hover:border-pink-500/50 transition-all duration-200 flex items-start gap-3 shadow-md group';
 
-        const safeComment = (item.text || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const safeComment = escapeHtml(u.text || '');
+        const avatarSrc = u.avatar_proxy || u.avatar || '';
 
         card.innerHTML = `
-          <img
-            src="${u.avatar_proxy || u.avatar || ''}"
-            alt="${u.nickname}"
-            class="w-10 h-10 rounded-full object-cover border border-purple-500/40 flex-shrink-0"
-            onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'40\' height=\'40\' viewBox=\'0 0 24 24\' fill=\'%2364748b\'><path d=\'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z\'/></svg>'"
-          />
-          <div class="flex-1 min-w-0 space-y-1">
+          <div class="relative flex-shrink-0">
+            <img
+              src="${avatarSrc}"
+              alt="${escapeHtml(u.nickname)}"
+              class="w-11 h-11 rounded-full object-cover border-2 border-pink-500/40 group-hover:border-pink-400 transition shadow"
+              onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'44\\' height=\\'44\\' viewBox=\\'0 0 24 24\\' fill=\\'%23ec4899\\'><path d=\\'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z\\'/></svg>'"
+            />
+            <span class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-pink-600 text-[9px] text-white flex items-center justify-center font-bold shadow">❤️</span>
+          </div>
+
+          <div class="flex-1 min-w-0 space-y-1.5">
+            <!-- Header: Full Nickname + @handle + Verified + Like Badge -->
             <div class="flex items-center justify-between gap-1 flex-wrap">
               <div class="flex items-center gap-1.5 min-w-0">
-                <span class="text-xs font-bold text-white truncate">${u.nickname || 'User'}</span>
-                ${u.verified ? '<span class="text-blue-400 text-[11px]" title="موثق">✓</span>' : ''}
-                <span class="text-[11px] font-mono text-purple-400 truncate dir-ltr">@${u.unique_id || 'user'}</span>
+                <span class="text-xs sm:text-sm font-black text-white truncate group-hover:text-pink-300 transition">${escapeHtml(u.nickname || 'TikTok User')}</span>
+                ${u.verified ? '<span class="text-blue-400 text-xs font-bold" title="حساب موثق">✓</span>' : ''}
+                <span class="text-[11px] font-mono text-purple-400 truncate dir-ltr">@${escapeHtml(u.unique_id || 'user')}</span>
               </div>
-              <span class="text-[10px] px-2 py-0.5 rounded-full bg-pink-950/80 text-pink-300 border border-pink-700/60 font-bold flex items-center gap-1">
-                <span>❤️</span><span>${fmt(item.likes || 0)}</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-pink-950/90 text-pink-300 border border-pink-700/60 font-bold flex items-center gap-1 shadow-sm">
+                <span>❤️</span><span>${isAr ? 'أبدى إعجابه' : 'Liked'}</span>
+                ${u.likes > 0 ? `<span class="text-pink-400 font-mono font-bold">+${fmt(u.likes)}</span>` : ''}
               </span>
             </div>
-            <p class="text-xs text-gray-300 leading-relaxed break-words bg-black/20 p-2 rounded-lg border border-gray-800/60">${safeComment || (isAr ? 'تفاعل بإعجاب' : 'Reacted with like')}</p>
-            <div class="flex items-center justify-between pt-1 text-[10px] text-gray-500">
-              <span>${item.created_at_formatted ? `🕒 ${item.created_at_formatted}` : ''}</span>
-              <a href="${u.profile_url || `https://www.tiktok.com/@${u.unique_id}`}" target="_blank" rel="noopener noreferrer" class="text-cyan-400 hover:underline flex items-center gap-0.5 font-bold">
-                <span>${isAr ? 'عرض الحساب' : 'Profile'}</span><span>↗</span>
+
+            <!-- Reaction or Comment Text -->
+            <div class="text-xs text-gray-300 leading-relaxed break-words bg-black/25 p-2 rounded-lg border border-gray-800/60">
+              ${safeComment || (isAr ? '❤️ وضع إعجاب وتفاعل مع القصة' : '❤️ Liked and interacted with story')}
+            </div>
+
+            <!-- Footer: Timestamp + Followers + Profile Link -->
+            <div class="flex items-center justify-between pt-0.5 text-[10px] text-gray-500">
+              <div class="flex items-center gap-2">
+                ${u.created_at_formatted ? `<span>🕒 ${escapeHtml(u.created_at_formatted)}</span>` : ''}
+                ${u.follower_count > 0 ? `<span class="font-mono text-gray-400">👥 ${fmt(u.follower_count)} ${isAr ? 'متابع' : 'followers'}</span>` : ''}
+              </div>
+              <a
+                href="${u.profile_url || `https://www.tiktok.com/@${u.unique_id}`}"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="px-2.5 py-1 rounded-lg bg-cyan-950/60 hover:bg-cyan-700 border border-cyan-700/50 text-cyan-300 hover:text-white font-bold transition flex items-center gap-1 active:scale-95 shadow-sm"
+              >
+                <span>${isAr ? 'زيارة الحساب' : 'Profile'}</span>
+                <span>↗</span>
               </a>
             </div>
           </div>
@@ -1041,23 +1250,74 @@
       });
     }
 
-    // Filter Interactors
-    filterInteractorsInput.addEventListener('input', e => {
-      const q = e.target.value.toLowerCase().trim();
-      if (!q) {
-        renderInteractorsList(loadedInteractors);
-        return;
-      }
-      const filtered = loadedInteractors.filter(item => {
-        const u = item.user || {};
-        return (
-          (u.nickname && u.nickname.toLowerCase().includes(q)) ||
-          (u.unique_id && u.unique_id.toLowerCase().includes(q)) ||
-          (item.text && item.text.toLowerCase().includes(q))
-        );
+    // Filter Tabs Listeners
+    if (btnTabLikersAll) {
+      btnTabLikersAll.addEventListener('click', () => {
+        currentLikersTab = 'all';
+        updateFilterTabsUI();
+        applyLikersFiltersAndRender();
       });
-      renderInteractorsList(filtered);
-    });
+    }
+
+    if (btnTabLikersHigh) {
+      btnTabLikersHigh.addEventListener('click', () => {
+        currentLikersTab = 'high';
+        updateFilterTabsUI();
+        applyLikersFiltersAndRender();
+      });
+    }
+
+    if (btnTabLikersVerified) {
+      btnTabLikersVerified.addEventListener('click', () => {
+        currentLikersTab = 'verified';
+        updateFilterTabsUI();
+        applyLikersFiltersAndRender();
+      });
+    }
+
+    // Copy All Likers Button Listener
+    if (btnCopyAllLikers) {
+      btnCopyAllLikers.addEventListener('click', async () => {
+        const isAr = currentLang === 'ar';
+        if (!loadedLikers || loadedLikers.length === 0) {
+          showToast(isAr ? 'لا توجد أسماء معجبين لنسخها حالياً.' : 'No likers names to copy.', 'error');
+          return;
+        }
+
+        const lines = loadedLikers.map((u, idx) => {
+          const verifiedBadge = u.verified ? ' [✓ موثق]' : '';
+          return `${idx + 1}. ${u.nickname} (@${u.unique_id})${verifiedBadge} | رابط الحساب: ${u.profile_url}`;
+        });
+        const header = isAr
+          ? `❤️ قائمة أسماء من أبدوا إعجابهم وتفاعلوا مع القصة (${loadedLikers.length} اسم):\n`
+          : `❤️ List of users who liked and interacted with the story (${loadedLikers.length} users):\n`;
+        const fullText = header + lines.join('\n');
+
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(fullText);
+          } else {
+            const ta = document.createElement('textarea');
+            ta.value = fullText;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            ta.remove();
+          }
+          showToast(isAr ? `تم نسخ جميع أسماء المعجبين (${loadedLikers.length} اسم) بنجاح! 📋` : `All ${loadedLikers.length} liker names copied! 📋`, 'success');
+        } catch (err) {
+          console.error('Copy failed:', err);
+          showToast(isAr ? 'فشل النسخ تلقائياً، يرجى المحاولة يدوياً.' : 'Copy failed, please try manually.', 'error');
+        }
+      });
+    }
+
+    // Real-time Search Filter Listener
+    if (filterInteractorsInput) {
+      filterInteractorsInput.addEventListener('input', () => {
+        applyLikersFiltersAndRender();
+      });
+    }
 
     // Event Listeners
     btnPasteUrl.addEventListener('click', handlePaste);

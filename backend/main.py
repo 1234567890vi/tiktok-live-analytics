@@ -1387,7 +1387,7 @@ async def tiktok_inspect(request: Request, data: dict):
         try:
             resp_comments = await client.post(
                 "https://www.tikwm.com/api/comment/list",
-                data={"url": raw_url, "count": 30},
+                data={"url": raw_url, "count": 50},
                 headers=headers,
                 timeout=12.0,
             )
@@ -1427,6 +1427,25 @@ async def tiktok_inspect(request: Request, data: dict):
 
         # Video stream url for preview
         preview_video_url = hd_url or sd_url or ""
+
+        # Story Likers summary
+        story_likers = [
+            {
+                "id": item["id"],
+                "nickname": item["user"]["nickname"],
+                "unique_id": item["user"]["unique_id"],
+                "avatar": item["user"]["avatar"],
+                "avatar_proxy": item["user"]["avatar_proxy"],
+                "verified": item["user"]["verified"],
+                "follower_count": item["user"]["follower_count"],
+                "likes": item["likes"],
+                "text": item["text"],
+                "created_at_formatted": item["created_at_formatted"],
+                "profile_url": item["user"]["profile_url"],
+            }
+            for item in interactors
+        ]
+        story_likers_text = ", ".join([f"@{u['unique_id']} ({u['nickname']})" for u in story_likers])
 
         return {
             "status": "ok",
@@ -1481,6 +1500,9 @@ async def tiktok_inspect(request: Request, data: dict):
                 },
                 "interactors": interactors,
                 "interactors_count": len(interactors),
+                "story_likers": story_likers,
+                "story_likers_count": len(story_likers),
+                "story_likers_text": story_likers_text,
             }
         }
     except Exception as exc:
