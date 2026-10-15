@@ -1253,6 +1253,169 @@ class TikTokSession:
             "type": "live_friends",
             "data": friends_list,
         })
+        await self._send({
+            "type": "co_host_roster",
+            "data": self.get_co_host_roster(),
+        })
+
+    # ------------------------------------------------------------------
+    # Co-Host & Guest Presence Roster (تتبع التواجد وحيداً أو مع 1 أو 2 أو 3)
+    # ------------------------------------------------------------------
+
+    def get_co_host_roster(self) -> dict:
+        """
+        Determines the host's connected guest/co-host presence state:
+        - Solo (وحيداً): Host alone (1 streamer)
+        - Duo (مع شخص واحد): Host + 1 guest/rival (2 streamers)
+        - Trio (مع شخصين): Host + 2 guests/rivals (3 streamers)
+        - Squad (مع ثلاثة أشخاص): Host + 3 guests/rivals (4 streamers)
+
+        Extracts name, unique_id, avatar, role, and exact live viewer count for each streamer's live room.
+        """
+        members = []
+        host_unique = self._streamer_unique_id or self.username
+        host_nick   = self._streamer_nickname or host_unique
+        host_av     = self._streamer_avatar or ""
+        host_viewers = getattr(self._engine, "_viewers", 0) or 0
+
+        # Check battle state anchors
+        pk_state = self._engine.get_pk_state()
+        pk_dict = pk_state.to_dict() if hasattr(pk_state, "to_dict") else getattr(pk_state, "__dict__", {})
+        host_anchors = pk_dict.get("host_anchors", [])
+        opp_anchors  = pk_dict.get("opponent_anchors", [])
+
+        if host_anchors:
+            h0 = host_anchors[0]
+            if not host_av and h0.get("avatar_url"):
+                host_av = h0["avatar_url"]
+            if (not host_nick or host_nick == self.username) and h0.get("nickname"):
+                host_nick = h0["nickname"]
+            if host_viewers <= 0 and h0.get("viewer_count", 0) > 0:
+                host_viewers = h0["viewer_count"]
+
+        # Primary Host Member (صاحب البث)
+        members.append({
+            "user_id": str(self._streamer_user_id or ""),
+            "unique_id": host_unique,
+            "nickname": host_nick,
+            "avatar_url": host_av,
+            "role": "host",
+            "role_label": "👑 المضيف (صاحب البث)",
+            "viewer_count": int(host_viewers),
+            "is_host": True,
+        })
+
+        added_uids = {host_unique.lower()}
+        if self.username.lower():
+            added_uids.add(self.username.lower())
+        if self._streamer_user_id:
+            added_uids.add(str(self._streamer_user_id))
+
+        # Check secondary host anchors (e.g. 2v2 ally)
+        for ha in host_anchors[1:]:
+            u_id = str(ha.get("user_id", "") or "")
+            uniq = str(ha.get("unique_id", "") or "").lower()
+            if (uniq and uniq not in added_uids) or (u_id and u_id not in added_uids):
+                v_cnt = int(ha.get("viewer_count", 0) or 0)
+                if v_cnt <= 0 and uniq in self._known_friends:
+                    v_cnt = int(self._known_friends[uniq].get("viewer_count", 0) or 0)
+                members.append({
+                    "user_id": u_id,
+                    "unique_id": ha.get("unique_id", "") or uniq,
+                    "nickname": ha.get("nickname") or ha.get("unique_id") or "حليف",
+                    "avatar_url": ha.get("avatar_url", ""),
+                    "role": "ally",
+                    "role_label": "⚔️ شريك / حليف",
+                    "viewer_count": int(v_cnt),
+                    "is_host": False,
+                })
+                if uniq:
+                    added_uids.add(uniq)
+                if u_id:
+                    added_uids.add(u_id)
+
+        # Check opponent anchors (rivals)
+        for oa in opp_anchors:
+            u_id = str(oa.get("user_id", "") or "")
+            uniq = str(oa.get("unique_id", "") or "").lower()
+            if (uniq and uniq not in added_uids) or (u_id and u_id not in added_uids):
+                v_cnt = int(oa.get("viewer_count", 0) or 0)
+                if v_cnt <= 0 and uniq in self._known_friends:
+                    v_cnt = int(self._known_friends[uniq].get("viewer_count", 0) or 0)
+                members.append({
+                    "user_id": u_id,
+                    "unique_id": oa.get("unique_id", "") or uniq,
+                    "nickname": oa.get("nickname") or oa.get("unique_id") or "منافس",
+                    "avatar_url": oa.get("avatar_url", ""),
+                    "role": "rival",
+                    "role_label": "🥊 منافس في الجولة",
+                    "viewer_count": int(v_cnt),
+                    "is_host": False,
+                })
+                if uniq:
+                    added_uids.add(uniq)
+                if u_id:
+                    added_uids.add(u_id)
+
+        # Cap members at 4
+        members = members[:4]
+
+        # Calculate highest viewer count to highlight top streamer
+        max_viewers = max((m.get("viewer_count", 0) for m in members), default=0)
+        for m in members:
+            m["is_top_viewed"] = (m.get("viewer_count", 0) == max_viewers and max_viewers > 0 and len(members) > 1)
+
+        total_streamers = len(members)
+        guest_count = total_streamers - 1
+
+        if total_streamers == 1:
+            mode = "solo"
+            mode_label = "وحيداً"
+            header_title = "👤 صاحب البث وحيداً في اللايف (بدون قست)"
+            header_desc = "يبث المضيف بمفرده حالياً بدون مشاركة أي ضيوف أو منافسين"
+        elif total_streamers == 2:
+            mode = "duo"
+            mode_label = "مع شخص واحد"
+            header_title = "👥 صاحب البث في بث مشترك مع شخص واحد (ثنائي)"
+            header_desc = "يتواجد شخص واحد في القست مع المضيف بمجموع مذيعين 2"
+        elif total_streamers == 3:
+            mode = "trio"
+            mode_label = "مع شخصين"
+            header_title = "🔺 صاحب البث في بث مشترك مع شخصين (ثلاثي)"
+            header_desc = "يتواجد شخصان في القست مع المضيف بمجموع مذيعين 3"
+        else:
+            mode = "squad"
+            mode_label = "مع ثلاثة أشخاص"
+            header_title = "🛡️ صاحب البث في بث مشترك مع ثلاثة أشخاص (رباعي)"
+            header_desc = "يتواجد ثلاثة أشخاص في القست مع المضيف بمجموع مذيعين 4"
+
+        # Determine stream round stage
+        pk_status = pk_dict.get("status", "IDLE")
+        if pk_status in ("ACTIVE", "BATTLE"):
+            stage = "in_round"
+            stage_label = "⚔️ جولة نشطة حالياً"
+        elif pk_status == "PUNISH":
+            stage = "punish"
+            stage_label = "⏱️ وقت الحكم والتحدي"
+        elif pk_status == "ENDED":
+            stage = "after_round"
+            stage_label = "🏆 انتهت الجولة (محادثة ما بعد الجولة)"
+        else:
+            stage = "before_round" if guest_count > 0 else "solo_stream"
+            stage_label = "🤝 قبل بداية الجولة (بث مشترك / دردشة)" if guest_count > 0 else "👤 بث فردي مباشر"
+
+        return {
+            "mode": mode,
+            "mode_label": mode_label,
+            "total_streamers": total_streamers,
+            "guest_count": guest_count,
+            "header_title": header_title,
+            "header_desc": header_desc,
+            "stage": stage,
+            "stage_label": stage_label,
+            "members": members,
+            "timestamp": time.time(),
+        }
 
     # ------------------------------------------------------------------
     # Public API
@@ -1318,6 +1481,7 @@ class TikTokSession:
             key=lambda x: x.get("viewer_count", 0),
             reverse=True,
         )
+        data["co_host_roster"] = self.get_co_host_roster()
         return {"type": "snapshot", "data": data}
 
     async def send_snapshot(self) -> None:
@@ -1987,6 +2151,7 @@ class TikTokSession:
 
             pk = self._engine.get_pk_state()
             pk_dict = pk.to_dict() if hasattr(pk, "to_dict") else pk.__dict__
+            pk_dict["co_host_roster"] = self.get_co_host_roster()
             await self._send({"type": "pk_battle", "data": pk_dict, "event": event_tag})
 
             # Register PK anchors in live friends and broadcast
@@ -2138,6 +2303,7 @@ class TikTokSession:
                 })
 
             event_tag = "ended" if is_finished else ("start" if (is_new_battle or is_fresh_start) else "update")
+            pk_dict["co_host_roster"] = self.get_co_host_roster()
             await self._send({
                 "type":  "pk_battle",
                 "data":  pk_dict,

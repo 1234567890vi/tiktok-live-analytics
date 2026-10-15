@@ -422,6 +422,49 @@
         </div>
       </div>
 
+      <!-- 0. CO-HOST & GUEST PRESENCE ROSTER DECK (عرض حالة التواجد: وحيداً أو مع شخص أو مع إثنان أو مع ثلاث مع أسمائهم وعدد مشاهدات كل لايف) -->
+      <div id="pkPresenceDeck" class="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-indigo-950/40 via-slate-900/60 to-purple-950/30 border border-indigo-700/40 space-y-4 shadow-[0_0_25px_rgba(99,102,241,0.12)] transition-all duration-300">
+        <!-- Presence Header & State Description -->
+        <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 pb-3 border-b border-indigo-800/40">
+          <div class="space-y-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+              <h3 id="pkPresenceBanner" class="text-sm sm:text-base font-black text-white flex items-center gap-2">
+                👤 صاحب البث وحيداً في اللايف (بدون قست)
+              </h3>
+              <span id="pkPresenceStageBadge" class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+                قبل بداية الجولة
+              </span>
+            </div>
+            <p id="pkPresenceDesc" class="text-xs text-gray-300">
+              تتبع دقيق للمتواجدين في البث المباشر (وحيداً، مع شخص، مع شخصين، أو مع 3) مع عرض أسمائهم وعدد المشاهدات في لايف كل شخص.
+            </p>
+          </div>
+
+          <!-- Quick Interactive Switcher / Preview Pills (المعاينة الفورية للحالات الأربعة) -->
+          <div class="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-gray-950/90 border border-gray-800 text-xs">
+            <span class="text-[10px] text-gray-400 px-1 font-bold">معاينة الحالات:</span>
+            <button type="button" id="btnPresenceSolo" class="px-2.5 py-1 rounded-lg font-bold transition-all text-white bg-indigo-600 border border-indigo-400 shadow-[0_0_10px_rgba(99,102,241,0.5)]" title="صاحب البث وحيداً في البث">
+              👤 وحيداً (1)
+            </button>
+            <button type="button" id="btnPresenceDuo" class="px-2.5 py-1 rounded-lg font-bold transition-all text-gray-400 hover:text-white bg-transparent" title="صاحب البث مع شخص واحد">
+              👥 مع شخص (2)
+            </button>
+            <button type="button" id="btnPresenceTrio" class="px-2.5 py-1 rounded-lg font-bold transition-all text-gray-400 hover:text-white bg-transparent" title="صاحب البث مع شخصين">
+              🔺 مع شخصين (3)
+            </button>
+            <button type="button" id="btnPresenceSquad" class="px-2.5 py-1 rounded-lg font-bold transition-all text-gray-400 hover:text-white bg-transparent" title="صاحب البث مع ثلاثة أشخاص">
+              🛡️ مع 3 أشخاص (4)
+            </button>
+          </div>
+        </div>
+
+        <!-- Dynamic Presence Grid (1 to 4 Cards dynamically rendered) -->
+        <div id="pkPresenceGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-stretch w-full">
+          <!-- Populated by JavaScript renderPresenceRoster -->
+        </div>
+      </div>
+
       <!-- 1. SOLO COMMAND DECK (عرض البث الفردي عندما يكون لايف وحيد) -->
       <div id="pkSoloDeck" class="p-5 rounded-2xl bg-gradient-to-br from-indigo-950/30 via-slate-900/50 to-purple-950/20 border border-indigo-700/30 space-y-4 shadow-[0_0_25px_rgba(99,102,241,0.08)]">
         <div class="flex flex-col md:flex-row items-center justify-between gap-4">
@@ -514,6 +557,9 @@
                 <div class="min-w-0 flex-1">
                   <div class="text-sm font-bold text-white truncate" id="pkHostNick">المضيف</div>
                   <div class="text-xs text-blue-300 font-mono truncate" id="pkHostName">@host</div>
+                  <div class="text-[10px] text-cyan-300 font-mono font-bold flex items-center gap-1" id="pkHostViewersBadge">
+                    <span>👥</span> <span id="pkHostViewersCount">0</span> <span class="text-[9px] text-gray-400">مشاهد في لايف تبعه</span>
+                  </div>
                   <div class="text-[10px] text-blue-400 font-mono font-bold hidden" id="pkHostAnchorScore">0 نقطة</div>
                 </div>
               </div>
@@ -526,6 +572,9 @@
                 <div class="min-w-0 flex-1">
                   <div class="text-sm font-bold text-white truncate" id="pkTeammateNick">الحليف</div>
                   <div class="text-xs text-blue-300 font-mono truncate" id="pkTeammateName">@ally</div>
+                  <div class="text-[10px] text-cyan-300 font-mono font-bold flex items-center gap-1" id="pkTeammateViewersBadge">
+                    <span>👥</span> <span id="pkTeammateViewersCount">0</span> <span class="text-[9px] text-gray-400">مشاهد في لايف تبعه</span>
+                  </div>
                   <div class="text-[10px] text-blue-400 font-mono font-bold" id="pkTeammateAnchorScore">0 نقطة</div>
                 </div>
               </div>
@@ -596,6 +645,9 @@
                 <div class="min-w-0 flex-1">
                   <div class="text-sm font-bold text-white truncate" id="pkOppNick1">الخصم</div>
                   <div class="text-xs text-red-300 font-mono truncate" id="pkOppName1">@opponent</div>
+                  <div class="text-[10px] text-red-300 font-mono font-bold flex items-center gap-1" id="pkOppViewersBadge1">
+                    <span>👥</span> <span id="pkOppViewersCount1">0</span> <span class="text-[9px] text-gray-400">مشاهد في لايف تبعه</span>
+                  </div>
                   <div class="text-[10px] text-red-400 font-mono font-bold hidden" id="pkOppAnchorScore1">0 نقطة</div>
                 </div>
               </div>
@@ -608,6 +660,9 @@
                 <div class="min-w-0 flex-1">
                   <div class="text-sm font-bold text-white truncate" id="pkOppNick2">الخصم الثاني</div>
                   <div class="text-xs text-red-300 font-mono truncate" id="pkOppName2">@rival2</div>
+                  <div class="text-[10px] text-red-300 font-mono font-bold flex items-center gap-1" id="pkOppViewersBadge2">
+                    <span>👥</span> <span id="pkOppViewersCount2">0</span> <span class="text-[9px] text-gray-400">مشاهد في لايف تبعه</span>
+                  </div>
                   <div class="text-[10px] text-red-400 font-mono font-bold" id="pkOppAnchorScore2">0 نقطة</div>
                 </div>
               </div>
@@ -683,6 +738,9 @@
               <div class="min-w-0 flex-1">
                 <div class="text-sm font-bold text-white truncate" id="pkTriHostNick">المضيف</div>
                 <div class="text-xs text-blue-300 font-mono truncate" id="pkTriHostName">@host</div>
+                <div class="text-[10px] text-cyan-300 font-mono font-bold flex items-center gap-1" id="pkTriHostViewersBadge">
+                  <span>👥</span> <span id="pkTriHostViewers">0</span> <span class="text-[9px] text-gray-400">مشاهد في لايف تبعه</span>
+                </div>
               </div>
             </div>
             <div class="flex items-baseline justify-between pt-1">
@@ -713,6 +771,9 @@
               <div class="min-w-0 flex-1">
                 <div class="text-sm font-bold text-white truncate" id="pkTriRival1Nick">الخصم الأول</div>
                 <div class="text-xs text-red-300 font-mono truncate" id="pkTriRival1Name">@rival1</div>
+                <div class="text-[10px] text-red-300 font-mono font-bold flex items-center gap-1" id="pkTriRival1ViewersBadge">
+                  <span>👥</span> <span id="pkTriRival1Viewers">0</span> <span class="text-[9px] text-gray-400">مشاهد في لايف تبعه</span>
+                </div>
               </div>
             </div>
             <div class="flex items-baseline justify-between pt-1">
@@ -743,6 +804,9 @@
               <div class="min-w-0 flex-1">
                 <div class="text-sm font-bold text-white truncate" id="pkTriRival2Nick">الخصم الثاني</div>
                 <div class="text-xs text-purple-300 font-mono truncate" id="pkTriRival2Name">@rival2</div>
+                <div class="text-[10px] text-purple-300 font-mono font-bold flex items-center gap-1" id="pkTriRival2ViewersBadge">
+                  <span>👥</span> <span id="pkTriRival2Viewers">0</span> <span class="text-[9px] text-gray-400">مشاهد في لايف تبعه</span>
+                </div>
               </div>
             </div>
             <div class="flex items-baseline justify-between pt-1">
