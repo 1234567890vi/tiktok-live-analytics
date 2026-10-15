@@ -131,12 +131,6 @@
           <span id="navLiveTracker">البث المباشر</span>
         </a>
 
-        <!-- Admin Panel Link -->
-        <a href="/admin" class="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-950/60 hover:bg-purple-900/60 border border-purple-700/50 text-purple-300 text-xs font-bold transition active:scale-95">
-          <span>👑</span>
-          <span id="navAdmin">لوحة الأدمن</span>
-        </a>
-
         <!-- Theme Toggle -->
         <button id="themeToggleBtn" type="button" class="p-2 rounded-xl bg-gray-800/80 hover:bg-gray-700 border border-gray-700 text-gray-300 transition active:scale-90" title="تبديل المظهر">
           <span id="themeIcon">🌙</span>
@@ -425,8 +419,6 @@
       <div class="flex items-center gap-4 text-gray-400">
         <a href="/" class="hover:text-pink-400 transition">منصة البث المباشر</a>
         <span>•</span>
-        <a href="/admin" class="hover:text-purple-400 transition">لوحة الأدمن</a>
-        <span>•</span>
         <a href="https://www.instagram.com/abd_jalile013" target="_blank" rel="noopener" class="hover:text-pink-400 transition">Instagram</a>
       </div>
     </div>
@@ -480,7 +472,6 @@
       ar: {
         brandSubtitle: 'تنزيل الفيديوهات بدون علامة مائية',
         navLiveTracker: 'البث المباشر',
-        navAdmin: 'لوحة الأدمن',
         heroBadge: 'دقة فائقة 1080p Ultra HD — مجاني 100% بدون علامة مائية',
         heroTitle: 'تنزيل فيديوهات <span class="bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-400 bg-clip-text text-transparent">تيك توك</span> بدون علامة مائية',
         heroSubtitle: 'الصق رابط أي فيديو أو ألبوم صور من تيك توك، واحصل فوراً على خيارات التنزيل المباشر بأعلى جودة متوفرة (1080p Ultra HD / SD / MP3) بنقرة واحدة فقط.',
@@ -517,7 +508,6 @@
       en: {
         brandSubtitle: 'Download Videos Without Watermark',
         navLiveTracker: 'Live Tracker',
-        navAdmin: 'Admin Panel',
         heroBadge: 'Ultra HD 1080p — 100% Free Without Watermark',
         heroTitle: 'Download <span class="bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-400 bg-clip-text text-transparent">TikTok Videos</span> Without Watermark',
         heroSubtitle: 'Paste any TikTok video or photo slide link and get instant direct download options in highest quality (1080p Ultra HD / SD / MP3) with just one click.',
@@ -592,7 +582,6 @@
       const t = I18N[lang] || I18N.ar;
       $('brandSubtitle').textContent = t.brandSubtitle;
       $('navLiveTracker').textContent = t.navLiveTracker;
-      $('navAdmin').textContent = t.navAdmin;
       $('heroBadge').textContent = t.heroBadge;
       $('heroTitle').innerHTML = t.heroTitle;
       $('heroSubtitle').textContent = t.heroSubtitle;
