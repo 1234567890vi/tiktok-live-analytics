@@ -3045,7 +3045,12 @@ function applyLanguage(lang) {
   if ($('descAdmin')) $('descAdmin').textContent = t.descAdmin;
   if ($('btnOpenAdminText')) $('btnOpenAdminText').textContent = t.openAdminBtn;
 
-  // TikTok Downloader Controls
+  // TikTok Inspector & Downloader Controls
+  if ($('btnNavInspector')) $('btnNavInspector').textContent = (lang === 'ar' ? 'فحص الفيديوهات والقصص' : 'Inspect Videos & Stories');
+  if ($('labelInspector')) $('labelInspector').textContent = (lang === 'ar' ? 'فاحص الفيديوهات والقصص' : 'Video & Story Inspector');
+  if ($('descInspector')) $('descInspector').textContent = (lang === 'ar' ? 'استخراج فوري لعدد المشاهدات، الإعجابات، المشاركات، جودة الفيديو، الناشر وقائمة المتفاعلين مع القصة.' : 'Instant metrics for views, likes, shares, video quality, creator info, and story interactors.');
+  if ($('btnOpenInspectorText')) $('btnOpenInspectorText').textContent = (lang === 'ar' ? 'فتح فاحص الفيديوهات والقصص' : 'Open Video & Story Inspector');
+
   if ($('labelTtDownloader')) $('labelTtDownloader').textContent = t.labelTtDownloader;
   if ($('descTtDownloader')) $('descTtDownloader').textContent = t.descTtDownloader;
   if ($('btnNavDownloader')) $('btnNavDownloader').textContent = (lang === 'ar' ? 'تنزيل الفيديوهات' : 'Downloader');

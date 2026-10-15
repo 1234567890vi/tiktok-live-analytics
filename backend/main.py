@@ -385,6 +385,22 @@ async def serve_downloader_page():
     return FileResponse(str(dl_path), media_type="text/html")
 
 
+@app.get("/inspector", response_class=FileResponse)
+@app.get("/inspect", response_class=FileResponse)
+@app.get("/video-inspector", response_class=FileResponse)
+@app.get("/story-inspector", response_class=FileResponse)
+async def serve_inspector_page():
+    """Direct route for standalone TikTok video & story inspector interface."""
+    insp_path = FRONTEND_DIR / "inspector.html"
+    if not insp_path.exists():
+        return HTMLResponse(
+            "<h1>Inspector page not found</h1>"
+            "<p>Place inspector.html inside the <code>frontend/</code> directory.</p>",
+            status_code=404,
+        )
+    return FileResponse(str(insp_path), media_type="text/html")
+
+
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     """Silence browser favicon requests to avoid 404 log noise."""
@@ -1224,6 +1240,252 @@ async def tiktok_download_stream(
             "Access-Control-Allow-Origin": "*",
         }
     )
+
+
+# ---------------------------------------------------------------------------
+# Image Proxy (Prevents Hotlink Referer Blocking)
+# ---------------------------------------------------------------------------
+@app.get("/api/proxy/image")
+async def proxy_image(url: str):
+    """Proxy image with TikTok referer to prevent hotlink blocking."""
+    if not url:
+        return Response(status_code=400)
+    client = _get_proxy_client()
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Referer": "https://www.tiktok.com/",
+    }
+    try:
+        resp = await client.get(url, headers=headers, follow_redirects=True, timeout=10.0)
+        ct = resp.headers.get("content-type") or "image/jpeg"
+        return Response(content=resp.content, media_type=ct, headers={"Cache-Control": "public, max-age=86400"})
+    except Exception:
+        return Response(status_code=404)
+
+
+# ---------------------------------------------------------------------------
+# TikTok Video & Story Inspector API (فاحص ومعلومات الفيديوهات والقصص)
+# ---------------------------------------------------------------------------
+@app.post("/api/tiktok/inspect")
+async def tiktok_inspect(request: Request, data: dict):
+    """
+    Fetch comprehensive analytics, metrics, publisher profile, quality specs,
+    and interactors/commenters/story-likers for any TikTok video or story.
+    """
+    raw_url = str(data.get("url", "")).strip()
+    if not raw_url:
+        return JSONResponse(status_code=400, content={"status": "error", "message": "يرجى إدخال رابط فيديو أو قصة تيك توك"})
+
+    if "tiktok.com" not in raw_url and "douyin.com" not in raw_url:
+        return JSONResponse(status_code=400, content={"status": "error", "message": "الرابط المدخل ليس رابط تيك توك صالح"})
+
+    try:
+        client = _get_proxy_client()
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Accept": "application/json",
+        }
+
+        # 1. Fetch main video / story details
+        resp_main = await client.post(
+            "https://www.tikwm.com/api/",
+            data={"url": raw_url, "hd": 1},
+            headers=headers,
+            timeout=15.0,
+        )
+        res_main_data = resp_main.json()
+        if res_main_data.get("code") != 0 or not res_main_data.get("data"):
+            msg = res_main_data.get("msg") or "فشل فحص الرابط. تأكد من صحة الرابط وأن الحساب ليس خاصاً (Private)."
+            return JSONResponse(status_code=400, content={"status": "error", "message": msg})
+
+        d = res_main_data["data"]
+        vid_id = str(d.get("id") or secrets.token_hex(4))
+        title = d.get("title") or "TikTok Post"
+        cover = d.get("cover") or d.get("origin_cover") or ""
+        duration = int(d.get("duration") or 0)
+        author = d.get("author") or {}
+        author_handle = str(author.get("unique_id") or "user")
+        clean_title = re.sub(r'[^\w\s\u0600-\u06FF.-]', ' ', str(title or "TikTok Post"))[:65].strip()
+
+        # Determine if it's a story or photo post
+        is_story = bool("/story/" in raw_url or d.get("is_story") or d.get("item_type") == 1)
+        is_photo = bool(d.get("images") and len(d.get("images", [])) > 0)
+
+        def _fmt_size(b):
+            if not b:
+                return ""
+            if b >= 1024 * 1024:
+                return f"{b / (1024 * 1024):.1f} MB"
+            if b >= 1024:
+                return f"{b / 1024:.0f} KB"
+            return f"{b} B"
+
+        qualities = []
+        hd_url = d.get("hdplay")
+        if hd_url:
+            qualities.append({
+                "id": "hd",
+                "label": "جودة فائقة HD (1080p)",
+                "label_en": "Ultra HD (1080p)",
+                "resolution": "1080p Ultra HD",
+                "size": _fmt_size(d.get("hd_size")),
+                "size_bytes": d.get("hd_size"),
+                "direct_url": hd_url,
+                "download_url": f"/api/tiktok/download-stream?url={quote(hd_url)}&filename=tiktok_hd_{vid_id}.mp4&quality=1080p&author={quote(author_handle)}&title={quote(clean_title)}",
+            })
+
+        sd_url = d.get("play")
+        if sd_url:
+            qualities.append({
+                "id": "sd",
+                "label": "جودة قياسية SD",
+                "label_en": "Standard SD",
+                "resolution": "Standard Definition",
+                "size": _fmt_size(d.get("size")),
+                "size_bytes": d.get("size"),
+                "direct_url": sd_url,
+                "download_url": f"/api/tiktok/download-stream?url={quote(sd_url)}&filename=tiktok_{vid_id}.mp4&quality=sd&author={quote(author_handle)}&title={quote(clean_title)}",
+            })
+
+        music_info = d.get("music_info") or {}
+        music_url = d.get("music") or music_info.get("play")
+        if music_url:
+            qualities.append({
+                "id": "audio",
+                "label": "المقطع الصوتي (MP3)",
+                "label_en": "Audio Only (MP3)",
+                "resolution": "Audio MP3",
+                "size": "MP3",
+                "size_bytes": None,
+                "direct_url": music_url,
+                "download_url": f"/api/tiktok/download-stream?url={quote(music_url)}&filename=tiktok_audio_{vid_id}.mp3&quality=audio&author={quote(author_handle)}&title={quote(clean_title)}",
+            })
+
+        images = d.get("images") or []
+        image_items = []
+        for idx, img_u in enumerate(images):
+            image_items.append({
+                "index": idx + 1,
+                "url": img_u,
+                "proxy_url": f"/api/proxy/image?url={quote(img_u)}",
+                "download_url": f"/api/tiktok/download-stream?url={quote(img_u)}&filename=tiktok_photo_{vid_id}_{idx+1}.jpg&quality=images&author={quote(author_handle)}&title={quote(clean_title)}",
+            })
+
+        plays = int(d.get("play_count") or 0)
+        likes = int(d.get("digg_count") or 0)
+        comments_cnt = int(d.get("comment_count") or 0)
+        shares = int(d.get("share_count") or 0)
+        collects = int(d.get("collect_count") or 0)
+        downloads = int(d.get("download_count") or 0)
+
+        # Engagement rate percentage
+        denom = max(1, plays)
+        engagement_rate = round(((likes + comments_cnt + shares) / denom) * 100, 2)
+
+        # 2. Concurrently fetch commenters and interactors (who liked and reacted)
+        interactors = []
+        try:
+            resp_comments = await client.post(
+                "https://www.tikwm.com/api/comment/list",
+                data={"url": raw_url, "count": 30},
+                headers=headers,
+                timeout=12.0,
+            )
+            res_comments_data = resp_comments.json()
+            if res_comments_data.get("code") == 0 and res_comments_data.get("data"):
+                raw_comments = res_comments_data["data"].get("comments") or []
+                for c in raw_comments:
+                    u = c.get("user") or {}
+                    c_user_avatar = u.get("avatar") or ""
+                    c_time = int(c.get("create_time") or 0)
+                    interactors.append({
+                        "id": str(c.get("id") or ""),
+                        "text": c.get("text") or "",
+                        "likes": int(c.get("digg_count") or 0),
+                        "reply_count": int(c.get("reply_total") or 0),
+                        "created_at": c_time,
+                        "created_at_formatted": time.strftime("%Y-%m-%d %H:%M", time.localtime(c_time)) if c_time else "",
+                        "user": {
+                            "id": str(u.get("id") or ""),
+                            "unique_id": u.get("unique_id") or "user",
+                            "nickname": u.get("nickname") or "TikTok User",
+                            "avatar": c_user_avatar,
+                            "avatar_proxy": f"/api/proxy/image?url={quote(c_user_avatar)}" if c_user_avatar else "",
+                            "verified": bool(u.get("verified")),
+                            "follower_count": int(u.get("follower_count") or 0),
+                            "signature": u.get("signature") or "",
+                            "profile_url": f"https://www.tiktok.com/@{u.get('unique_id', 'user')}",
+                        }
+                    })
+        except Exception as c_err:
+            logger.debug("Failed to fetch comments: %s", c_err)
+
+        author_avatar = author.get("avatar") or ""
+        author_avatar_proxy = f"/api/proxy/image?url={quote(author_avatar)}" if author_avatar else ""
+
+        create_t = int(d.get("create_time") or 0)
+
+        # Video stream url for preview
+        preview_video_url = hd_url or sd_url or ""
+
+        return {
+            "status": "ok",
+            "data": {
+                "id": vid_id,
+                "url": raw_url,
+                "is_story": is_story,
+                "is_photo": is_photo,
+                "item_type": "story" if is_story else ("photo" if is_photo else "video"),
+                "title": title,
+                "cover": cover,
+                "cover_proxy": f"/api/proxy/image?url={quote(cover)}" if cover else "",
+                "created_at": create_t,
+                "created_at_formatted": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(create_t)) if create_t else "",
+                "duration": duration,
+                "duration_formatted": f"{duration // 60:02d}:{duration % 60:02d}",
+                "preview_video_url": preview_video_url,
+                "author": {
+                    "id": str(author.get("id") or ""),
+                    "unique_id": author_handle,
+                    "nickname": author.get("nickname") or "TikTok Creator",
+                    "avatar": author_avatar,
+                    "avatar_proxy": author_avatar_proxy,
+                    "signature": author.get("signature") or "",
+                    "profile_url": f"https://www.tiktok.com/@{author_handle}",
+                },
+                "stats": {
+                    "plays": plays,
+                    "likes": likes,
+                    "comments": comments_cnt,
+                    "shares": shares,
+                    "collects": collects,
+                    "downloads": downloads,
+                    "engagement_rate": engagement_rate,
+                },
+                "specs": {
+                    "duration_seconds": duration,
+                    "hd_size_bytes": d.get("hd_size"),
+                    "hd_size_formatted": _fmt_size(d.get("hd_size")),
+                    "sd_size_bytes": d.get("size"),
+                    "sd_size_formatted": _fmt_size(d.get("size")),
+                    "has_hd": bool(hd_url),
+                },
+                "qualities": qualities,
+                "images": image_items,
+                "music": {
+                    "title": music_info.get("title") or "Original Sound",
+                    "author": music_info.get("author") or author_handle,
+                    "play_url": music_url or "",
+                    "cover": music_info.get("cover") or "",
+                    "duration": int(music_info.get("duration") or 0),
+                },
+                "interactors": interactors,
+                "interactors_count": len(interactors),
+            }
+        }
+    except Exception as exc:
+        logger.error("TikTok inspect error: %s", exc)
+        return JSONResponse(status_code=500, content={"status": "error", "message": f"حدث خطأ أثناء فحص الرابط: {str(exc)}"})
 
 
 @app.websocket("/ws/track/{username:path}")
