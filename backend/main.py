@@ -51,6 +51,8 @@ _search_history: list[dict] = []
 _banned_targets: set[str] = set()
 _tracking_enabled: bool = True
 _active_websockets: dict[str, set[WebSocket]] = {}
+_session_cleanup_tasks: dict[str, asyncio.Task] = {}
+SESSION_GRACE_PERIOD_SECONDS = 600  # 10 minutes grace period for background tracking during navigation
 
 # ---------------------------------------------------------------------------
 # Viewer Feature Permissions Registry (تحكم الأدمن في صلاحيات عرض المستخدمين)
@@ -301,6 +303,10 @@ async def lifespan(app: FastAPI):
     yield  # ── app runs here ────────────────────────────────────────────
 
     logger.info("🛑 Shutting down — stopping all active sessions...")
+    for t in list(_session_cleanup_tasks.values()):
+        if not t.done():
+            t.cancel()
+    _session_cleanup_tasks.clear()
     global _stream_proxy_client
     if _stream_proxy_client and not _stream_proxy_client.is_closed:
         try:
@@ -1510,6 +1516,25 @@ async def tiktok_inspect(request: Request, data: dict):
         return JSONResponse(status_code=500, content={"status": "error", "message": f"حدث خطأ أثناء فحص الرابط: {str(exc)}"})
 
 
+@app.get("/api/stream_status/{username}")
+async def get_stream_status(username: str):
+    """Return live tracking status for a streamer without opening a WebSocket."""
+    clean = clean_tiktok_username(username)
+    session = _active_sessions.get(clean)
+    if not session:
+        return {"active": False, "username": clean}
+    engine = getattr(session, "_engine", None)
+    return {
+        "active": True,
+        "username": clean,
+        "is_connected": session._is_connected or getattr(session, "is_connected", False),
+        "viewer_count": getattr(engine, "viewer_count", 0) if engine else 0,
+        "total_diamonds": getattr(engine, "get_total_diamonds", lambda: 0)() if engine else 0,
+        "total_likes": getattr(engine, "total_likes", 0) if engine else 0,
+        "is_pk_active": getattr(engine, "is_pk_active", False) if engine else False,
+    }
+
+
 @app.websocket("/ws/track/{username:path}")
 async def ws_track(websocket: WebSocket, username: str):
     """
@@ -1598,6 +1623,11 @@ async def ws_track(websocket: WebSocket, username: str):
         # Check if a session is already active for this streamer
         if clean_username in _active_sessions:
             session = _active_sessions[clean_username]
+            # Cancel pending background cleanup task if client returned
+            cleanup_task = _session_cleanup_tasks.pop(clean_username, None)
+            if cleanup_task and not cleanup_task.done():
+                cleanup_task.cancel()
+                logger.info("Cancelled pending session cleanup for @%s (client reconnected)", clean_username)
         else:
             if len(_active_sessions) >= MAX_SESSIONS:
                 await websocket.send_text(json.dumps({
@@ -1699,6 +1729,8 @@ async def ws_track(websocket: WebSocket, username: str):
         except Exception:
             pass
 
+    explicit_disconnect = False
+
     # ---- Heartbeat + client message loop ----
     try:
         while True:
@@ -1711,7 +1743,8 @@ async def ws_track(websocket: WebSocket, username: str):
                 action = msg.get("action", "")
 
                 if action == "disconnect":
-                    logger.info("Client requested disconnect for @%s", clean_username)
+                    logger.info("Client requested explicit disconnect for @%s", clean_username)
+                    explicit_disconnect = True
                     break
                 elif action == "snapshot":
                     active_perms = get_target_permissions(clean_username)
@@ -1764,19 +1797,58 @@ async def ws_track(websocket: WebSocket, username: str):
             remaining_viewers = len(_active_websockets[clean_username])
             if remaining_viewers == 0:
                 _active_websockets.pop(clean_username, None)
-                # No more clients watching this streamer — shut down the TikTok session
-                async with lock:
-                    # Double-check if another client joined before popping
-                    if not _active_websockets.get(clean_username):
-                        ended_session = _active_sessions.pop(clean_username, None)
-                        if ended_session:
-                            await ended_session.stop()
-                            logger.info("Session cleaned up for @%s (0 active viewers)", clean_username)
-                            asyncio.create_task(telegram_bot.notify_stream_ended(
-                                clean_username,
-                                session_record["duration_seconds"],
-                                session_record["total_diamonds"],
-                            ))
+                if explicit_disconnect:
+                    # User explicitly clicked Stop / Disconnect -> terminate immediately
+                    async with lock:
+                        if not _active_websockets.get(clean_username):
+                            existing_task = _session_cleanup_tasks.pop(clean_username, None)
+                            if existing_task and not existing_task.done():
+                                existing_task.cancel()
+                            ended_session = _active_sessions.pop(clean_username, None)
+                            if ended_session:
+                                await ended_session.stop()
+                                logger.info("Session explicitly stopped for @%s (user clicked disconnect)", clean_username)
+                                asyncio.create_task(telegram_bot.notify_stream_ended(
+                                    clean_username,
+                                    session_record["duration_seconds"],
+                                    session_record["total_diamonds"],
+                                ))
+                else:
+                    # User navigated to /downloader or /inspector, or refreshed:
+                    # Keep session active in background for 10 minutes so no live data is lost!
+                    async def _delayed_session_cleanup(streamer: str, duration: int, diamonds: int):
+                        try:
+                            logger.info(
+                                "Grace period started for @%s (%ds) to keep tracking alive during navigation",
+                                streamer, SESSION_GRACE_PERIOD_SECONDS
+                            )
+                            await asyncio.sleep(SESSION_GRACE_PERIOD_SECONDS)
+                            async with lock:
+                                if not _active_websockets.get(streamer):
+                                    ended = _active_sessions.pop(streamer, None)
+                                    if ended:
+                                        await ended.stop()
+                                        logger.info("Session gracefully terminated after %ds idle for @%s", SESSION_GRACE_PERIOD_SECONDS, streamer)
+                                        asyncio.create_task(telegram_bot.notify_stream_ended(
+                                            streamer, duration, diamonds
+                                        ))
+                        except asyncio.CancelledError:
+                            logger.info("Grace period cancelled for @%s (client reconnected)", streamer)
+                        finally:
+                            _session_cleanup_tasks.pop(streamer, None)
+
+                    existing_task = _session_cleanup_tasks.pop(clean_username, None)
+                    if existing_task and not existing_task.done():
+                        existing_task.cancel()
+
+                    _session_cleanup_tasks[clean_username] = asyncio.create_task(
+                        _delayed_session_cleanup(
+                            clean_username,
+                            session_record["duration_seconds"],
+                            session_record["total_diamonds"]
+                        )
+                    )
+                    logger.info("Scheduled %ds grace period for @%s so tracking continues uninterrupted in background", SESSION_GRACE_PERIOD_SECONDS, clean_username)
             else:
                 logger.info("Client disconnected from @%s (%d viewers still watching)", clean_username, remaining_viewers)
 

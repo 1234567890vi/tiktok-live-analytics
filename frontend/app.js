@@ -488,6 +488,27 @@ const DOM = {
   legendaryUserHandle:   $('legendaryUserHandle'),
   legendaryGiftName:     $('legendaryGiftName'),
   legendaryGiftDiamonds: $('legendaryGiftDiamonds'),
+
+  // Tool Modal (Downloader / Inspector overlay without disconnect)
+  toolModalOverlay:       $('toolModalOverlay'),
+  toolModalIframe:        $('toolModalIframe'),
+  toolModalTitle:         $('toolModalTitle'),
+  toolModalIcon:          $('toolModalIcon'),
+  toolModalLiveBadge:     $('toolModalLiveBadge'),
+  toolModalLiveUser:      $('toolModalLiveUser'),
+  toolModalExternalLink:  $('toolModalExternalLink'),
+  toolModalCloseBtn:      $('toolModalCloseBtn'),
+  linkNavInspector:       $('linkNavInspector'),
+  linkNavDownloader:      $('linkNavDownloader'),
+  linkOpenInspector:      $('linkOpenInspector'),
+  linkOpenDownloader:     $('linkOpenDownloader'),
+
+  // Floating Live Tracker Bar
+  floatingLiveTrackerBar: $('floatingLiveTrackerBar'),
+  floatingBarStreamer:    $('floatingBarStreamer'),
+  floatingBarDiamonds:    $('floatingBarDiamonds'),
+  floatingBarViewers:     $('floatingBarViewers'),
+  floatingBarReturnBtn:   $('floatingBarReturnBtn'),
 };
 
 // ---------------------------------------------------------------------------
@@ -3432,6 +3453,9 @@ function connectWs(username) {
         DOM.roomIdDisplay.textContent = msg.room_id || '—';
         DOM.stopBtn.classList.remove('hidden');
         DOM.startBtn.classList.add('hidden');
+        localStorage.setItem('tt_active_streamer', currentUsername);
+        updateToolModalLiveStatus();
+        updateFloatingLiveTracker({ viewer_count: 0, total_diamonds: 0 });
         toast(`✅ Connected to @${msg.username}`, 'success');
         break;
 
@@ -3439,6 +3463,9 @@ function connectWs(username) {
         setStatus('offline', msg.message || 'Disconnected');
         DOM.stopBtn.classList.add('hidden');
         DOM.startBtn.classList.remove('hidden');
+        localStorage.removeItem('tt_active_streamer');
+        updateToolModalLiveStatus();
+        if (DOM.floatingLiveTrackerBar) DOM.floatingLiveTrackerBar.classList.add('hidden');
         if (DOM.videoPlaceholder) DOM.videoPlaceholder.classList.remove('hidden');
         if (DOM.videoLiveBadge) DOM.videoLiveBadge.classList.add('hidden');
         if (DOM.videoBufferingIndicator) DOM.videoBufferingIndicator.classList.add('hidden');
@@ -3477,6 +3504,7 @@ function connectWs(username) {
 
       case 'snapshot':
         applySnapshot(msg.data);
+        updateFloatingLiveTracker(msg.data);
         break;
 
       case 'comment':
@@ -3504,6 +3532,7 @@ function connectWs(username) {
             DOM.lbGrossUsd.textContent      = fmtUsd(msg.data.estimated_usd);
             DOM.lbNetUsd.textContent        = fmtUsd(msg.data.net_payout_usd);
           }
+          updateFloatingLiveTracker(msg.data);
         }
         if (msg.leaderboard) updateLeaderboard(msg.leaderboard);
         break;
@@ -3572,6 +3601,9 @@ function disconnectWs() {
   stopDemoSimulation();
   commentQueue.length = 0;
   giftQueue.length = 0;
+  localStorage.removeItem('tt_active_streamer');
+  updateToolModalLiveStatus();
+  if (DOM.floatingLiveTrackerBar) DOM.floatingLiveTrackerBar.classList.add('hidden');
   if (ws) {
     const _ws = ws;     // capture before nulling
     ws = null;          // null first so onclose sees ws===null
@@ -4860,6 +4892,107 @@ initPresenceButtons();
 setPkViewMode('solo');
 updateSoloDeck();
 renderPresenceRoster(generatePresenceRosterFromPk({ battle_type: 'solo', status: 'IDLE' }));
+
+// ---------------------------------------------------------------------------
+// In-Page Tool Modal (Downloader & Inspector with Zero Live Disconnection)
+// ---------------------------------------------------------------------------
+function openToolModal(url, title, icon, externalUrl) {
+  if (!DOM.toolModalOverlay || !DOM.toolModalIframe) {
+    window.location.href = url;
+    return;
+  }
+  if (DOM.toolModalIframe.getAttribute('src') !== url) {
+    DOM.toolModalIframe.src = url;
+  }
+  if (DOM.toolModalTitle) DOM.toolModalTitle.textContent = title;
+  if (DOM.toolModalIcon) DOM.toolModalIcon.textContent = icon || '🔧';
+  if (DOM.toolModalExternalLink) DOM.toolModalExternalLink.href = externalUrl || url;
+  updateToolModalLiveStatus();
+  DOM.toolModalOverlay.classList.remove('hidden');
+}
+
+function closeToolModal() {
+  if (DOM.toolModalOverlay) {
+    DOM.toolModalOverlay.classList.add('hidden');
+  }
+}
+
+function updateToolModalLiveStatus() {
+  const activeStreamer = currentUsername || localStorage.getItem('tt_active_streamer');
+  if (activeStreamer && DOM.toolModalLiveBadge && DOM.toolModalLiveUser) {
+    DOM.toolModalLiveUser.textContent = '@' + activeStreamer;
+    DOM.toolModalLiveBadge.classList.remove('hidden');
+  } else if (DOM.toolModalLiveBadge) {
+    DOM.toolModalLiveBadge.classList.add('hidden');
+  }
+}
+
+function updateFloatingLiveTracker(data) {
+  const activeStreamer = currentUsername || localStorage.getItem('tt_active_streamer');
+  if (activeStreamer && DOM.floatingLiveTrackerBar) {
+    if (DOM.floatingBarStreamer) DOM.floatingBarStreamer.textContent = '@' + activeStreamer;
+    if (DOM.floatingBarDiamonds) {
+      const curDiam = data?.total_diamonds != null ? data.total_diamonds : (DOM.kpiDiamonds ? parseInt(DOM.kpiDiamonds.textContent.replace(/[^0-9]/g, '') || '0', 10) : 0);
+      DOM.floatingBarDiamonds.textContent = fmt(curDiam);
+    }
+    if (DOM.floatingBarViewers) {
+      const curViewers = data?.viewer_count != null ? data.viewer_count : (DOM.kpiViewers ? parseInt(DOM.kpiViewers.textContent.replace(/[^0-9]/g, '') || '0', 10) : 0);
+      DOM.floatingBarViewers.textContent = fmt(curViewers);
+    }
+    DOM.floatingLiveTrackerBar.classList.remove('hidden');
+  } else if (DOM.floatingLiveTrackerBar) {
+    DOM.floatingLiveTrackerBar.classList.add('hidden');
+  }
+}
+
+function initToolModal() {
+  DOM.linkNavInspector?.addEventListener('click', (e) => {
+    e.preventDefault();
+    openToolModal('/inspector', 'فاحص ومعلومات الفيديوهات والقصص', '🔍', '/inspector');
+  });
+
+  DOM.linkNavDownloader?.addEventListener('click', (e) => {
+    e.preventDefault();
+    openToolModal('/downloader', 'تنزيل الفيديوهات بدون علامة مائية', '📥', '/downloader');
+  });
+
+  DOM.linkOpenInspector?.addEventListener('click', (e) => {
+    e.preventDefault();
+    openToolModal('/inspector', 'فاحص ومعلومات الفيديوهات والقصص', '🔍', '/inspector');
+  });
+
+  DOM.linkOpenDownloader?.addEventListener('click', (e) => {
+    e.preventDefault();
+    openToolModal('/downloader', 'تنزيل الفيديوهات بدون علامة مائية', '📥', '/downloader');
+  });
+
+  DOM.toolModalCloseBtn?.addEventListener('click', () => {
+    closeToolModal();
+  });
+
+  DOM.floatingBarReturnBtn?.addEventListener('click', () => {
+    closeToolModal();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  // Close modal when pressing Escape
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && DOM.toolModalOverlay && !DOM.toolModalOverlay.classList.contains('hidden')) {
+      closeToolModal();
+    }
+  });
+}
+
+// Initialize In-Page Tool Modal
+initToolModal();
+
+// Auto-resume background live stream session if user previously tracked a streamer
+const savedStreamer = localStorage.getItem('tt_active_streamer');
+if (savedStreamer) {
+  console.log('🔄 Found active streamer session in localStorage for @' + savedStreamer + ' — auto-reconnecting...');
+  if (DOM.usernameInput) DOM.usernameInput.value = savedStreamer;
+  connectWs(savedStreamer);
+}
 
 console.log('🎯 TIKTOK VRF initialized successfully with Fluid UI & Presence Roster Deck.');
 
