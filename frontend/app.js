@@ -2530,6 +2530,67 @@ function extractTikTokUsername(raw) {
 }
 
 // ---------------------------------------------------------------------------
+// Viewer Feature Permissions Controller (أذونات وصلاحيات العرض من الأدمن)
+// ---------------------------------------------------------------------------
+let currentViewerPermissions = {
+  comments: true,
+  likes: true,
+  supporters: true,
+  gifts: true,
+  pk_battles: true,
+  live_friends: true,
+};
+
+function applyViewerPermissions(perms) {
+  if (!perms || typeof perms !== 'object') return;
+  currentViewerPermissions = { ...currentViewerPermissions, ...perms };
+
+  const setVisibility = (el, isVisible) => {
+    if (!el) return;
+    if (isVisible) {
+      el.style.display = '';
+      el.classList.remove('hidden');
+    } else {
+      el.style.display = 'none';
+      el.classList.add('hidden');
+    }
+  };
+
+  // 1. Comments Section
+  const commentsSec = document.getElementById('commentsSection');
+  setVisibility(commentsSec, currentViewerPermissions.comments);
+  document.querySelector('.nav-dock-btn[data-target="commentsSection"]')?.classList.toggle('hidden', !currentViewerPermissions.comments);
+
+  // 2. Likes KPI Card and Likers Row
+  const likesCard = DOM.kpiLikes ? DOM.kpiLikes.closest('.kpi-card') : null;
+  const likersSec = document.getElementById('likersSection');
+  setVisibility(likesCard, currentViewerPermissions.likes);
+  setVisibility(likersSec, currentViewerPermissions.likes);
+
+  // 3. Top Supporters & Diamonds KPI Card
+  const diamondsCard = DOM.kpiDiamonds ? DOM.kpiDiamonds.closest('.kpi-card') : null;
+  const lbSec = document.getElementById('leaderboardSection');
+  setVisibility(diamondsCard, currentViewerPermissions.supporters);
+  setVisibility(lbSec, currentViewerPermissions.supporters);
+  document.querySelector('.nav-dock-btn[data-target="leaderboardSection"]')?.classList.toggle('hidden', !currentViewerPermissions.supporters);
+
+  // 4. Gift Alerts Section
+  const giftsSec = document.getElementById('giftsSection');
+  setVisibility(giftsSec, currentViewerPermissions.gifts);
+  document.querySelector('.nav-dock-btn[data-target="giftsSection"]')?.classList.toggle('hidden', !currentViewerPermissions.gifts);
+
+  // 5. PK Battle Arena
+  const pkSec = document.getElementById('pkSection');
+  setVisibility(pkSec, currentViewerPermissions.pk_battles);
+  document.querySelector('.nav-dock-btn[data-target="pkSection"]')?.classList.toggle('hidden', !currentViewerPermissions.pk_battles);
+
+  // 6. Live Friends Section
+  const friendsSec = document.getElementById('liveFriendsSection');
+  setVisibility(friendsSec, currentViewerPermissions.live_friends);
+  document.querySelector('.nav-dock-btn[data-target="liveFriendsSection"]')?.classList.toggle('hidden', !currentViewerPermissions.live_friends);
+}
+
+// ---------------------------------------------------------------------------
 // WebSocket connection management
 // ---------------------------------------------------------------------------
 function connectWs(username) {
@@ -2556,6 +2617,12 @@ function connectWs(username) {
     const { type } = msg;
 
     switch (type) {
+      case 'permissions_update':
+        if (msg.permissions) {
+          applyViewerPermissions(msg.permissions);
+        }
+        break;
+
       case 'connecting':
         setStatus('connecting', msg.message || 'Connecting…');
         break;

@@ -1,0 +1,11 @@
+{
+  "global": {
+    "comments": true,
+    "likes": true,
+    "supporters": true,
+    "gifts": true,
+    "pk_battles": true,
+    "live_friends": true
+  },
+  "targets": {}
+}

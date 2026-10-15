@@ -28,6 +28,11 @@ const I18N = {
     tabTitleBanned: 'قائمة الحظر والمنع',
     tabTitleBroadcast: 'إرسال إشعار جماعي',
     tabTitleApiSettings: 'مفتاح التوقيع (Sign API)',
+    tabTitleTelegram: 'بوت تلغرام (الإحصائيات)',
+    tabTitlePermissions: 'صلاحيات وتحكم المستخدمين',
+    permTitle: 'التحكم في صلاحيات العرض للمستخدمين',
+    permSubtitle: 'تحكم كامل فيما يُسمح للمستخدم الذي يتتبع البث برؤيته (تعليقات، إعجابات، كبار الداعمين، هدايا، إلخ).',
+    btnSavePermsText: 'حفظ الصلاحيات وتطبيقها فوراً',
     admLabelActive: 'المستخدمون النشطون الآن',
     admLabelTotal: 'إجمالي عمليات التتبع',
     admLabelUptime: 'مدة تشغيل السيرفر',
@@ -80,6 +85,11 @@ const I18N = {
     tabTitleBanned: 'Banned Accounts',
     tabTitleBroadcast: 'Broadcast Announcement',
     tabTitleApiSettings: 'Signature Key (Sign API)',
+    tabTitleTelegram: 'Telegram Bot (Stats)',
+    tabTitlePermissions: 'Viewer Permissions & Controls',
+    permTitle: 'Viewer Display Permissions Controller',
+    permSubtitle: 'Full control over what users tracking a live stream are permitted to see (comments, likes, top supporters, gifts, pk battle, etc.).',
+    btnSavePermsText: 'Save & Apply Permissions Now',
     admLabelActive: 'Active Users Now',
     admLabelTotal: 'Total Tracking Visits',
     admLabelUptime: 'Server Uptime',
@@ -232,6 +242,24 @@ const DOM = {
   selectPeriodicReport:   $('selectPeriodicReport'),
   btnSaveTelegramSettings:$('btnSaveTelegramSettings'),
 
+  // Tab 6 Views (Permissions)
+  tabBtnPermissions:       $('tabBtnPermissions'),
+  tabTitlePermissions:     $('tabTitlePermissions'),
+  tabViewPermissions:      $('tabViewPermissions'),
+  permTitle:               $('permTitle'),
+  permSubtitle:            $('permSubtitle'),
+  btnSaveGlobalPermissions:$('btnSaveGlobalPermissions'),
+  btnSavePermsText:        $('btnSavePermsText'),
+  permCheckComments:       $('permCheckComments'),
+  permCheckLikes:          $('permCheckLikes'),
+  permCheckSupporters:     $('permCheckSupporters'),
+  permCheckGifts:          $('permCheckGifts'),
+  permCheckPk:             $('permCheckPk'),
+  permCheckFriends:        $('permCheckFriends'),
+  permTargetInput:         $('permTargetInput'),
+  btnConfigureTargetPerms: $('btnConfigureTargetPerms'),
+  customTargetsList:       $('customTargetsList'),
+
   // Toast
   toastContainer:        $('toastContainer'),
 };
@@ -239,6 +267,10 @@ const DOM = {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+function getAdminToken() {
+  return sessionStorage.getItem('tt_admin_token') || '';
+}
+
 function fmt(num) {
   if (num === undefined || num === null) return '0';
   if (num >= 1_000_000) return (num / 1_000_000).toFixed(1) + 'M';
@@ -351,6 +383,11 @@ function applyLanguage(lang) {
     [DOM.labelApiKey, t.labelApiKey],
     [DOM.btnSaveSignApiKeyText, t.btnSaveSignApiKeyText],
     [DOM.labelCurrentStatus, t.labelCurrentStatus],
+    [DOM.tabTitleTelegram, t.tabTitleTelegram],
+    [DOM.tabTitlePermissions, t.tabTitlePermissions],
+    [DOM.permTitle, t.permTitle],
+    [DOM.permSubtitle, t.permSubtitle],
+    [DOM.btnSavePermsText, t.btnSavePermsText],
   ];
 
   for (const [el, val] of textMapping) {
@@ -385,12 +422,14 @@ function switchAdminTab(tab) {
   const isBcast    = tab === 'broadcast';
   const isApi      = tab === 'api_settings';
   const isTelegram = tab === 'telegram';
+  const isPerms    = tab === 'permissions';
 
   if (DOM.tabViewSessions) DOM.tabViewSessions.classList.toggle('hidden', !isSessions);
   if (DOM.tabViewBanned) DOM.tabViewBanned.classList.toggle('hidden', !isBanned);
   if (DOM.tabViewBroadcast) DOM.tabViewBroadcast.classList.toggle('hidden', !isBcast);
   if (DOM.tabViewApiSettings) DOM.tabViewApiSettings.classList.toggle('hidden', !isApi);
   if (DOM.tabViewTelegram) DOM.tabViewTelegram.classList.toggle('hidden', !isTelegram);
+  if (DOM.tabViewPermissions) DOM.tabViewPermissions.classList.toggle('hidden', !isPerms);
 
   const activeTabClass = 'px-4 py-3 text-xs sm:text-sm font-bold border-b-2 border-purple-500 text-purple-300 transition flex items-center gap-2 whitespace-nowrap';
   const inactiveTabClass = 'px-4 py-3 text-xs sm:text-sm font-bold border-b-2 border-transparent text-gray-400 hover:text-gray-200 transition flex items-center gap-2 whitespace-nowrap';
@@ -400,6 +439,11 @@ function switchAdminTab(tab) {
   if (DOM.tabBtnBroadcast) DOM.tabBtnBroadcast.className = isBcast ? activeTabClass : inactiveTabClass;
   if (DOM.tabBtnApiSettings) DOM.tabBtnApiSettings.className = isApi ? activeTabClass : inactiveTabClass;
   if (DOM.tabBtnTelegram) DOM.tabBtnTelegram.className = isTelegram ? activeTabClass : inactiveTabClass;
+  if (DOM.tabBtnPermissions) DOM.tabBtnPermissions.className = isPerms ? activeTabClass : inactiveTabClass;
+
+  if (isPerms) {
+    loadPermissionsView();
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -607,6 +651,13 @@ function renderAdminTable(history) {
     banBtn.textContent = t.btnBan;
     banBtn.onclick = () => handleBan(item.username);
     actionsWrap.appendChild(banBtn);
+
+    const permsBtn = document.createElement('button');
+    permsBtn.className = 'px-2.5 py-1 rounded-lg bg-purple-900/40 hover:bg-purple-800/60 border border-purple-700/50 text-purple-300 font-bold text-[11px] transition active:scale-95 flex items-center gap-1';
+    permsBtn.textContent = '🛡️ ' + (currentLang === 'ar' ? 'الصلاحيات' : 'Perms');
+    permsBtn.title = currentLang === 'ar' ? 'تخصيص صلاحيات عرض هذا البث' : 'Configure permissions for this stream';
+    permsBtn.onclick = () => openTargetPermissions(item.username);
+    actionsWrap.appendChild(permsBtn);
 
     tdActions.appendChild(actionsWrap);
 
@@ -984,6 +1035,243 @@ async function handleSendTelegramReport() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Viewer Permissions Controller
+// ---------------------------------------------------------------------------
+let cachedPermissions = {
+  global: {
+    comments: true,
+    likes: true,
+    supporters: true,
+    gifts: true,
+    pk_battles: true,
+    live_friends: true,
+  },
+  targets: {}
+};
+
+async function loadPermissionsView() {
+  const token = getAdminToken();
+  if (!token) return;
+
+  try {
+    const res = await fetch(`/api/admin/permissions?token=${encodeURIComponent(token)}`);
+    if (res.status === 401) {
+      sessionStorage.removeItem('tt_admin_token');
+      showLogin();
+      return;
+    }
+    const data = await res.json();
+    if (data.status === 'ok' && data.permissions) {
+      cachedPermissions = data.permissions;
+      renderPermissionsUI(data.permissions);
+    }
+  } catch (err) {
+    console.error('Failed to load permissions:', err);
+  }
+}
+
+function renderPermissionsUI(perms) {
+  const glob = perms.global || {};
+  if (DOM.permCheckComments) DOM.permCheckComments.checked = glob.comments !== false;
+  if (DOM.permCheckLikes) DOM.permCheckLikes.checked = glob.likes !== false;
+  if (DOM.permCheckSupporters) DOM.permCheckSupporters.checked = glob.supporters !== false;
+  if (DOM.permCheckGifts) DOM.permCheckGifts.checked = glob.gifts !== false;
+  if (DOM.permCheckPk) DOM.permCheckPk.checked = glob.pk_battles !== false;
+  if (DOM.permCheckFriends) DOM.permCheckFriends.checked = glob.live_friends !== false;
+
+  renderCustomTargetsList(perms.targets || {});
+}
+
+function renderCustomTargetsList(targets) {
+  if (!DOM.customTargetsList) return;
+  DOM.customTargetsList.innerHTML = '';
+
+  const entries = Object.entries(targets || {});
+  if (entries.length === 0) {
+    DOM.customTargetsList.innerHTML = `
+      <div class="p-4 rounded-xl bg-gray-900/50 border border-gray-800/80 text-xs text-gray-400 text-center">
+        ${currentLang === 'ar' ? 'لا توجد حسابات مخصصة حالياً — تطبق الصلاحيات العامة أعلاه على جميع الحسابات.' : 'No customized targets — global permissions apply to all streams.'}
+      </div>
+    `;
+    return;
+  }
+
+  const permLabels = {
+    comments: { icon: '💬', ar: 'التعليقات', en: 'Comments' },
+    likes: { icon: '❤️', ar: 'الإعجابات', en: 'Likes' },
+    supporters: { icon: '🏆', ar: 'الداعمين', en: 'Supporters' },
+    gifts: { icon: '🎁', ar: 'الهدايا', en: 'Gifts' },
+    pk_battles: { icon: '⚔️', ar: 'الجولات', en: 'Battles' },
+    live_friends: { icon: '👥', ar: 'الأصدقاء', en: 'Friends' },
+  };
+
+  entries.forEach(([username, p]) => {
+    const card = document.createElement('div');
+    card.className = 'glass-card p-3.5 border border-purple-900/40 rounded-xl flex flex-wrap items-center justify-between gap-3';
+
+    // Left info: @username + pills
+    const left = document.createElement('div');
+    left.className = 'flex items-center gap-3 flex-wrap';
+
+    const userBadge = document.createElement('div');
+    userBadge.className = 'font-mono font-bold text-xs text-purple-300 px-2.5 py-1 rounded-lg bg-purple-950/70 border border-purple-700/60 flex items-center gap-1.5';
+    userBadge.innerHTML = `<span>🎯</span><span>@${username}</span>`;
+    left.appendChild(userBadge);
+
+    // Pill toggles for each feature
+    const pillsWrap = document.createElement('div');
+    pillsWrap.className = 'flex items-center gap-1.5 flex-wrap';
+
+    for (const [key, meta] of Object.entries(permLabels)) {
+      const isAllowed = p[key] !== false;
+      const pill = document.createElement('button');
+      pill.className = `text-[10px] px-2 py-0.5 rounded-md font-bold transition flex items-center gap-1 cursor-pointer ${
+        isAllowed
+          ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 hover:bg-emerald-900'
+          : 'bg-red-950/80 text-red-300 border border-red-700/60 hover:bg-red-900 line-through opacity-75'
+      }`;
+      pill.innerHTML = `<span>${meta.icon}</span><span>${currentLang === 'ar' ? meta.ar : meta.en}</span>`;
+      pill.title = currentLang === 'ar' ? `اضغط لتغيير حالة (${meta.ar})` : `Toggle ${meta.en}`;
+      pill.onclick = async () => {
+        const newPerms = { ...p, [key]: !isAllowed };
+        await handleSaveTargetPerms(username, newPerms);
+      };
+      pillsWrap.appendChild(pill);
+    }
+    left.appendChild(pillsWrap);
+
+    // Right actions: Delete target override
+    const right = document.createElement('div');
+    right.className = 'flex items-center gap-2';
+
+    const btnReset = document.createElement('button');
+    btnReset.className = 'px-3 py-1 rounded-lg bg-red-950/60 hover:bg-red-900 border border-red-700/60 text-red-300 font-bold text-[11px] transition active:scale-95 flex items-center gap-1 cursor-pointer';
+    btnReset.innerHTML = `<span>🔄</span><span>${currentLang === 'ar' ? 'إعادة ضبط (العام)' : 'Reset to Global'}</span>`;
+    btnReset.onclick = () => handleResetTargetPerms(username);
+    right.appendChild(btnReset);
+
+    card.appendChild(left);
+    card.appendChild(right);
+    DOM.customTargetsList.appendChild(card);
+  });
+}
+
+async function handleSaveGlobalPermissions() {
+  const token = getAdminToken();
+  if (!token) return;
+
+  const perms = {
+    comments: DOM.permCheckComments ? DOM.permCheckComments.checked : true,
+    likes: DOM.permCheckLikes ? DOM.permCheckLikes.checked : true,
+    supporters: DOM.permCheckSupporters ? DOM.permCheckSupporters.checked : true,
+    gifts: DOM.permCheckGifts ? DOM.permCheckGifts.checked : true,
+    pk_battles: DOM.permCheckPk ? DOM.permCheckPk.checked : true,
+    live_friends: DOM.permCheckFriends ? DOM.permCheckFriends.checked : true,
+  };
+
+  try {
+    const res = await fetch('/api/admin/permissions/global', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ token, permissions: perms }),
+    });
+    const data = await res.json();
+    if (res.ok && data.status === 'ok') {
+      toast(currentLang === 'ar' ? '✅ تم حفظ الصلاحيات العامة وتطبيقها فوراً على جميع المتصلين!' : '✅ Global permissions updated and applied in real-time!', 'success');
+      cachedPermissions = data.permissions;
+      renderPermissionsUI(data.permissions);
+    } else {
+      toast(data.message || 'فشل حفظ الصلاحيات', 'error');
+    }
+  } catch (err) {
+    toast(`خطأ: ${err.message}`, 'error');
+  }
+}
+
+async function handleSaveTargetPerms(username, perms) {
+  const token = getAdminToken();
+  if (!token) return;
+
+  try {
+    const res = await fetch('/api/admin/permissions/target', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ token, username, permissions: perms }),
+    });
+    const data = await res.json();
+    if (res.ok && data.status === 'ok') {
+      toast(currentLang === 'ar' ? `🎯 تم تحديث صلاحيات @${username} فوراً!` : `🎯 Permissions for @${username} updated!`, 'success');
+      await loadPermissionsView();
+    } else {
+      toast(data.message || 'فشل تخصيص الصلاحيات', 'error');
+    }
+  } catch (err) {
+    toast(`خطأ: ${err.message}`, 'error');
+  }
+}
+
+async function handleConfigureTargetPerms() {
+  const target = DOM.permTargetInput ? DOM.permTargetInput.value.trim().replace(/^@/, '') : '';
+  if (!target) {
+    toast(currentLang === 'ar' ? 'يرجى كتابة اسم مستخدم تيك توك لتخصيصه' : 'Please enter TikTok username', 'warning');
+    return;
+  }
+
+  // Use current UI toggle state as the initial preset for this target
+  const perms = {
+    comments: DOM.permCheckComments ? DOM.permCheckComments.checked : true,
+    likes: DOM.permCheckLikes ? DOM.permCheckLikes.checked : true,
+    supporters: DOM.permCheckSupporters ? DOM.permCheckSupporters.checked : true,
+    gifts: DOM.permCheckGifts ? DOM.permCheckGifts.checked : true,
+    pk_battles: DOM.permCheckPk ? DOM.permCheckPk.checked : true,
+    live_friends: DOM.permCheckFriends ? DOM.permCheckFriends.checked : true,
+  };
+
+  await handleSaveTargetPerms(target, perms);
+  if (DOM.permTargetInput) DOM.permTargetInput.value = '';
+}
+
+async function handleResetTargetPerms(username) {
+  const token = getAdminToken();
+  if (!token) return;
+
+  try {
+    const res = await fetch('/api/admin/permissions/target', {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ token, username }),
+    });
+    const data = await res.json();
+    if (res.ok && data.status === 'ok') {
+      toast(currentLang === 'ar' ? `🔄 تمت إعادة تعيين صلاحيات @${username} إلى الإعدادات العامة` : `🔄 Reset permissions for @${username} to global`, 'info');
+      await loadPermissionsView();
+    } else {
+      toast(data.message || 'فشل إعادة التعيين', 'error');
+    }
+  } catch (err) {
+    toast(`خطأ: ${err.message}`, 'error');
+  }
+}
+
+function openTargetPermissions(username) {
+  switchAdminTab('permissions');
+  if (DOM.permTargetInput) {
+    DOM.permTargetInput.value = username;
+    DOM.permTargetInput.focus();
+    DOM.permTargetInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
 function startAdminRefresh() {
   stopAdminRefresh();
   adminRefreshInterval = setInterval(() => {
@@ -1021,10 +1309,17 @@ if (DOM.tabBtnBanned) DOM.tabBtnBanned.addEventListener('click', () => switchAdm
 if (DOM.tabBtnBroadcast) DOM.tabBtnBroadcast.addEventListener('click', () => switchAdminTab('broadcast'));
 if (DOM.tabBtnApiSettings) DOM.tabBtnApiSettings.addEventListener('click', () => switchAdminTab('api_settings'));
 if (DOM.tabBtnTelegram) DOM.tabBtnTelegram.addEventListener('click', () => switchAdminTab('telegram'));
+if (DOM.tabBtnPermissions) DOM.tabBtnPermissions.addEventListener('click', () => switchAdminTab('permissions'));
 
 if (DOM.btnSaveTelegramSettings) DOM.btnSaveTelegramSettings.addEventListener('click', handleSaveTelegramSettings);
 if (DOM.btnTelegramTest) DOM.btnTelegramTest.addEventListener('click', handleTestTelegram);
 if (DOM.btnTelegramSendReport) DOM.btnTelegramSendReport.addEventListener('click', handleSendTelegramReport);
+
+if (DOM.btnSaveGlobalPermissions) DOM.btnSaveGlobalPermissions.addEventListener('click', handleSaveGlobalPermissions);
+if (DOM.btnConfigureTargetPerms) DOM.btnConfigureTargetPerms.addEventListener('click', handleConfigureTargetPerms);
+if (DOM.permTargetInput) DOM.permTargetInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') handleConfigureTargetPerms();
+});
 
 if (DOM.btnSubmitBan) DOM.btnSubmitBan.addEventListener('click', () => {
   const target = DOM.bannedInputTarget ? DOM.bannedInputTarget.value.trim() : '';

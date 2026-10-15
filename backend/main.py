@@ -23,6 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import (
+    BASE_DIR,
     FRONTEND_DIR,
     WS_HEARTBEAT_INTERVAL,
     MAX_SESSIONS,
@@ -50,6 +51,97 @@ _search_history: list[dict] = []
 _banned_targets: set[str] = set()
 _tracking_enabled: bool = True
 _active_websockets: dict[str, set[WebSocket]] = {}
+
+# ---------------------------------------------------------------------------
+# Viewer Feature Permissions Registry (تحكم الأدمن في صلاحيات عرض المستخدمين)
+# ---------------------------------------------------------------------------
+PERMISSIONS_FILE = BASE_DIR / "backend" / "permissions_config.json"
+
+DEFAULT_PERMISSIONS: dict[str, bool] = {
+    "comments": True,       # التعليقات المباشرة
+    "likes": True,          # الإعجابات ومعدل النقر LPS
+    "supporters": True,     # كبار الداعمين والألماسات
+    "gifts": True,          # تنبيهات الهدايا والدعم
+    "pk_battles": True,     # ساحة الجولة والمنافسين
+    "live_friends": True,   # بثوث الأصدقاء والشركاء
+}
+
+def _load_permissions() -> dict:
+    if PERMISSIONS_FILE.exists():
+        try:
+            data = json.loads(PERMISSIONS_FILE.read_text(encoding="utf-8"))
+            glob = dict(DEFAULT_PERMISSIONS)
+            glob.update(data.get("global", {}))
+            return {"global": glob, "targets": data.get("targets", {})}
+        except Exception as exc:
+            logger.warning("Could not load permissions_config.json: %s", exc)
+    return {"global": dict(DEFAULT_PERMISSIONS), "targets": {}}
+
+def _save_permissions(data: dict) -> None:
+    try:
+        PERMISSIONS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    except Exception as exc:
+        logger.warning("Could not save permissions_config.json: %s", exc)
+
+_viewer_permissions: dict = _load_permissions()
+
+def get_target_permissions(username: str) -> dict:
+    """Return effective permissions for a streamer target (target override > global)."""
+    clean = username.lstrip("@").strip().lower()
+    target_overrides = _viewer_permissions.get("targets", {}).get(clean)
+    eff = dict(_viewer_permissions.get("global", DEFAULT_PERMISSIONS))
+    if isinstance(target_overrides, dict):
+        eff.update(target_overrides)
+    return eff
+
+async def _broadcast_permissions_update(target: str | None = None) -> None:
+    """Broadcast updated permissions to active WebSocket clients."""
+    if target:
+        clean = target.lstrip("@").strip().lower()
+        sockets = list(_active_websockets.get(clean, set()))
+        if sockets:
+            perms = get_target_permissions(clean)
+            payload = json.dumps({
+                "type": "permissions_update",
+                "username": clean,
+                "permissions": perms,
+            })
+            await asyncio.gather(*[ws.send_text(payload) for ws in sockets], return_exceptions=True)
+    else:
+        for streamer, sockets in list(_active_websockets.items()):
+            if sockets:
+                perms = get_target_permissions(streamer)
+                payload = json.dumps({
+                    "type": "permissions_update",
+                    "username": streamer,
+                    "permissions": perms,
+                })
+                await asyncio.gather(*[ws.send_text(payload) for ws in sockets], return_exceptions=True)
+
+
+def _filter_snapshot_payload(payload: dict, perms: dict) -> dict:
+    """Sanitize snapshot payload according to active permissions."""
+    if not isinstance(payload, dict) or "data" not in payload:
+        return payload
+    snap = json.loads(json.dumps(payload, default=str))
+    data = snap.get("data", {})
+    if not perms.get("supporters", True):
+        data["top_supporters"] = []
+        data["total_diamonds"] = 0
+        data["estimated_usd"] = 0.0
+        data["net_creator_usd"] = 0.0
+    if not perms.get("likes", True):
+        data["likes"] = 0
+        data["likes_per_second"] = 0.0
+    if not perms.get("comments", True):
+        data["comment_count"] = 0
+    if not perms.get("pk_battles", True):
+        data["is_pk_active"] = False
+        data["pk_data"] = None
+    if not perms.get("live_friends", True):
+        data["live_friends"] = []
+    snap["data"] = data
+    return snap
 
 
 def _get_admin_token(request: Request, data: dict | None = None) -> str:
@@ -86,6 +178,7 @@ def _get_current_stats() -> dict:
         "search_history": history_copy,
         "tracking_enabled": _tracking_enabled,
         "banned_targets": sorted(list(_banned_targets)),
+        "permissions": _viewer_permissions,
     }
 
 
@@ -496,6 +589,93 @@ async def admin_clear_history(request: Request, data: dict):
     return {"status": "ok", "message": "Completed history cleared"}
 
 
+# ── Viewer Feature Permissions Endpoints ─────────────────────────────────────
+
+@app.get("/api/admin/permissions")
+async def admin_get_permissions(request: Request):
+    """Retrieve global and per-target viewer permissions."""
+    tok = _get_admin_token(request)
+    if not tok or tok not in _admin_tokens:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
+    return {
+        "status": "ok",
+        "permissions": _viewer_permissions,
+        "default_keys": list(DEFAULT_PERMISSIONS.keys()),
+    }
+
+
+@app.post("/api/admin/permissions/global")
+async def admin_save_global_permissions(request: Request, data: dict):
+    """Save global viewer permissions and immediately broadcast to all connected clients."""
+    tok = _get_admin_token(request, data)
+    if not tok or tok not in _admin_tokens:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
+
+    perms = data.get("permissions", {})
+    for k in DEFAULT_PERMISSIONS:
+        if k in perms:
+            _viewer_permissions["global"][k] = bool(perms[k])
+
+    _save_permissions(_viewer_permissions)
+    await _broadcast_permissions_update()
+    logger.info("Admin updated global viewer permissions: %s", _viewer_permissions["global"])
+    return {
+        "status": "ok",
+        "permissions": _viewer_permissions,
+        "message": "تم تحديث الصلاحيات العامة وتطبيقها فوراً على جميع المتصلين.",
+    }
+
+
+@app.post("/api/admin/permissions/target")
+async def admin_save_target_permissions(request: Request, data: dict):
+    """Set custom viewer permissions for a specific streamer target."""
+    tok = _get_admin_token(request, data)
+    if not tok or tok not in _admin_tokens:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
+
+    target = str(data.get("username", "")).lstrip("@").strip().lower()
+    if not target:
+        return JSONResponse(status_code=400, content={"status": "error", "message": "Username required"})
+
+    perms = data.get("permissions", {})
+    clean_perms = {}
+    for k in DEFAULT_PERMISSIONS:
+        if k in perms:
+            clean_perms[k] = bool(perms[k])
+
+    _viewer_permissions.setdefault("targets", {})[target] = clean_perms
+    _save_permissions(_viewer_permissions)
+    await _broadcast_permissions_update(target)
+    logger.info("Admin customized viewer permissions for @%s: %s", target, clean_perms)
+    return {
+        "status": "ok",
+        "target": target,
+        "permissions": get_target_permissions(target),
+        "message": f"تم تخصيص الصلاحيات للحساب @{target} وتطبيقها فوراً.",
+    }
+
+
+@app.delete("/api/admin/permissions/target")
+async def admin_delete_target_permissions(request: Request, data: dict = None):
+    """Reset a custom streamer's permissions back to the global default."""
+    tok = _get_admin_token(request, data)
+    if not tok or tok not in _admin_tokens:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
+
+    target = str(data.get("username", "") if data else request.query_params.get("username", "")).lstrip("@").strip().lower()
+    if target in _viewer_permissions.get("targets", {}):
+        del _viewer_permissions["targets"][target]
+        _save_permissions(_viewer_permissions)
+        await _broadcast_permissions_update(target)
+
+    return {
+        "status": "ok",
+        "target": target,
+        "permissions": get_target_permissions(target),
+        "message": f"تمت إعادة تعيين صلاحيات @{target} إلى الإعدادات العامة.",
+    }
+
+
 @app.post("/api/admin/logout")
 async def admin_logout(data: dict):
     """Revoke admin session token."""
@@ -743,6 +923,21 @@ async def ws_track(websocket: WebSocket, username: str):
                 sockets = list(_active_websockets.get(clean_username, set()))
                 if not sockets:
                     return
+
+                # Enforce admin viewer permissions
+                evt_type = payload.get("type", "")
+                perms = get_target_permissions(clean_username)
+                if evt_type == "comment" and not perms.get("comments", True):
+                    return
+                if evt_type == "like" and not perms.get("likes", True):
+                    return
+                if evt_type == "gift" and not perms.get("gifts", True):
+                    return
+                if evt_type in ("pk_battle_update", "pk_battle_end") and not perms.get("pk_battles", True):
+                    return
+                if evt_type == "live_friends_update" and not perms.get("live_friends", True):
+                    return
+
                 data_str = json.dumps(payload, default=str)
 
                 async def _send_one(ws: WebSocket):
@@ -760,6 +955,17 @@ async def ws_track(websocket: WebSocket, username: str):
     # Register this client's WebSocket for the target streamer
     _active_websockets.setdefault(clean_username, set()).add(websocket)
 
+    # Immediately push active viewer permissions to this client
+    try:
+        active_perms = get_target_permissions(clean_username)
+        await websocket.send_text(json.dumps({
+            "type": "permissions_update",
+            "username": clean_username,
+            "permissions": active_perms,
+        }))
+    except Exception:
+        pass
+
     if is_session_creator:
         logger.info("Starting new background TikTok session for @%s (first viewer)", clean_username)
         await websocket.send_text(json.dumps({
@@ -769,7 +975,9 @@ async def ws_track(websocket: WebSocket, username: str):
         }))
         # Push initial snapshot immediately so client gets cached metrics and live friends with 0 delay
         try:
-            await websocket.send_text(json.dumps(session.get_snapshot_payload(), default=str))
+            active_perms = get_target_permissions(clean_username)
+            snap = _filter_snapshot_payload(session.get_snapshot_payload(), active_perms)
+            await websocket.send_text(json.dumps(snap, default=str))
         except Exception:
             pass
         await session.start()
@@ -795,7 +1003,9 @@ async def ws_track(websocket: WebSocket, username: str):
             }))
         # Send instant snapshot of current stream metrics
         try:
-            await websocket.send_text(json.dumps(session.get_snapshot_payload(), default=str))
+            active_perms = get_target_permissions(clean_username)
+            snap = _filter_snapshot_payload(session.get_snapshot_payload(), active_perms)
+            await websocket.send_text(json.dumps(snap, default=str))
         except Exception:
             pass
 
@@ -814,7 +1024,9 @@ async def ws_track(websocket: WebSocket, username: str):
                     logger.info("Client requested disconnect for @%s", clean_username)
                     break
                 elif action == "snapshot":
-                    await websocket.send_text(json.dumps(session.get_snapshot_payload(), default=str))
+                    active_perms = get_target_permissions(clean_username)
+                    snap = _filter_snapshot_payload(session.get_snapshot_payload(), active_perms)
+                    await websocket.send_text(json.dumps(snap, default=str))
                 elif action == "refresh_friends":
                     if hasattr(session, "broadcast_live_friends"):
                         await session.broadcast_live_friends(force=True)
@@ -838,7 +1050,9 @@ async def ws_track(websocket: WebSocket, username: str):
                     "ts":   int(time.time()),
                 }))
                 if session._running:
-                    await websocket.send_text(json.dumps(session.get_snapshot_payload(), default=str))
+                    active_perms = get_target_permissions(clean_username)
+                    snap = _filter_snapshot_payload(session.get_snapshot_payload(), active_perms)
+                    await websocket.send_text(json.dumps(snap, default=str))
 
             # Break out if the background TikTok task died
             if not session._running and (
