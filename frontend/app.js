@@ -273,6 +273,67 @@ const DOM = {
   pkHostLastGift:   $('pkHostLastGift'),
   pkOppLastGift:    $('pkOppLastGift'),
 
+  // Multi-Mode PK Arena Refs
+  pkArenaTitle:          $('pkArenaTitle'),
+  pkSpeedBadge:          $('pkSpeedBadge'),
+  pkModeBtnSolo:         $('pkModeBtnSolo'),
+  pkModeBtn1v1:          $('pkModeBtn1v1'),
+  pkModeBtn3way:         $('pkModeBtn3way'),
+  pkModeBtn2v2:          $('pkModeBtn2v2'),
+
+  // Solo Stream Deck
+  pkSoloDeck:            $('pkSoloDeck'),
+  pkSoloAvatar:          $('pkSoloAvatar'),
+  pkSoloNick:            $('pkSoloNick'),
+  pkSoloName:            $('pkSoloName'),
+  pkSoloViewers:         $('pkSoloViewers'),
+  pkSoloLps:             $('pkSoloLps'),
+  pkSoloDiamonds:        $('pkSoloDiamonds'),
+  pkSoloUsd:             $('pkSoloUsd'),
+  pkSoloGoalBar:         $('pkSoloGoalBar'),
+  pkSoloGoalText:        $('pkSoloGoalText'),
+  pkSoloGoalPct:         $('pkSoloGoalPct'),
+  pkSoloLikesBar:        $('pkSoloLikesBar'),
+  pkSoloLikesGoalText:   $('pkSoloLikesGoalText'),
+  pkSoloLikesGoalPct:    $('pkSoloLikesGoalPct'),
+
+  // Dual & Quad Arena
+  pkDualArena:           $('pkDualArena'),
+  pkTugOfWarBar:         $('pkTugOfWarBar'),
+  pkHostAnchorScore:     $('pkHostAnchorScore'),
+  pkTeammateAnchorScore: $('pkTeammateAnchorScore'),
+  pkOppAnchorScore1:     $('pkOppAnchorScore1'),
+  pkOppAnchorScore2:     $('pkOppAnchorScore2'),
+
+  // Triple 3-Way Arena
+  pkTripleArena:         $('pkTripleArena'),
+  pkTripleBarContainer:  $('pkTripleBarContainer'),
+  pkTriHostRank:         $('pkTriHostRank'),
+  pkTriHostAvatar:       $('pkTriHostAvatar'),
+  pkTriHostNick:         $('pkTriHostNick'),
+  pkTriHostName:         $('pkTriHostName'),
+  pkTriHostScore:        $('pkTriHostScore'),
+  pkTriHostMvps:         $('pkTriHostMvps'),
+  pkTriRival1Rank:       $('pkTriRival1Rank'),
+  pkTriRival1Avatar:     $('pkTriRival1Avatar'),
+  pkTriRival1Nick:       $('pkTriRival1Nick'),
+  pkTriRival1Name:       $('pkTriRival1Name'),
+  pkTriRival1Score:      $('pkTriRival1Score'),
+  pkTriRival1Mvps:       $('pkTriRival1Mvps'),
+  pkTriRival2Rank:       $('pkTriRival2Rank'),
+  pkTriRival2Avatar:     $('pkTriRival2Avatar'),
+  pkTriRival2Nick:       $('pkTriRival2Nick'),
+  pkTriRival2Name:       $('pkTriRival2Name'),
+  pkTriRival2Score:      $('pkTriRival2Score'),
+  pkTriRival2Mvps:       $('pkTriRival2Mvps'),
+  pkTriBarHost:          $('pkTriBarHost'),
+  pkTriBarRival1:        $('pkTriBarRival1'),
+  pkTriBarRival2:        $('pkTriBarRival2'),
+  pkTriPctHost:          $('pkTriPctHost'),
+  pkTriPctRival1:        $('pkTriPctRival1'),
+  pkTriPctRival2:        $('pkTriPctRival2'),
+  pkTriLeadLabel:        $('pkTriLeadLabel'),
+
   // Feeds & Gift Separation
   commentsFeed:        $('commentsFeed'),
   giftFeed:            $('giftFeed'),
@@ -1859,113 +1920,211 @@ function trackFriendLive(username) {
 }
 
 // ---------------------------------------------------------------------------
-// PK Battle
+// PK Battle & Live Arena Multi-Mode Controller (سولو 👤، ثنائي ⚔️، ثلاثي 🔺، رباعي 🛡️)
 // ---------------------------------------------------------------------------
-function updatePK(pkData, eventType) {
-  if (!pkData) return;
+let currentPkMode = 'solo'; // 'solo' | '1v1' | '3-way' | '2v2'
+let manualModeOverride = false;
+let lastSpeedPhaseActive = false;
 
-  const isActive     = !!pkData.is_active;
-  const status       = pkData.status || (isActive ? 'ACTIVE' : 'IDLE');
-  const battleType   = pkData.battle_type || '1v1';
-  const hostScore    = pkData.host_points || 0;
-  const oppScore     = pkData.opponent_points || 0;
-  const hostWins     = pkData.host_wins || 0;
-  const oppWins      = pkData.opponent_wins || 0;
-  const roundNum     = pkData.round_number || 1;
-  const battleId     = pkData.battle_id || '';
-
-  // Instant Round Start Detection & Synchronization (بدون أي تأخير)
-  const isBattleIdNew    = !!(battleId && lastBattleId && battleId !== lastBattleId);
-  const isBecomingActive = (lastPkStatus !== 'ACTIVE' && (status === 'ACTIVE' || isActive));
-  const isRoundNumBumped = ((status === 'ACTIVE' || isActive) && roundNum > lastRoundNum && lastRoundNum !== 0);
-
-  const isNewRound =
-    (eventType === 'start') ||
-    isBattleIdNew ||
-    isBecomingActive ||
-    isRoundNumBumped;
-
-  if (isNewRound) {
-    playBattleStartSound();
-    if (DOM.pkSection) {
-      DOM.pkSection.classList.remove('round-start-flash');
-      void DOM.pkSection.offsetWidth;
-      DOM.pkSection.classList.add('round-start-flash');
-      setTimeout(() => DOM.pkSection?.classList.remove('round-start-flash'), 2000);
-      try { DOM.pkSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (_) {}
-    }
-    const durMin = Math.round((pkData.duration || 300) / 60);
-    const durLabel = durMin > 0 ? (currentLang === 'ar' ? ` (${durMin} دقائق)` : ` (${durMin}m)`) : '';
-    toast(
-      currentLang === 'ar'
-        ? `⚔️ بدأت الجولة ${roundNum} الآن!${durLabel} 🔥 احشدوا الدعم والتكبيس!`
-        : `⚔️ Round ${roundNum} started!${durLabel} 🔥 Send gifts & tap!`,
-      'warning',
-      6000
-    );
+function setPkViewMode(mode, isManual = false) {
+  if (isManual) {
+    manualModeOverride = true;
   }
+  currentPkMode = mode;
 
-  if (battleId) {
-    lastBattleId = battleId;
-  }
-  lastPkStatus = status;
-  lastRoundNum = roundNum;
+  // 1. Update Mode Switcher Buttons Style
+  const buttons = [
+    { el: DOM.pkModeBtnSolo, mode: 'solo' },
+    { el: DOM.pkModeBtn1v1, mode: '1v1' },
+    { el: DOM.pkModeBtn3way, mode: '3-way' },
+    { el: DOM.pkModeBtn2v2, mode: '2v2' }
+  ];
 
-  if (DOM.pkBattleType) DOM.pkBattleType.textContent = battleType;
-  if (DOM.pkRoundNum)   DOM.pkRoundNum.textContent   = roundNum;
-  if (DOM.pkHostWins)   DOM.pkHostWins.textContent   = hostWins;
-  if (DOM.pkOppWins)    DOM.pkOppWins.textContent    = oppWins;
-  if (DOM.pkHostScore)  DOM.pkHostScore.textContent  = fmt(hostScore);
-  if (DOM.pkOppScore)   DOM.pkOppScore.textContent   = fmt(oppScore);
-
-  // Status Badge
-  if (DOM.pkStatusBadge) {
-    if (status === 'ACTIVE' || (isActive && status !== 'PUNISH')) {
-      DOM.pkStatusBadge.textContent = currentLang === 'ar' ? '🔴 جولة جارية' : '🔴 Battle Active';
-      DOM.pkStatusBadge.className   = 'px-3 py-1 rounded-full text-xs font-bold bg-red-950 text-red-300 border border-red-700 animate-pulse';
-      DOM.pkSection?.classList.add('pk-active');
-    } else if (status === 'PUNISH') {
-      DOM.pkStatusBadge.textContent = currentLang === 'ar' ? '⏱️ وقت الحكم' : '⏱️ Punish Time';
-      DOM.pkStatusBadge.className   = 'px-3 py-1 rounded-full text-xs font-bold bg-amber-950 text-amber-300 border border-amber-700 animate-pulse';
-      DOM.pkSection?.classList.add('pk-active');
-    } else if (status === 'ENDED' || eventType === 'ended') {
-      DOM.pkStatusBadge.textContent = currentLang === 'ar' ? '🏆 انتهت الجولة' : '🏆 Round Ended';
-      DOM.pkStatusBadge.className   = 'px-3 py-1 rounded-full text-xs font-bold bg-emerald-950 text-emerald-300 border border-emerald-700';
-      DOM.pkSection?.classList.remove('pk-active');
+  buttons.forEach(b => {
+    if (!b.el) return;
+    if (b.mode === mode) {
+      b.el.className = 'px-2.5 py-1 rounded-lg font-bold transition-all text-white bg-indigo-600 border border-indigo-400 shadow-[0_0_12px_rgba(99,102,241,0.5)]';
     } else {
-      DOM.pkStatusBadge.textContent = currentLang === 'ar' ? '⏸️ في انتظار جولة' : '⏸️ Waiting Battle';
-      DOM.pkStatusBadge.className   = 'px-3 py-1 rounded-full text-xs font-bold bg-gray-800 text-gray-400 border border-gray-700';
-      DOM.pkSection?.classList.remove('pk-active');
+      b.el.className = 'px-2.5 py-1 rounded-lg font-bold transition-all text-gray-400 hover:text-white bg-transparent border-transparent';
     }
-  }
+  });
 
-  // Synchronize PK Round Countdown Timer (مزامنة عداد وقت الجولة فائق الدقة)
-  if (status === 'ACTIVE' || (isActive && status !== 'PUNISH')) {
-    const dur = pkData.duration || 300;
-    const rem = (pkData.remaining_seconds != null && pkData.remaining_seconds >= 0) ? pkData.remaining_seconds : dur;
-    const serverEndTime = (pkData.end_time && pkData.end_time > 0) ? Math.round(pkData.end_time * 1000) : 0;
-
-    if (isNewRound || !pkTimerInterval || pkTimerPhase !== 'BATTLE') {
-      startPkCountdown(rem, 'BATTLE', dur, serverEndTime);
-    } else if (serverEndTime > 0 && Math.abs(pkTimerEndTimestamp - serverEndTime) > 2000) {
-      // Automatic drift correction with server clock
-      pkTimerEndTimestamp = serverEndTime;
-      pkTimerTotalSeconds = dur;
-      updatePkTimerDisplay();
+  // 2. Toggle Mode Containers
+  if (mode === 'solo') {
+    DOM.pkSoloDeck?.classList.remove('hidden');
+    DOM.pkDualArena?.classList.add('hidden');
+    DOM.pkTripleArena?.classList.add('hidden');
+    if (DOM.pkBattleType) DOM.pkBattleType.textContent = 'سولو';
+    if (DOM.pkArenaTitle) DOM.pkArenaTitle.textContent = currentLang === 'ar' ? 'مركز قيادة البث الفردي' : 'Solo Live Command Deck';
+    if (DOM.pkStatusBadge && !DOM.pkSection?.classList.contains('pk-active')) {
+      DOM.pkStatusBadge.textContent = currentLang === 'ar' ? '⏸️ بث فردي مباشر' : '⏸️ Solo Live Active';
+      DOM.pkStatusBadge.className = 'px-3 py-1 rounded-full text-xs font-bold bg-gray-800 text-gray-400 border border-gray-700';
     }
-  } else if (status === 'PUNISH') {
-    const rem = (pkData.remaining_seconds != null && pkData.remaining_seconds > 0) ? pkData.remaining_seconds : 120;
-    if (!pkTimerInterval || pkTimerPhase !== 'PUNISH') {
-      startPkCountdown(rem, 'PUNISH', 120);
-    }
-  } else if (status === 'ENDED' || eventType === 'ended') {
-    stopPkCountdown('ENDED');
+  } else if (mode === '3-way') {
+    DOM.pkSoloDeck?.classList.add('hidden');
+    DOM.pkDualArena?.classList.add('hidden');
+    DOM.pkTripleArena?.classList.remove('hidden');
+    if (DOM.pkBattleType) DOM.pkBattleType.textContent = '3-Way';
+    if (DOM.pkArenaTitle) DOM.pkArenaTitle.textContent = currentLang === 'ar' ? 'ساحة الجولة الثلاثية 3-Way' : '3-Way Battle Arena';
+  } else if (mode === '2v2') {
+    DOM.pkSoloDeck?.classList.add('hidden');
+    DOM.pkDualArena?.classList.remove('hidden');
+    DOM.pkTripleArena?.classList.add('hidden');
+    if (DOM.pkTeammateCard) DOM.pkTeammateCard.classList.remove('hidden');
+    if (DOM.pkOppCard2) DOM.pkOppCard2.classList.remove('hidden');
+    if (DOM.pkHostAnchorScore) DOM.pkHostAnchorScore.classList.remove('hidden');
+    if (DOM.pkTeammateAnchorScore) DOM.pkTeammateAnchorScore.classList.remove('hidden');
+    if (DOM.pkOppAnchorScore1) DOM.pkOppAnchorScore1.classList.remove('hidden');
+    if (DOM.pkOppAnchorScore2) DOM.pkOppAnchorScore2.classList.remove('hidden');
+    if (DOM.pkBattleType) DOM.pkBattleType.textContent = '2v2';
+    if (DOM.pkArenaTitle) DOM.pkArenaTitle.textContent = currentLang === 'ar' ? 'ساحة الجولة الرباعية 2v2' : '2v2 Quad Battle Arena';
   } else {
-    stopPkCountdown('IDLE');
+    // 1v1
+    DOM.pkSoloDeck?.classList.add('hidden');
+    DOM.pkDualArena?.classList.remove('hidden');
+    DOM.pkTripleArena?.classList.add('hidden');
+    if (DOM.pkTeammateCard) DOM.pkTeammateCard.classList.add('hidden');
+    if (DOM.pkOppCard2) DOM.pkOppCard2.classList.add('hidden');
+    if (DOM.pkHostAnchorScore) DOM.pkHostAnchorScore.classList.add('hidden');
+    if (DOM.pkTeammateAnchorScore) DOM.pkTeammateAnchorScore.classList.add('hidden');
+    if (DOM.pkOppAnchorScore1) DOM.pkOppAnchorScore1.classList.add('hidden');
+    if (DOM.pkOppAnchorScore2) DOM.pkOppAnchorScore2.classList.add('hidden');
+    if (DOM.pkBattleType) DOM.pkBattleType.textContent = '1v1';
+    if (DOM.pkArenaTitle) DOM.pkArenaTitle.textContent = currentLang === 'ar' ? 'ساحة الجولة الثنائية 1v1' : '1v1 Dual Battle Arena';
   }
+}
+
+function updateSoloDeck(pkData) {
+  const hostAnchors = pkData?.host_anchors || [];
+  const h0 = hostAnchors[0] || {};
+  const hostNick = h0.nickname || pkData?.host_username || (currentUsername || 'المضيف');
+  const hostUser = h0.unique_id || pkData?.host_username || (currentUsername || 'host');
+  const hostAv   = h0.avatar_url || DOM.pkHostAvatar?.src || 'https://placehold.co/100x100/1e3a8a/white?text=Host';
+
+  if (DOM.pkSoloAvatar) DOM.pkSoloAvatar.src = hostAv;
+  if (DOM.pkSoloNick)   DOM.pkSoloNick.textContent = hostNick;
+  if (DOM.pkSoloName)   DOM.pkSoloName.textContent = `@${hostUser}`;
+
+  // Live Stream KPIs in Solo Deck
+  if (DOM.pkSoloViewers) {
+    DOM.pkSoloViewers.textContent = DOM.kpiViewers ? DOM.kpiViewers.textContent : fmt(pkData?.viewer_count || 0);
+  }
+  if (DOM.pkSoloLps) {
+    DOM.pkSoloLps.textContent = DOM.kpiLps ? DOM.kpiLps.textContent : '0.0';
+  }
+  if (DOM.pkSoloDiamonds) {
+    DOM.pkSoloDiamonds.textContent = DOM.kpiDiamonds ? DOM.kpiDiamonds.textContent : '0';
+  }
+  if (DOM.pkSoloUsd) {
+    DOM.pkSoloUsd.textContent = DOM.kpiNet ? DOM.kpiNet.textContent : '$0.00';
+  }
+
+  // Diamonds Milestone Target
+  const curDiamonds = parseInt((DOM.kpiDiamonds?.textContent || '0').replace(/[^0-9]/g, ''), 10) || 0;
+  const diamondMilestones = [1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000];
+  const targetDiam = diamondMilestones.find(m => m > curDiamonds) || (curDiamonds + 5000);
+  const diamPct = Math.min(100, Math.round((curDiamonds / targetDiam) * 100));
+
+  if (DOM.pkSoloGoalBar)  DOM.pkSoloGoalBar.style.width = `${diamPct}%`;
+  if (DOM.pkSoloGoalPct)  DOM.pkSoloGoalPct.textContent = `${diamPct}%`;
+  if (DOM.pkSoloGoalText) DOM.pkSoloGoalText.textContent = `${fmt(curDiamonds)} / ${fmt(targetDiam)} 💎 (${diamPct}%)`;
+
+  // Likes Milestone Target
+  const curLikes = parseInt((DOM.kpiLikes?.textContent || '0').replace(/[^0-9]/g, ''), 10) || 0;
+  const likeMilestones = [5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000];
+  const targetLikes = likeMilestones.find(m => m > curLikes) || (curLikes + 10000);
+  const likesPct = Math.min(100, Math.round((curLikes / targetLikes) * 100));
+
+  if (DOM.pkSoloLikesBar)     DOM.pkSoloLikesBar.style.width = `${likesPct}%`;
+  if (DOM.pkSoloLikesGoalPct) DOM.pkSoloLikesGoalPct.textContent = `${likesPct}%`;
+  if (DOM.pkSoloLikesGoalText)DOM.pkSoloLikesGoalText.textContent = `${fmt(curLikes)} / ${fmt(targetLikes)} (${likesPct}%)`;
+}
+
+function updateTripleArena(pkData) {
+  const participants = pkData?.participants || [];
+  const hostAnchors = pkData?.host_anchors || [];
+  const oppAnchors  = pkData?.opponent_anchors || [];
+
+  let p1 = hostAnchors[0] || (participants[0] || { nickname: (currentUsername || 'المضيف'), unique_id: (currentUsername || 'host'), points: pkData?.host_points || 0 });
+  let p2 = oppAnchors[0]  || (participants[1] || { nickname: 'الخصم الأول 🥊', unique_id: 'rival1', points: Math.round((pkData?.opponent_points || 0) * 0.55) });
+  let p3 = oppAnchors[1]  || (participants[2] || { nickname: 'الخصم الثاني 🎯', unique_id: 'rival2', points: Math.round((pkData?.opponent_points || 0) * 0.45) });
+
+  const s1 = p1.points != null ? p1.points : (pkData?.host_points || 0);
+  const s2 = p2.points != null ? p2.points : Math.round((pkData?.opponent_points || 0) * 0.55);
+  const s3 = p3.points != null ? p3.points : Math.round((pkData?.opponent_points || 0) * 0.45);
+
+  // Streamer 1: Host
+  if (DOM.pkTriHostAvatar) DOM.pkTriHostAvatar.src = p1.avatar_url || DOM.pkHostAvatar?.src || 'https://placehold.co/100x100/1e3a8a/white?text=Host';
+  if (DOM.pkTriHostNick)   DOM.pkTriHostNick.textContent = p1.nickname || p1.unique_id || 'المضيف';
+  if (DOM.pkTriHostName)   DOM.pkTriHostName.textContent = p1.unique_id ? `@${p1.unique_id}` : '@host';
+  if (DOM.pkTriHostScore)  DOM.pkTriHostScore.textContent = fmt(s1);
+  renderPkMvps(DOM.pkTriHostMvps, p1.contributors || pkData?.host_armies, 'host-score');
+
+  // Streamer 2: Rival 1
+  if (DOM.pkTriRival1Avatar) DOM.pkTriRival1Avatar.src = p2.avatar_url || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces';
+  if (DOM.pkTriRival1Nick)   DOM.pkTriRival1Nick.textContent = p2.nickname || p2.unique_id || 'الخصم الأول';
+  if (DOM.pkTriRival1Name)   DOM.pkTriRival1Name.textContent = p2.unique_id ? `@${p2.unique_id}` : '@rival1';
+  if (DOM.pkTriRival1Score)  DOM.pkTriRival1Score.textContent = fmt(s2);
+  renderPkMvps(DOM.pkTriRival1Mvps, p2.contributors || pkData?.opponent_armies, 'opp-score');
+
+  // Streamer 3: Rival 2
+  if (DOM.pkTriRival2Avatar) DOM.pkTriRival2Avatar.src = p3.avatar_url || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=faces';
+  if (DOM.pkTriRival2Nick)   DOM.pkTriRival2Nick.textContent = p3.nickname || p3.unique_id || 'الخصم الثاني';
+  if (DOM.pkTriRival2Name)   DOM.pkTriRival2Name.textContent = p3.unique_id ? `@${p3.unique_id}` : '@rival2';
+  if (DOM.pkTriRival2Score)  DOM.pkTriRival2Score.textContent = fmt(s3);
+  renderPkMvps(DOM.pkTriRival2Mvps, p3.contributors || (pkData?.opponent_armies ? pkData.opponent_armies.slice(1) : []), 'purple-score');
+
+  // Compute Ranks
+  const ranksList = [
+    { score: s1, el: DOM.pkTriHostRank, name: p1.nickname || 'المضيف' },
+    { score: s2, el: DOM.pkTriRival1Rank, name: p2.nickname || 'الخصم الأول' },
+    { score: s3, el: DOM.pkTriRival2Rank, name: p3.nickname || 'الخصم الثاني' },
+  ].sort((a, b) => b.score - a.score);
+
+  const badgeStyles = [
+    { label: '🥇 المركز الأول', cls: 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm' },
+    { label: '🥈 المركز الثاني', cls: 'bg-slate-400/20 text-slate-200 border-slate-400/50' },
+    { label: '🥉 المركز الثالث', cls: 'bg-amber-700/20 text-amber-400 border-amber-700/50' },
+  ];
+
+  ranksList.forEach((item, idx) => {
+    if (item.el) {
+      item.el.textContent = badgeStyles[idx].label;
+      item.el.className = `px-2 py-0.5 rounded-full text-xs font-black border ${badgeStyles[idx].cls}`;
+    }
+  });
+
+  // 3-Way Segmented Bar Ratios
+  const tot = (s1 + s2 + s3) || 1;
+  const pct1 = Math.round((s1 / tot) * 100);
+  const pct2 = Math.round((s2 / tot) * 100);
+  const pct3 = Math.max(0, 100 - pct1 - pct2);
+
+  if (DOM.pkTriBarHost)   DOM.pkTriBarHost.style.width   = `${pct1}%`;
+  if (DOM.pkTriBarRival1) DOM.pkTriBarRival1.style.width = `${pct2}%`;
+  if (DOM.pkTriBarRival2) DOM.pkTriBarRival2.style.width = `${pct3}%`;
+
+  if (DOM.pkTriPctHost)   DOM.pkTriPctHost.textContent   = `${pct1}%`;
+  if (DOM.pkTriPctRival1) DOM.pkTriPctRival1.textContent = `${pct2}%`;
+  if (DOM.pkTriPctRival2) DOM.pkTriPctRival2.textContent = `${pct3}%`;
+
+  const lead = ranksList[0].score - ranksList[1].score;
+  if (DOM.pkTriLeadLabel) {
+    if (lead > 0) {
+      DOM.pkTriLeadLabel.textContent = `⚡ المتصدر: ${ranksList[0].name} (فارق +${fmt(lead)}) ⚡`;
+    } else {
+      DOM.pkTriLeadLabel.textContent = '⚡ تعادل متطابق على المركز الأول ⚖️ ⚡';
+    }
+  }
+}
+
+function updateDualArena(pkData, battleType) {
+  const hostScore = pkData?.host_points || 0;
+  const oppScore  = pkData?.opponent_points || 0;
+  const hostAnchors = pkData?.host_anchors || [];
+  const oppAnchors  = pkData?.opponent_anchors || [];
 
   // Populate Host Side (معه)
-  const hostAnchors = pkData.host_anchors || [];
   if (hostAnchors.length > 0) {
     const h0 = hostAnchors[0];
     if (DOM.pkHostNick)   DOM.pkHostNick.textContent   = h0.nickname || h0.unique_id || 'المضيف';
@@ -1973,22 +2132,36 @@ function updatePK(pkData, eventType) {
     if (DOM.pkHostAvatar && h0.avatar_url) DOM.pkHostAvatar.src = h0.avatar_url;
 
     // Teammate (if 2v2)
-    if (hostAnchors.length > 1) {
-      const h1 = hostAnchors[1];
+    if (hostAnchors.length > 1 || battleType === '2v2') {
+      const h1 = hostAnchors[1] || { nickname: 'سام فاير 🔥', unique_id: 'samfire_55', avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=faces' };
       if (DOM.pkTeammateCard) DOM.pkTeammateCard.classList.remove('hidden');
       if (DOM.pkTeammateNick) DOM.pkTeammateNick.textContent = h1.nickname || h1.unique_id || 'الحليف';
-      if (DOM.pkTeammateName) DOM.pkTeammateName.textContent = h1.unique_id ? `@${h1.unique_id}` : '';
+      if (DOM.pkTeammateName) DOM.pkTeammateName.textContent = h1.unique_id ? `@${h1.unique_id}` : '@ally';
       if (DOM.pkTeammateAvatar && h1.avatar_url) DOM.pkTeammateAvatar.src = h1.avatar_url;
+
+      // Individual Anchor Points
+      const h0pts = h0.points != null ? h0.points : Math.round(hostScore * 0.65);
+      const h1pts = h1.points != null ? h1.points : (hostScore - h0pts);
+      const hTot = (hostScore || 1);
+      if (DOM.pkHostAnchorScore) {
+        DOM.pkHostAnchorScore.textContent = `${fmt(h0pts)} نقطة (${Math.round((h0pts / hTot) * 100)}%)`;
+        DOM.pkHostAnchorScore.classList.remove('hidden');
+      }
+      if (DOM.pkTeammateAnchorScore) {
+        DOM.pkTeammateAnchorScore.textContent = `${fmt(h1pts)} نقطة (${Math.round((h1pts / hTot) * 100)}%)`;
+        DOM.pkTeammateAnchorScore.classList.remove('hidden');
+      }
     } else if (DOM.pkTeammateCard) {
       DOM.pkTeammateCard.classList.add('hidden');
+      if (DOM.pkHostAnchorScore) DOM.pkHostAnchorScore.classList.add('hidden');
+      if (DOM.pkTeammateAnchorScore) DOM.pkTeammateAnchorScore.classList.add('hidden');
     }
-  } else if (pkData.host_username) {
+  } else if (pkData?.host_username) {
     if (DOM.pkHostName) DOM.pkHostName.textContent = `@${pkData.host_username}`;
     if (DOM.pkHostNick) DOM.pkHostNick.textContent = pkData.host_username;
   }
 
   // Populate Opponent Side (ضده)
-  const oppAnchors = pkData.opponent_anchors || [];
   if (oppAnchors.length > 0) {
     const op0 = oppAnchors[0];
     if (DOM.pkOppNick1)   DOM.pkOppNick1.textContent   = op0.nickname || op0.unique_id || 'الخصم';
@@ -1996,25 +2169,38 @@ function updatePK(pkData, eventType) {
     if (DOM.pkOppAvatar1 && op0.avatar_url) DOM.pkOppAvatar1.src = op0.avatar_url;
 
     // Opponent 2 (if 2v2)
-    if (oppAnchors.length > 1) {
-      const op1 = oppAnchors[1];
+    if (oppAnchors.length > 1 || battleType === '2v2') {
+      const op1 = oppAnchors[1] || { nickname: 'الكينغ أبو فهد 👑', unique_id: 'king_fahad_pk', avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces' };
       if (DOM.pkOppCard2)   DOM.pkOppCard2.classList.remove('hidden');
       if (DOM.pkOppNick2)   DOM.pkOppNick2.textContent   = op1.nickname || op1.unique_id || 'الخصم الثاني';
-      if (DOM.pkOppName2)   DOM.pkOppName2.textContent   = op1.unique_id ? `@${op1.unique_id}` : '';
+      if (DOM.pkOppName2)   DOM.pkOppName2.textContent   = op1.unique_id ? `@${op1.unique_id}` : '@rival2';
       if (DOM.pkOppAvatar2 && op1.avatar_url) DOM.pkOppAvatar2.src = op1.avatar_url;
+
+      // Individual Anchor Points
+      const op0pts = op0.points != null ? op0.points : Math.round(oppScore * 0.55);
+      const op1pts = op1.points != null ? op1.points : (oppScore - op0pts);
+      const opTot = (oppScore || 1);
+      if (DOM.pkOppAnchorScore1) {
+        DOM.pkOppAnchorScore1.textContent = `${fmt(op0pts)} نقطة (${Math.round((op0pts / opTot) * 100)}%)`;
+        DOM.pkOppAnchorScore1.classList.remove('hidden');
+      }
+      if (DOM.pkOppAnchorScore2) {
+        DOM.pkOppAnchorScore2.textContent = `${fmt(op1pts)} نقطة (${Math.round((op1pts / opTot) * 100)}%)`;
+        DOM.pkOppAnchorScore2.classList.remove('hidden');
+      }
     } else if (DOM.pkOppCard2) {
       DOM.pkOppCard2.classList.add('hidden');
+      if (DOM.pkOppAnchorScore1) DOM.pkOppAnchorScore1.classList.add('hidden');
+      if (DOM.pkOppAnchorScore2) DOM.pkOppAnchorScore2.classList.add('hidden');
     }
-  } else if (pkData.opponent_username) {
+  } else if (pkData?.opponent_username) {
     if (DOM.pkOppName1) DOM.pkOppName1.textContent = `@${pkData.opponent_username}`;
     if (DOM.pkOppNick1) DOM.pkOppNick1.textContent = pkData.opponent_username;
   }
 
-  // Render Host MVPs (كبار الداعمين لفريقنا)
-  renderPkMvps(DOM.pkHostMvps, pkData.host_armies, 'host-score');
-
-  // Render Opponent MVPs (كبار الداعمين للخصم)
-  renderPkMvps(DOM.pkOppMvps, pkData.opponent_armies, 'opp-score');
+  // Render Host and Opponent MVPs
+  renderPkMvps(DOM.pkHostMvps, pkData?.host_armies, 'host-score');
+  renderPkMvps(DOM.pkOppMvps, pkData?.opponent_armies, 'opp-score');
 
   // Tug of war ratios & Score Diff
   const total   = (hostScore + oppScore) || 1;
@@ -2039,12 +2225,222 @@ function updatePK(pkData, eventType) {
       DOM.pkScoreDiff.className   = 'text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-gray-800 text-gray-300 border border-gray-700 whitespace-nowrap';
     }
   }
+}
+
+function updatePK(pkData, eventType) {
+  if (!pkData) return;
+
+  const isActive     = !!pkData.is_active;
+  const status       = pkData.status || (isActive ? 'ACTIVE' : 'IDLE');
+  let   battleType   = pkData.battle_type || '1v1';
+  const hostScore    = pkData.host_points || 0;
+  const oppScore     = pkData.opponent_points || 0;
+  const hostWins     = pkData.host_wins || 0;
+  const oppWins      = pkData.opponent_wins || 0;
+  const roundNum     = pkData.round_number || 1;
+  const battleId     = pkData.battle_id || '';
+
+  // Detect mode dynamically if not locked manually
+  if (!isActive && status === 'IDLE' && !manualModeOverride) {
+    battleType = 'solo';
+  } else if (manualModeOverride) {
+    battleType = currentPkMode;
+  }
+
+  // Instant Round Start Detection & Synchronization (بدون أي تأخير)
+  const isBattleIdNew    = !!(battleId && lastBattleId && battleId !== lastBattleId);
+  const isBecomingActive = (lastPkStatus !== 'ACTIVE' && (status === 'ACTIVE' || isActive));
+  const isRoundNumBumped = ((status === 'ACTIVE' || isActive) && roundNum > lastRoundNum && lastRoundNum !== 0);
+
+  const isNewRound =
+    (eventType === 'start') ||
+    isBattleIdNew ||
+    isBecomingActive ||
+    isRoundNumBumped;
+
+  if (isNewRound) {
+    manualModeOverride = false; // Reset manual lock when a real new battle starts!
+    playBattleStartSound();
+    if (DOM.pkSection) {
+      DOM.pkSection.classList.remove('round-start-flash');
+      void DOM.pkSection.offsetWidth;
+      DOM.pkSection.classList.add('round-start-flash');
+      setTimeout(() => DOM.pkSection?.classList.remove('round-start-flash'), 2000);
+      try { DOM.pkSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (_) {}
+    }
+    const durMin = Math.round((pkData.duration || 300) / 60);
+    const durLabel = durMin > 0 ? (currentLang === 'ar' ? ` (${durMin} دقائق)` : ` (${durMin}m)`) : '';
+    toast(
+      currentLang === 'ar'
+        ? `⚔️ بدأت الجولة ${roundNum} (${battleType.toUpperCase()}) الآن!${durLabel} 🔥 احشدوا الدعم والتكبيس!`
+        : `⚔️ Round ${roundNum} (${battleType.toUpperCase()}) started!${durLabel} 🔥 Send gifts & tap!`,
+      'warning',
+      6000
+    );
+  }
+
+  if (battleId) {
+    lastBattleId = battleId;
+  }
+  lastPkStatus = status;
+  lastRoundNum = roundNum;
+
+  // Set View Mode
+  setPkViewMode(battleType);
+
+  if (DOM.pkRoundNum)   DOM.pkRoundNum.textContent   = roundNum;
+  if (DOM.pkHostWins)   DOM.pkHostWins.textContent   = hostWins;
+  if (DOM.pkOppWins)    DOM.pkOppWins.textContent    = oppWins;
+  if (DOM.pkHostScore)  DOM.pkHostScore.textContent  = fmt(hostScore);
+  if (DOM.pkOppScore)   DOM.pkOppScore.textContent   = fmt(oppScore);
+
+  // Status Badge
+  if (DOM.pkStatusBadge) {
+    if (status === 'ACTIVE' || (isActive && status !== 'PUNISH')) {
+      DOM.pkStatusBadge.textContent = currentLang === 'ar' ? '🔴 جولة جارية' : '🔴 Battle Active';
+      DOM.pkStatusBadge.className   = 'px-3 py-1 rounded-full text-xs font-bold bg-red-950 text-red-300 border border-red-700 animate-pulse';
+      DOM.pkSection?.classList.add('pk-active');
+    } else if (status === 'PUNISH') {
+      DOM.pkStatusBadge.textContent = currentLang === 'ar' ? '⏱️ وقت الحكم' : '⏱️ Punish Time';
+      DOM.pkStatusBadge.className   = 'px-3 py-1 rounded-full text-xs font-bold bg-amber-950 text-amber-300 border border-amber-700 animate-pulse';
+      DOM.pkSection?.classList.add('pk-active');
+    } else if (status === 'ENDED' || eventType === 'ended') {
+      DOM.pkStatusBadge.textContent = currentLang === 'ar' ? '🏆 انتهت الجولة' : '🏆 Round Ended';
+      DOM.pkStatusBadge.className   = 'px-3 py-1 rounded-full text-xs font-bold bg-emerald-950 text-emerald-300 border border-emerald-700';
+      DOM.pkSection?.classList.remove('pk-active');
+    } else {
+      DOM.pkStatusBadge.textContent = currentLang === 'ar' ? '⏸️ بث فردي مباشر' : '⏸️ Solo Stream';
+      DOM.pkStatusBadge.className   = 'px-3 py-1 rounded-full text-xs font-bold bg-gray-800 text-gray-400 border border-gray-700';
+      DOM.pkSection?.classList.remove('pk-active');
+    }
+  }
+
+  // Synchronize PK Round Countdown Timer (مزامنة عداد وقت الجولة فائق الدقة)
+  if (status === 'ACTIVE' || (isActive && status !== 'PUNISH')) {
+    const dur = pkData.duration || 300;
+    const rem = (pkData.remaining_seconds != null && pkData.remaining_seconds >= 0) ? pkData.remaining_seconds : dur;
+    const serverEndTime = (pkData.end_time && pkData.end_time > 0) ? Math.round(pkData.end_time * 1000) : 0;
+
+    if (isNewRound || !pkTimerInterval || pkTimerPhase !== 'BATTLE') {
+      startPkCountdown(rem, 'BATTLE', dur, serverEndTime);
+    } else if (serverEndTime > 0 && Math.abs(pkTimerEndTimestamp - serverEndTime) > 2000) {
+      pkTimerEndTimestamp = serverEndTime;
+      pkTimerTotalSeconds = dur;
+      updatePkTimerDisplay();
+    }
+
+    // Speed Challenge Phase Detection (وقت السرعة x2)
+    const isSpeedPhase = (rem > 90 && rem < 180) || !!pkData.is_speed_challenge;
+    if (isSpeedPhase && !lastSpeedPhaseActive) {
+      lastSpeedPhaseActive = true;
+      if (DOM.pkSpeedBadge) DOM.pkSpeedBadge.classList.remove('hidden');
+      playItemCardSound();
+      toast('⚡ بدأ وقت السرعة الآن! النقاط مضاعفة x2! 🔥 احشدوا الدعم بأقصى سرعة!', 'warning', 5000);
+    } else if (!isSpeedPhase && lastSpeedPhaseActive) {
+      lastSpeedPhaseActive = false;
+      if (DOM.pkSpeedBadge) DOM.pkSpeedBadge.classList.add('hidden');
+    }
+  } else if (status === 'PUNISH') {
+    const rem = (pkData.remaining_seconds != null && pkData.remaining_seconds > 0) ? pkData.remaining_seconds : 120;
+    if (!pkTimerInterval || pkTimerPhase !== 'PUNISH') {
+      startPkCountdown(rem, 'PUNISH', 120);
+    }
+    if (DOM.pkSpeedBadge) DOM.pkSpeedBadge.classList.add('hidden');
+    lastSpeedPhaseActive = false;
+  } else if (status === 'ENDED' || eventType === 'ended') {
+    stopPkCountdown('ENDED');
+    if (DOM.pkSpeedBadge) DOM.pkSpeedBadge.classList.add('hidden');
+    lastSpeedPhaseActive = false;
+  } else {
+    stopPkCountdown('IDLE');
+    if (DOM.pkSpeedBadge) DOM.pkSpeedBadge.classList.add('hidden');
+    lastSpeedPhaseActive = false;
+  }
+
+  // Render Sub-Views based on battle mode
+  if (battleType === 'solo') {
+    updateSoloDeck(pkData);
+  } else if (battleType === '3-way') {
+    updateTripleArena(pkData);
+  } else {
+    updateDualArena(pkData, battleType);
+  }
 
   if (eventType === 'ended' || status === 'ENDED') {
+    const hostAnchors = pkData?.host_anchors || [];
+    const oppAnchors  = pkData?.opponent_anchors || [];
     const winnerName = hostScore >= oppScore
       ? (hostAnchors[0]?.nickname || pkData.host_username || 'فريقنا')
       : (oppAnchors[0]?.nickname || pkData.opponent_username || 'الخصم');
     toast(`⚔️ انتهت الجولة ${roundNum}! الفائز: ${winnerName}`, 'info', 6000);
+  }
+}
+
+function initPkModeButtons() {
+  if (DOM.pkModeBtnSolo) {
+    DOM.pkModeBtnSolo.addEventListener('click', () => {
+      setPkViewMode('solo', true);
+      toast('👤 تم التحويل إلى وضع البث الفردي (سولو)', 'info', 2500);
+      updateSoloDeck();
+    });
+  }
+
+  if (DOM.pkModeBtn1v1) {
+    DOM.pkModeBtn1v1.addEventListener('click', () => {
+      setPkViewMode('1v1', true);
+      toast('⚔️ تم التحويل إلى ساحة الجولة الثنائية 1v1', 'info', 2500);
+      updatePK({
+        is_active: true,
+        status: 'ACTIVE',
+        battle_type: '1v1',
+        round_number: 1,
+        host_points: demoHostScore || 3420,
+        opponent_points: demoOppScore || 2890,
+      }, 'mode_switch');
+    });
+  }
+
+  if (DOM.pkModeBtn3way) {
+    DOM.pkModeBtn3way.addEventListener('click', () => {
+      setPkViewMode('3-way', true);
+      toast('🔺 تم التحويل إلى ساحة الجولة الثلاثية 3-Way', 'info', 2500);
+      updatePK({
+        is_active: true,
+        status: 'ACTIVE',
+        battle_type: '3-way',
+        round_number: 1,
+        host_points: 4800,
+        opponent_points: 7500,
+        host_anchors: [{ nickname: (currentUsername || 'المضيف'), unique_id: (currentUsername || 'host'), points: 4800 }],
+        opponent_anchors: [
+          { nickname: 'الكينغ أبو فهد 👑', unique_id: 'king_fahad_pk', points: 4100, avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces' },
+          { nickname: 'سارة القحطاني 🇸🇦', unique_id: 'sara_live_official', points: 3400, avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=faces' }
+        ]
+      }, 'mode_switch');
+    });
+  }
+
+  if (DOM.pkModeBtn2v2) {
+    DOM.pkModeBtn2v2.addEventListener('click', () => {
+      setPkViewMode('2v2', true);
+      toast('🛡️ تم التحويل إلى ساحة الجولة الرباعية 2v2', 'info', 2500);
+      updatePK({
+        is_active: true,
+        status: 'ACTIVE',
+        battle_type: '2v2',
+        round_number: 1,
+        host_points: 6200,
+        opponent_points: 5400,
+        host_anchors: [
+          { nickname: (currentUsername || 'المضيف'), unique_id: (currentUsername || 'host'), points: 3800 },
+          { nickname: 'سام فاير 🔥', unique_id: 'samfire_55', points: 2400, avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=faces' }
+        ],
+        opponent_anchors: [
+          { nickname: 'الكينغ أبو فهد 👑', unique_id: 'king_fahad_pk', points: 3100, avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces' },
+          { nickname: 'كابتن ماجد ⚽', unique_id: 'captain_majed_live', points: 2300, avatar_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&crop=faces' }
+        ]
+      }, 'mode_switch');
+    });
   }
 }
 
@@ -3737,13 +4133,22 @@ function startDemoSimulation() {
       } else {
         demoOppScore += addedDiamonds;
       }
+      const isSolo = (currentPkMode === 'solo');
       updatePK({
-        is_active: true,
-        status: 'ACTIVE',
-        battle_type: '1v1',
-        round: 1,
+        is_active: !isSolo,
+        status: isSolo ? 'IDLE' : 'ACTIVE',
+        battle_type: currentPkMode,
+        round_number: 1,
         host_points: demoHostScore,
         opponent_points: demoOppScore,
+        host_anchors: [
+          { nickname: 'المضيف (أنت 👑)', unique_id: 'demo_live_stream', points: Math.round(demoHostScore * (currentPkMode === '2v2' ? 0.65 : 1)) },
+          ...(currentPkMode === '2v2' ? [{ nickname: 'سام فاير 🔥', unique_id: 'samfire_55', points: Math.round(demoHostScore * 0.35), avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=faces' }] : [])
+        ],
+        opponent_anchors: [
+          { nickname: 'الكينغ أبو فهد 👑', unique_id: 'king_fahad_pk', points: Math.round(demoOppScore * (currentPkMode === '2v2' ? 0.55 : (currentPkMode === '3-way' ? 0.52 : 1))), avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces' },
+          ...((currentPkMode === '2v2' || currentPkMode === '3-way') ? [{ nickname: (currentPkMode === '3-way' ? 'سارة القحطاني 🇸🇦' : 'كابتن ماجد ⚽'), unique_id: (currentPkMode === '3-way' ? 'sara_live_official' : 'captain_majed_live'), points: Math.round(demoOppScore * (currentPkMode === '2v2' ? 0.45 : 0.48)), avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=faces' }] : [])
+        ]
       }, 'points_update');
     }
 
@@ -4070,5 +4475,10 @@ initTactileRipple();
 initAllKineticScrolls();
 initSmoothScrollEngine();
 
-console.log('🎯 TIKTOK VRF initialized successfully with Fluid UI & Kinetic Navigation.');
+// Initialize Multi-Mode Arena & Default to Solo Deck
+initPkModeButtons();
+setPkViewMode('solo');
+updateSoloDeck();
+
+console.log('🎯 TIKTOK VRF initialized successfully with Fluid UI & Multi-Mode Arena.');
 
