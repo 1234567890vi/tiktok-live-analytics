@@ -184,6 +184,7 @@ def _filter_snapshot_payload(payload: dict, perms: dict) -> dict:
         data["top_supporters"] = []
         data["total_diamonds"] = 0
         data["estimated_usd"] = 0.0
+        data["net_payout_usd"] = 0.0
         data["net_creator_usd"] = 0.0
     if not perms.get("likes", True):
         data["likes"] = 0
