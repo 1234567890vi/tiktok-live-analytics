@@ -36,6 +36,8 @@ from TikTokLive.events import (
     LinkMicBattleEvent,
     LinkMicArmiesEvent,
     LinkMicBattlePunishFinishEvent,
+    LinkMicMethodEvent,
+    LinkEvent,
 )
 
 # Optional battle events depending on TikTokLive version
@@ -326,6 +328,71 @@ except ModuleNotFoundError:
                 def to_dict(self_): return txn  # noqa: N805
             return _T()
 
+        def add_pk_points(
+            self,
+            side: str,
+            delta: int,
+            recipient_uid: str = "",
+            recipient_uniq: str = "",
+            recipient_name: str = ""
+        ) -> dict:
+            """
+            Immediately increments PK battle points in real-time on live gifts.
+            Updates anchor points, participants list, and re-ranks participants.
+            """
+            if not self._pk.get("is_active", False) or delta <= 0:
+                return dict(self._pk)
+
+            if side == "host":
+                self._pk["host_points"] = max(0, self._pk.get("host_points", 0) + delta)
+                anchors = self._pk.get("host_anchors", [])
+            else:
+                self._pk["opponent_points"] = max(0, self._pk.get("opponent_points", 0) + delta)
+                anchors = self._pk.get("opponent_anchors", [])
+
+            # Credit target anchor
+            target_anchor = None
+            r_uid_str = str(recipient_uid or "")
+            r_uniq_str = str(recipient_uniq or "").lower().lstrip("@")
+
+            for a in anchors:
+                a_uid = str(a.get("user_id", "") or a.get("anchor_id", ""))
+                a_uniq = str(a.get("unique_id", "")).lower().lstrip("@")
+                if (r_uid_str and a_uid == r_uid_str) or (r_uniq_str and a_uniq == r_uniq_str):
+                    target_anchor = a
+                    break
+
+            if not target_anchor and anchors:
+                target_anchor = anchors[0]
+
+            if target_anchor:
+                target_anchor["points"] = max(0, int(target_anchor.get("points", 0) or 0) + delta)
+
+            # Update participants
+            participants = self._pk.get("participants", [])
+            found_in_parts = False
+            for p in participants:
+                p_uid = str(p.get("user_id", "") or p.get("anchor_id", ""))
+                p_uniq = str(p.get("unique_id", "")).lower().lstrip("@")
+                if (r_uid_str and p_uid == r_uid_str) or (r_uniq_str and p_uniq == r_uniq_str):
+                    p["points"] = max(0, int(p.get("points", 0) or 0) + delta)
+                    found_in_parts = True
+                    break
+
+            if not found_in_parts and target_anchor:
+                t_uid = str(target_anchor.get("user_id", "") or target_anchor.get("anchor_id", ""))
+                for p in participants:
+                    p_uid = str(p.get("user_id", "") or p.get("anchor_id", ""))
+                    if p_uid == t_uid:
+                        p["points"] = target_anchor.get("points", 0)
+
+            # Re-rank participants
+            participants.sort(key=lambda x: x.get("points", 0), reverse=True)
+            for r_idx, p in enumerate(participants, start=1):
+                p["rank"] = r_idx
+
+            return dict(self._pk)
+
         def update_pk_battle(
             self,
             bid: str = "",
@@ -353,6 +420,14 @@ except ModuleNotFoundError:
 
             # Detect round transition
             is_new_round = bool(bid and prev_bid and bid != prev_bid and active)
+            
+            # Preserve/maximize points during ongoing battles and status changes
+            if not is_new_round:
+                prev_hs = self._pk.get("host_points", 0)
+                prev_os = self._pk.get("opponent_points", 0)
+                hs = max(hs, prev_hs)
+                os_ = max(os_, prev_os)
+
             if is_new_round:
                 round_number += 1
             elif was_active and (status == "ENDED" or not active):
@@ -408,17 +483,28 @@ except ModuleNotFoundError:
 
             # Build unified participants list with ranks and individual points
             participants = []
+            prev_parts = {str(x.get("user_id", "") or x.get("anchor_id", "")): int(x.get("points", 0) or 0) for x in self._pk.get("participants", [])}
             for a in h_anchors:
                 p = dict(a)
                 p["is_host_side"] = True
-                if "points" not in p:
-                    p["points"] = hs if len(h_anchors) == 1 else 0
+                a_key = str(p.get("user_id", "") or p.get("anchor_id", ""))
+                prev_p = prev_parts.get(a_key, 0)
+                cur_p = int(p.get("points", 0) or 0)
+                if cur_p == 0:
+                    p["points"] = hs if len(h_anchors) == 1 else prev_p
+                else:
+                    p["points"] = max(cur_p, prev_p)
                 participants.append(p)
             for a in o_anchors:
                 p = dict(a)
                 p["is_host_side"] = False
-                if "points" not in p:
-                    p["points"] = os_ if len(o_anchors) == 1 else 0
+                a_key = str(p.get("user_id", "") or p.get("anchor_id", ""))
+                prev_p = prev_parts.get(a_key, 0)
+                cur_p = int(p.get("points", 0) or 0)
+                if cur_p == 0:
+                    p["points"] = os_ if len(o_anchors) == 1 else prev_p
+                else:
+                    p["points"] = max(cur_p, prev_p)
                 participants.append(p)
 
             # Sort participants by points descending to assign ranks (1st, 2nd, 3rd, 4th)
@@ -523,12 +609,17 @@ BroadcastFn = Callable[[dict], Awaitable[None]]
 # ---------------------------------------------------------------------------
 
 def _safe(obj, *attrs, default=""):
-    """Traverse nested attributes safely, returning `default` on any miss."""
+    """Traverse nested attributes or dictionary keys safely, returning `default` on any miss."""
     for attr in attrs:
         if obj is None:
             return default
         try:
-            obj = getattr(obj, attr, None)
+            if isinstance(obj, dict):
+                obj = obj.get(attr)
+            elif isinstance(attr, int) and isinstance(obj, (list, tuple)):
+                obj = obj[attr] if 0 <= attr < len(obj) else None
+            else:
+                obj = getattr(obj, str(attr), None)
         except Exception:
             return default
     return obj if obj is not None else default
@@ -538,16 +629,14 @@ def _user_info(user) -> dict:
     """Extract standardised user dict from a TikTokLive user object."""
     if user is None:
         return {"user_id": "", "unique_id": "", "nickname": "", "avatar_url": ""}
-    avatar = ""
-    av_thumb = _safe(user, "avatar_thumb")
-    if av_thumb:
-        urls = _safe(av_thumb, "url_list")
-        if urls and isinstance(urls, (list, tuple)) and len(urls) > 0:
-            avatar = urls[0]
+    avatar = _extract_avatar(_safe(user, "avatar_thumb") or _safe(user, "avatar_medium") or _safe(user, "avatar_large") or user)
+    uniq = str(_safe(user, "display_id", default="") or _safe(user, "unique_id", default="")).lstrip("@")
+    nick = str(_safe(user, "nickname", default="") or uniq or "مستخدم")
+    uid = str(_safe(user, "id_str", default="") or _safe(user, "id", default="") or _safe(user, "user_id", default=""))
     return {
-        "user_id":    str(_safe(user, "id",        default="")),
-        "unique_id":  str(_safe(user, "unique_id",  default="")),
-        "nickname":   str(_safe(user, "nickname",   default="")),
+        "user_id":    uid,
+        "unique_id":  uniq,
+        "nickname":   nick,
         "avatar_url": str(avatar),
     }
 
@@ -831,13 +920,16 @@ def _parse_battle_anchors_and_teams(
                 break
 
         if host_team_id is not None:
+            opp_team_id = next((tid for tid in teams_dict.keys() if tid != host_team_id), 0)
             for a in anchors:
                 a_uids = teams_dict.get(host_team_id, [])
                 if a["user_id"] in a_uids or a["anchor_id"] in a_uids:
                     a["is_host_side"] = True
+                    a["team_id"] = host_team_id
                     host_anchors.append(a)
                 else:
                     a["is_host_side"] = False
+                    a["team_id"] = opp_team_id
                     opponent_anchors.append(a)
 
     # Fallback if no team_members or grouping failed
@@ -847,15 +939,18 @@ def _parse_battle_anchors_and_teams(
                 streamer_uid and a["user_id"] == streamer_uid
             ):
                 a["is_host_side"] = True
+                a["team_id"] = 1
                 host_anchors.append(a)
             else:
                 a["is_host_side"] = False
+                a["team_id"] = 2
                 opponent_anchors.append(a)
 
         # If still no host matched, assign first to host
         if not host_anchors and opponent_anchors:
             first = opponent_anchors.pop(0)
             first["is_host_side"] = True
+            first["team_id"] = 1
             host_anchors.append(first)
 
     # If anchors list was completely empty
@@ -867,6 +962,7 @@ def _parse_battle_anchors_and_teams(
             "nickname": current_username,
             "avatar_url": streamer_avatar,
             "is_host_side": True,
+            "team_id": 1,
         }]
 
     total_count = len(host_anchors) + len(opponent_anchors)
@@ -886,18 +982,27 @@ def _parse_battle_anchors_and_teams(
                 "nickname": "الخصم",
                 "avatar_url": "",
                 "is_host_side": False,
+                "team_id": 2,
             }]
 
     return host_anchors, opponent_anchors, battle_type
 
 
-def _parse_armies_dict(armies_field) -> dict:
-    """Parses armies from LinkMicBattleEvent or LinkMicArmiesEvent into structured dict."""
+def _parse_armies_dict(armies_field, team_armies_field=None) -> tuple[dict, dict]:
+    """
+    Parses both classic `armies` (BattleUserArmies) AND modern `team_armies` (BattleTeamUserArmies).
+    Returns: (armies_data, team_scores)
+      armies_data: { user_id/anchor_id: {"score": int, "contributors": list, "team_id": int} }
+      team_scores: { team_id: total_team_score }
+    """
     armies_data = {}
+    team_scores = {}
+
+    # 1. Parse classic armies
+    items = []
     if isinstance(armies_field, dict):
         items = list(armies_field.items())
     elif isinstance(armies_field, (list, tuple)):
-        items = []
         for it in armies_field:
             k = _safe(it, "key", default=None)
             v = _safe(it, "value", default=it)
@@ -907,12 +1012,10 @@ def _parse_armies_dict(armies_field) -> dict:
                 anchor_id = str(_safe(v, "anchor_id_str", default="") or _safe(v, "anchor_id", default=""))
                 if anchor_id:
                     items.append((anchor_id, v))
-    else:
-        items = []
 
     for key, army_obj in items:
         aid = str(key)
-        score = int(_safe(army_obj, "hostscore", default=0) or 0)
+        score = int(_safe(army_obj, "hostscore", default=0) or _safe(army_obj, "score", default=0) or 0)
         user_armies = _safe(army_obj, "user_armies") or []
         contributors = []
         if isinstance(user_armies, (list, tuple)):
@@ -921,7 +1024,7 @@ def _parse_armies_dict(armies_field) -> dict:
                 c_nick = str(_safe(c, "nickname", default="داعـم"))
                 c_score = int(_safe(c, "score", default=0) or 0)
                 c_diam = int(_safe(c, "diamond_score", default=0) or 0)
-                c_av = _extract_avatar(_safe(c, "avatar_thumb"))
+                c_av = _extract_avatar(_safe(c, "avatar_thumb") or _safe(c, "avatar_medium"))
                 contributors.append({
                     "user_id": c_uid,
                     "nickname": c_nick,
@@ -933,15 +1036,68 @@ def _parse_armies_dict(armies_field) -> dict:
         armies_data[aid] = {
             "score": score,
             "contributors": contributors,
+            "team_id": 0,
         }
-    return armies_data
+
+    # 2. Parse modern team_armies (BattleTeamUserArmies)
+    if team_armies_field and isinstance(team_armies_field, (list, tuple)):
+        for btua in team_armies_field:
+            tid = int(_safe(btua, "team_id", default=0) or 0)
+            t_score = int(_safe(btua, "team_total_score", default=0) or 0)
+            if tid > 0:
+                team_scores[tid] = max(team_scores.get(tid, 0), t_score)
+
+            # Contributors from user_armies
+            btua_contributors = []
+            u_armies_obj = _safe(btua, "user_armies")
+            u_list = _safe(u_armies_obj, "user_armies") if u_armies_obj else []
+            if isinstance(u_list, (list, tuple)):
+                for c in u_list:
+                    c_uid = str(_safe(c, "user_id", default="") or _safe(c, "user_id_str", default=""))
+                    c_nick = str(_safe(c, "nickname", default="داعـم"))
+                    c_score = int(_safe(c, "score", default=0) or 0)
+                    c_diam = int(_safe(c, "diamond_score", default=0) or 0)
+                    c_av = _extract_avatar(_safe(c, "avatar_thumb") or _safe(c, "avatar_medium"))
+                    btua_contributors.append({
+                        "user_id": c_uid,
+                        "nickname": c_nick,
+                        "score": c_score,
+                        "diamond_score": c_diam,
+                        "avatar_url": c_av,
+                    })
+                btua_contributors.sort(key=lambda x: x["score"], reverse=True)
+
+            # Team users (individual anchor scores)
+            team_users = _safe(btua, "team_user") or []
+            if isinstance(team_users, (list, tuple)):
+                for tu in team_users:
+                    tu_uid = str(_safe(tu, "user_id_str", default="") or _safe(tu, "user_id", default=""))
+                    tu_score = int(_safe(tu, "score", default=0) or 0)
+                    if tu_uid:
+                        if tu_uid in armies_data:
+                            armies_data[tu_uid]["score"] = max(armies_data[tu_uid]["score"], tu_score)
+                            armies_data[tu_uid]["team_id"] = tid
+                            if not armies_data[tu_uid]["contributors"] and btua_contributors:
+                                armies_data[tu_uid]["contributors"] = btua_contributors
+                        else:
+                            armies_data[tu_uid] = {
+                                "score": tu_score,
+                                "contributors": btua_contributors,
+                                "team_id": tid,
+                            }
+
+    return armies_data, team_scores
 
 
-def _aggregate_team_armies(anchors: list, armies_dict: dict):
-    """Calculates total team score, attaches individual anchor points and top 3 contributors (MVPs)."""
+def _aggregate_team_armies(anchors: list, armies_dict: dict, team_scores: dict | None = None) -> tuple[int, list]:
+    """
+    Calculates total team score, attaches individual anchor points and top 3 contributors (MVPs).
+    Cross-checks individual points against armies_dict and team total scores.
+    """
     team_score = 0
     all_contributors = []
     seen_users = set()
+    team_ids_found = set()
 
     for a in anchors:
         aid = str(a.get("anchor_id", "") or "")
@@ -949,12 +1105,27 @@ def _aggregate_team_armies(anchors: list, armies_dict: dict):
         entry = armies_dict.get(aid) or armies_dict.get(uid) or {}
         p_score = int(entry.get("score", 0) or 0)
         team_score += p_score
-        a["points"] = p_score
-        a["contributors"] = entry.get("contributors", [])[:3]
-        for c in entry.get("contributors", []):
-            if c["user_id"] not in seen_users:
-                seen_users.add(c["user_id"])
+        a["points"] = max(int(a.get("points", 0) or 0), p_score)
+
+        a_tid = a.get("team_id") or entry.get("team_id", 0)
+        if a_tid:
+            team_ids_found.add(int(a_tid))
+
+        conts = entry.get("contributors", [])
+        a["contributors"] = conts[:3]
+        for c in conts:
+            c_id = str(c.get("user_id", ""))
+            if c_id and c_id not in seen_users:
+                seen_users.add(c_id)
                 all_contributors.append(c)
+
+    # If team_scores provided a higher team total, honor it
+    if team_scores:
+        for tid in team_ids_found:
+            if tid in team_scores and team_scores[tid] > team_score:
+                team_score = team_scores[tid]
+                if len(anchors) == 1:
+                    anchors[0]["points"] = team_score
 
     all_contributors.sort(key=lambda x: x["score"], reverse=True)
     return team_score, all_contributors[:3]
@@ -1055,50 +1226,91 @@ class TikTokSession:
         self._gift_catalog: dict[str, dict] = {}
         self._gift_catalog_by_name: dict[str, dict] = {}
         self._user_identities: dict[str, dict] = {}
-        self._known_friends: dict[str, dict] = {
-            "samfire_55": {
-                "key": "samfire_55",
-                "unique_id": "samfire_55",
-                "nickname": "سام فاير 🔥",
-                "avatar_url": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=faces",
-                "relation": "شريك بث 🤝",
-                "viewer_count": 1420,
-                "status": "LIVE",
-                "last_seen": time.time(),
-            },
-            "king_fahad_pk": {
-                "key": "king_fahad_pk",
-                "unique_id": "king_fahad_pk",
-                "nickname": "الكينغ أبو فهد 👑",
-                "avatar_url": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces",
-                "relation": "منافس في الجولة 🥊",
-                "viewer_count": 8950,
-                "status": "LIVE",
-                "last_seen": time.time(),
-            },
-            "sara_live_official": {
-                "key": "sara_live_official",
-                "unique_id": "sara_live_official",
-                "nickname": "سارة القحطاني 🇸🇦",
-                "avatar_url": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=faces",
-                "relation": "حليف في الجولة ⚔️",
-                "viewer_count": 3840,
-                "status": "LIVE",
-                "last_seen": time.time(),
-            },
-            "dr_layla_stream": {
-                "key": "dr_layla_stream",
-                "unique_id": "dr_layla_stream",
-                "nickname": "دكتورة ليلى 🩺",
-                "avatar_url": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop&crop=faces",
-                "relation": "شريك بث 🤝",
-                "viewer_count": 2150,
-                "status": "LIVE",
-                "last_seen": time.time(),
-            },
+        self._connected_guests: dict[str, dict] = {}
+        self._known_friends: dict[str, dict] = {}
+
+    def _register_connected_guest(self, user_obj, role: str = "guest", viewer_count: int = 0) -> dict | None:
+        """
+        Registers or updates a connected guest on mic or in co-host session.
+        Extracts user_id, unique_id, nickname, avatar, viewer_count, etc.
+        """
+        if not user_obj:
+            return None
+        u_id = str(_safe(user_obj, "id_str", default="") or _safe(user_obj, "id", default="") or _safe(user_obj, "user_id", default=""))
+        uniq = str(_safe(user_obj, "display_id", default="") or _safe(user_obj, "unique_id", default="")).lstrip("@")
+        nick = str(_safe(user_obj, "nickname", default="") or uniq or "ضيف")
+        avatar = _extract_avatar(_safe(user_obj, "avatar_thumb") or _safe(user_obj, "avatar_medium") or _safe(user_obj, "avatar_large") or user_obj)
+
+        host_u = (self._streamer_unique_id or self.username or "").lower().lstrip("@")
+        host_id = str(self._streamer_user_id or "")
+        if (uniq and uniq.lower() == host_u) or (u_id and host_id and u_id == host_id):
+            return None
+
+        if not u_id and not uniq:
+            return None
+
+        # Check viewer count
+        v_cnt = viewer_count
+        if v_cnt <= 0:
+            v_cnt = int(
+                _safe(user_obj, "viewer_count", default=0) or
+                _safe(user_obj, "user_count", default=0) or
+                0
+            )
+        if v_cnt <= 0 and uniq.lower() in self._known_friends:
+            v_cnt = int(self._known_friends[uniq.lower()].get("viewer_count", 0) or 0)
+
+        key = u_id if u_id else uniq.lower()
+        existing = self._connected_guests.get(key, {})
+
+        role_label = "🎙️ ضيف في القست"
+        if role == "ally":
+            role_label = "⚔️ شريك / حليف"
+        elif role == "rival":
+            role_label = "🥊 منافس في الجولة"
+
+        guest_entry = {
+            "user_id": u_id or existing.get("user_id", ""),
+            "unique_id": uniq or existing.get("unique_id", ""),
+            "nickname": nick if nick != "ضيف" else (existing.get("nickname") or nick),
+            "avatar_url": avatar or existing.get("avatar_url", ""),
+            "role": role,
+            "role_label": role_label,
+            "viewer_count": int(v_cnt if v_cnt > 0 else existing.get("viewer_count", 0)),
+            "is_host": False,
+            "joined_at": existing.get("joined_at", time.time()),
+            "last_seen": time.time(),
         }
-        if self.username.lower() in self._known_friends:
-            self._known_friends.pop(self.username.lower(), None)
+        self._connected_guests[key] = guest_entry
+        if uniq:
+            self._connected_guests[uniq.lower()] = guest_entry
+
+        # Also sync to known_friends for presence persistence
+        if uniq:
+            self._known_friends[uniq.lower()] = {
+                "key": uniq.lower(),
+                "user_id": u_id,
+                "unique_id": uniq,
+                "nickname": guest_entry["nickname"],
+                "avatar_url": guest_entry["avatar_url"],
+                "relation": role_label,
+                "viewer_count": guest_entry["viewer_count"],
+                "status": "LIVE",
+                "last_seen": time.time(),
+            }
+
+        return guest_entry
+
+    def _remove_connected_guest(self, user_id: str = "", unique_id: str = "") -> None:
+        """Removes a guest when they leave or are kicked from mic."""
+        u_id = str(user_id or "")
+        uniq = str(unique_id or "").lower().lstrip("@")
+        keys_to_del = []
+        for k, v in self._connected_guests.items():
+            if (u_id and str(v.get("user_id")) == u_id) or (uniq and str(v.get("unique_id", "")).lower() == uniq) or (k == u_id) or (k == uniq):
+                keys_to_del.append(k)
+        for k in keys_to_del:
+            self._connected_guests.pop(k, None)
 
     def resolve_supporter_identity(self, uinfo: dict, event=None) -> dict:
         """
@@ -1356,6 +1568,30 @@ class TikTokSession:
                     added_uids.add(uniq)
                 if u_id:
                     added_uids.add(u_id)
+
+        # Check connected mic guests (multi-guest live before/after/outside battles)
+        for g_key, g_val in self._connected_guests.items():
+            u_id = str(g_val.get("user_id", "") or "")
+            uniq = str(g_val.get("unique_id", "") or "").lower()
+            if (uniq and uniq in added_uids) or (u_id and u_id in added_uids):
+                continue
+            v_cnt = int(g_val.get("viewer_count", 0) or 0)
+            if v_cnt <= 0 and uniq in self._known_friends:
+                v_cnt = int(self._known_friends[uniq].get("viewer_count", 0) or 0)
+            members.append({
+                "user_id": u_id,
+                "unique_id": g_val.get("unique_id", "") or uniq,
+                "nickname": g_val.get("nickname") or g_val.get("unique_id") or "ضيف",
+                "avatar_url": g_val.get("avatar_url", ""),
+                "role": g_val.get("role", "guest"),
+                "role_label": g_val.get("role_label", "🎙️ ضيف في القست"),
+                "viewer_count": int(v_cnt),
+                "is_host": False,
+            })
+            if uniq:
+                added_uids.add(uniq)
+            if u_id:
+                added_uids.add(u_id)
 
         # Cap members at 4
         members = members[:4]
@@ -2085,6 +2321,25 @@ class TikTokSession:
                 "leaderboard": leaderboard,
             })
 
+            # Instant real-time battle points update on incoming gifts
+            if is_pk and combo_diamonds > 0:
+                to_uid_val = to_uid or ""
+                to_uniq_val = to_uniq or ""
+                updated_pk = self._engine.add_pk_points(
+                    side=recipient_side,
+                    delta=combo_diamonds,
+                    recipient_uid=to_uid_val,
+                    recipient_uniq=to_uniq_val,
+                    recipient_name=recipient_name,
+                )
+                updated_pk_dict = updated_pk.to_dict() if hasattr(updated_pk, "to_dict") else dict(updated_pk)
+                updated_pk_dict["co_host_roster"] = self.get_co_host_roster()
+                await self._send({
+                    "type": "pk_battle",
+                    "data": updated_pk_dict,
+                    "event": "points_update",
+                })
+
         # ---- PK Battle Start / State Change ----
         @client.on(LinkMicBattleEvent)
         async def on_pk_battle(event: LinkMicBattleEvent):
@@ -2099,9 +2354,10 @@ class TikTokSession:
             )
 
             armies_raw = _safe(event, "armies")
-            armies_dict = _parse_armies_dict(armies_raw)
-            host_score, host_mvps = _aggregate_team_armies(host_anchors, armies_dict)
-            opp_score, opp_mvps   = _aggregate_team_armies(opp_anchors, armies_dict)
+            team_armies_raw = _safe(event, "team_armies")
+            armies_dict, team_scores = _parse_armies_dict(armies_raw, team_armies_raw)
+            host_score, host_mvps = _aggregate_team_armies(host_anchors, armies_dict, team_scores)
+            opp_score, opp_mvps   = _aggregate_team_armies(opp_anchors, armies_dict, team_scores)
 
             # Determine action / status
             act = _safe(event, "action", default=4)
@@ -2151,14 +2407,17 @@ class TikTokSession:
 
             pk = self._engine.get_pk_state()
             pk_dict = pk.to_dict() if hasattr(pk, "to_dict") else pk.__dict__
-            pk_dict["co_host_roster"] = self.get_co_host_roster()
+            roster = self.get_co_host_roster()
+            pk_dict["co_host_roster"] = roster
             await self._send({"type": "pk_battle", "data": pk_dict, "event": event_tag})
+            await self._send({"type": "co_host_roster", "data": roster})
 
-            # Register PK anchors in live friends and broadcast
+            # Register PK anchors in connected guests and live friends
             try:
                 for ha in host_anchors:
                     h_uniq = ha.get("unique_id", "")
                     if h_uniq and h_uniq.lower() != self.username.lower():
+                        self._register_connected_guest(ha, role="ally", viewer_count=ha.get("viewer_count", 0))
                         self.register_friend(
                             unique_id=h_uniq,
                             nickname=ha.get("nickname", ""),
@@ -2171,6 +2430,7 @@ class TikTokSession:
                 for oa in opp_anchors:
                     o_uniq = oa.get("unique_id", "")
                     if o_uniq:
+                        self._register_connected_guest(oa, role="rival", viewer_count=oa.get("viewer_count", 0))
                         self.register_friend(
                             unique_id=o_uniq,
                             nickname=oa.get("nickname", ""),
@@ -2189,7 +2449,8 @@ class TikTokSession:
         async def on_pk_armies(event: LinkMicArmiesEvent):
             battle_id  = str(_safe(event, "battle_id", default=""))
             armies_raw = _safe(event, "armies")
-            armies_dict = _parse_armies_dict(armies_raw)
+            team_armies_raw = _safe(event, "team_armies")
+            armies_dict, team_scores = _parse_armies_dict(armies_raw, team_armies_raw)
 
             curr_pk = self._engine.get_pk_state()
             curr_pk_dict = curr_pk.to_dict() if hasattr(curr_pk, "to_dict") else curr_pk.__dict__
@@ -2204,8 +2465,8 @@ class TikTokSession:
                     event, self.username, self._streamer_user_id, self._streamer_avatar
                 )
 
-            host_score, host_mvps = _aggregate_team_armies(host_anchors, armies_dict)
-            opp_score, opp_mvps   = _aggregate_team_armies(opp_anchors, armies_dict)
+            host_score, host_mvps = _aggregate_team_armies(host_anchors, armies_dict, team_scores)
+            opp_score, opp_mvps   = _aggregate_team_armies(opp_anchors, armies_dict, team_scores)
 
             host_score = max(host_score, curr_pk_dict.get("host_points", 0))
             opp_score  = max(opp_score, curr_pk_dict.get("opponent_points", 0))
@@ -2303,18 +2564,21 @@ class TikTokSession:
                 })
 
             event_tag = "ended" if is_finished else ("start" if (is_new_battle or is_fresh_start) else "update")
-            pk_dict["co_host_roster"] = self.get_co_host_roster()
+            roster = self.get_co_host_roster()
+            pk_dict["co_host_roster"] = roster
             await self._send({
                 "type":  "pk_battle",
                 "data":  pk_dict,
                 "event": event_tag,
             })
+            await self._send({"type": "co_host_roster", "data": roster})
 
-            # Register PK anchors in live friends and broadcast
+            # Register PK anchors in connected guests and live friends
             try:
                 for ha in host_anchors:
                     h_uniq = ha.get("unique_id", "")
                     if h_uniq and h_uniq.lower() != self.username.lower():
+                        self._register_connected_guest(ha, role="ally", viewer_count=ha.get("viewer_count", 0))
                         self.register_friend(
                             unique_id=h_uniq,
                             nickname=ha.get("nickname", ""),
@@ -2327,6 +2591,7 @@ class TikTokSession:
                 for oa in opp_anchors:
                     o_uniq = oa.get("unique_id", "")
                     if o_uniq:
+                        self._register_connected_guest(oa, role="rival", viewer_count=oa.get("viewer_count", 0))
                         self.register_friend(
                             unique_id=o_uniq,
                             nickname=oa.get("nickname", ""),
@@ -2351,7 +2616,88 @@ class TikTokSession:
             )
             pk = self._engine.get_pk_state()
             pk_dict = pk.to_dict() if hasattr(pk, "to_dict") else pk.__dict__
+            roster = self.get_co_host_roster()
+            pk_dict["co_host_roster"] = roster
             await self._send({"type": "pk_battle", "data": pk_dict, "event": "ended"})
+            await self._send({"type": "co_host_roster", "data": roster})
+
+        # ---- LinkMic Method (Live Mic & Co-Host Roster Synchronization) ----
+        @client.on(LinkMicMethodEvent)
+        async def on_linkmic_method(event: LinkMicMethodEvent):
+            """
+            Synchronizes active mic participants and co-hosts when users join or change layout.
+            """
+            linked_users = _safe(event, "linked_users") or []
+            if linked_users and isinstance(linked_users, (list, tuple)):
+                current_active_keys = set()
+                for u in linked_users:
+                    g = self._register_connected_guest(u, role="guest")
+                    if g:
+                        if g.get("user_id"):
+                            current_active_keys.add(str(g["user_id"]))
+                        if g.get("unique_id"):
+                            current_active_keys.add(str(g["unique_id"]).lower())
+
+                # Prune old mic guests if not in linked_users
+                if len(linked_users) > 0:
+                    now = time.time()
+                    for k in list(self._connected_guests.keys()):
+                        g_entry = self._connected_guests.get(k)
+                        if g_entry and g_entry.get("role") == "guest":
+                            u_id = str(g_entry.get("user_id", ""))
+                            uniq = str(g_entry.get("unique_id", "")).lower()
+                            if u_id not in current_active_keys and uniq not in current_active_keys:
+                                if now - g_entry.get("last_seen", 0) > 10:
+                                    self._connected_guests.pop(k, None)
+
+            roster = self.get_co_host_roster()
+            await self._send({"type": "co_host_roster", "data": roster})
+
+        # ---- Link Event (Mic Enter, Leave, Kickout, List Change) ----
+        @client.on(LinkEvent)
+        async def on_link_event(event: LinkEvent):
+            """
+            Real-time mic joins, exits, and list updates outside and during battles.
+            """
+            # Enter content
+            enter_c = _safe(event, "enter_content")
+            if enter_c:
+                users = _safe(enter_c, "linked_users") or []
+                for u_wrap in users:
+                    user_obj = _safe(u_wrap, "user") or u_wrap
+                    self._register_connected_guest(user_obj, role="guest")
+
+            # List change content
+            change_c = _safe(event, "linked_list_change_content") or _safe(event, "list_change_content") or _safe(event, "cohost_list_change_content")
+            if change_c:
+                users = _safe(change_c, "linked_users") or []
+                for u_wrap in users:
+                    user_obj = _safe(u_wrap, "user") or u_wrap
+                    self._register_connected_guest(user_obj, role="guest")
+
+            # Leave content
+            leave_c = _safe(event, "leave_content")
+            if leave_c:
+                l_uid = str(_safe(leave_c, "user_id", default="") or "")
+                if l_uid:
+                    self._remove_connected_guest(user_id=l_uid)
+
+            # Kick out content
+            kick_c = _safe(event, "kick_out_content") or _safe(event, "sys_kick_out_content")
+            if kick_c:
+                k_uid = str(_safe(kick_c, "user_id", default="") or "")
+                if k_uid:
+                    self._remove_connected_guest(user_id=k_uid)
+
+            # Close content
+            close_c = _safe(event, "close_content")
+            if close_c:
+                for k in list(self._connected_guests.keys()):
+                    if self._connected_guests[k].get("role") == "guest":
+                        self._connected_guests.pop(k, None)
+
+            roster = self.get_co_host_roster()
+            await self._send({"type": "co_host_roster", "data": roster})
 
         # ---- PK Battle Item Cards (Boxing Gloves x5, Fog, Time boosters) ----
         if LinkMicBattleItemCardEvent:
