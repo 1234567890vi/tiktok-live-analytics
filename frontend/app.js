@@ -1362,6 +1362,13 @@ function setGiftFilter(side) {
     }
   }
 
+  // Smooth fade transition on filter change
+  if (DOM.giftFeed) {
+    DOM.giftFeed.classList.remove('tab-fade-enter');
+    void DOM.giftFeed.offsetWidth;
+    DOM.giftFeed.classList.add('tab-fade-enter');
+  }
+
   // If in split view and user clicks a filter tab, switch back to unified feed to show the filtered view
   if (isSplitViewActive) {
     toggleSplitView(false);
@@ -1373,7 +1380,12 @@ function toggleSplitView(forceState = null) {
 
   if (isSplitViewActive) {
     if (DOM.giftFeed) DOM.giftFeed.classList.add('hidden');
-    if (DOM.giftSplitContainer) DOM.giftSplitContainer.classList.remove('hidden');
+    if (DOM.giftSplitContainer) {
+      DOM.giftSplitContainer.classList.remove('hidden');
+      DOM.giftSplitContainer.classList.remove('tab-fade-enter');
+      void DOM.giftSplitContainer.offsetWidth;
+      DOM.giftSplitContainer.classList.add('tab-fade-enter');
+    }
     if (DOM.splitViewIcon) DOM.splitViewIcon.textContent = '🔄';
     if (DOM.splitViewText) DOM.splitViewText.textContent = (currentLang === 'ar' ? 'عرض موحد' : 'Unified View');
     if (DOM.btnToggleSplitView) {
@@ -1398,7 +1410,12 @@ function toggleSplitView(forceState = null) {
       }
     }
   } else {
-    if (DOM.giftFeed) DOM.giftFeed.classList.remove('hidden');
+    if (DOM.giftFeed) {
+      DOM.giftFeed.classList.remove('hidden');
+      DOM.giftFeed.classList.remove('tab-fade-enter');
+      void DOM.giftFeed.offsetWidth;
+      DOM.giftFeed.classList.add('tab-fade-enter');
+    }
     if (DOM.giftSplitContainer) DOM.giftSplitContainer.classList.add('hidden');
     if (DOM.splitViewIcon) DOM.splitViewIcon.textContent = '⚖️';
     if (DOM.splitViewText) DOM.splitViewText.textContent = (currentLang === 'ar' ? 'عرض منقسم' : 'Split View');
@@ -3514,5 +3531,170 @@ if (sessionStorage.getItem('tt_admin_token')) {
   if (DOM.adminSidebarSection) DOM.adminSidebarSection.classList.remove('hidden');
 }
 
-console.log('🎯 TIKTOK VRF initialized successfully with PK Round Timer & Gift FX.');
+// ═══════════════════════════════════════════════════════════════════════════
+// TACTILE RESPONSIVENESS, FLUID NAVIGATION & KINETIC SCROLLING (سلاسة فائقة)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// 1. Dynamic Tactile Ripple Effect (تموج ضوئي ناعم مع كل ضغطة)
+function initTactileRipple() {
+  document.addEventListener('pointerdown', (e) => {
+    const target = e.target.closest('button, a[role="button"], .quick-stream-btn, .gift-filter-tab, .tactile-btn, .friend-track-btn, .friend-tiktok-btn, .kpi-card, .nav-dock-btn');
+    if (!target) return;
+
+    target.classList.add('ripple-container');
+
+    const rect = target.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height) * 1.5;
+    const x = e.clientX - rect.left - size / 2;
+    const y = e.clientY - rect.top - size / 2;
+
+    const wave = document.createElement('span');
+    wave.className = 'ripple-wave';
+    wave.style.width = `${size}px`;
+    wave.style.height = `${size}px`;
+    wave.style.left = `${x}px`;
+    wave.style.top = `${y}px`;
+
+    target.appendChild(wave);
+    setTimeout(() => {
+      wave.remove();
+    }, 500);
+  }, { passive: true });
+}
+
+// 2. Universal Kinetic Mouse Drag-to-Scroll (تحريك أفقي سلس بالسحب والقصور الذاتي)
+function makeKineticScrollable(container) {
+  if (!container || container._hasKineticScroll) return;
+  container._hasKineticScroll = true;
+  container.classList.add('drag-scrollable');
+
+  let isDown = false;
+  let startX = 0;
+  let scrollLeft = 0;
+  let velX = 0;
+  let lastX = 0;
+  let momentumID = null;
+  let hasMoved = false;
+
+  container.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    isDown = true;
+    hasMoved = false;
+    cancelAnimationFrame(momentumID);
+    container.classList.add('drag-scrolling');
+    startX = e.pageX - container.offsetLeft;
+    scrollLeft = container.scrollLeft;
+    lastX = e.pageX;
+    velX = 0;
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (!isDown) return;
+    isDown = false;
+    container.classList.remove('drag-scrolling');
+
+    function momentumLoop() {
+      if (Math.abs(velX) > 0.4) {
+        container.scrollLeft -= velX;
+        velX *= 0.92;
+        momentumID = requestAnimationFrame(momentumLoop);
+      }
+    }
+    momentumLoop();
+  });
+
+  container.addEventListener('mousemove', (e) => {
+    if (!isDown) return;
+    e.preventDefault();
+    const x = e.pageX - container.offsetLeft;
+    const walk = (x - startX) * 1.25;
+    if (Math.abs(walk) > 6) hasMoved = true;
+    velX = e.pageX - lastX;
+    lastX = e.pageX;
+    container.scrollLeft = scrollLeft - walk;
+  });
+
+  container.addEventListener('click', (e) => {
+    if (hasMoved) {
+      e.preventDefault();
+      e.stopPropagation();
+      hasMoved = false;
+    }
+  }, true);
+}
+
+function initAllKineticScrolls() {
+  const elements = [
+    DOM.likersRow,
+    $('pkOppMvps'),
+    $('pkOppGiftsFeed'),
+    document.querySelector('.quick-stream-btn')?.parentElement,
+    document.querySelector('.gift-filter-tab')?.parentElement,
+  ];
+
+  elements.forEach(el => {
+    if (el) makeKineticScrollable(el);
+  });
+
+  document.querySelectorAll('.drag-scrollable').forEach(el => makeKineticScrollable(el));
+}
+
+// 3. Floating Quick Navigation Dock Controller (شريط التنقل السريع التفاعلي)
+function initFloatingNavDock() {
+  const dock = $('floatingNavDock');
+  if (!dock) return;
+
+  const buttons = dock.querySelectorAll('.nav-dock-btn[data-target]');
+  const scrollTopBtn = $('navDockScrollTop');
+
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.getAttribute('data-target');
+      const targetEl = document.getElementById(targetId);
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        buttons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      }
+    });
+  });
+
+  if (scrollTopBtn) {
+    scrollTopBtn.addEventListener('click', () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+
+  const sectionIds = ['pkSection', 'commentsSection', 'giftsSection', 'leaderboardSection', 'liveFriendsSection'];
+  const sections = sectionIds.map(id => document.getElementById(id)).filter(Boolean);
+
+  if ('IntersectionObserver' in window && sections.length > 0) {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const id = entry.target.id;
+          buttons.forEach(btn => {
+            if (btn.getAttribute('data-target') === id) {
+              btn.classList.add('active');
+            } else {
+              btn.classList.remove('active');
+            }
+          });
+        }
+      });
+    }, {
+      rootMargin: '-15% 0px -65% 0px',
+      threshold: 0.1
+    });
+
+    sections.forEach(sec => observer.observe(sec));
+  }
+}
+
+// Initialize all fluidity modules
+initTactileRipple();
+initAllKineticScrolls();
+initFloatingNavDock();
+
+console.log('🎯 TIKTOK VRF initialized successfully with Fluid UI & Kinetic Navigation.');
 

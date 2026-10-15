@@ -4,10 +4,80 @@
          All utility classes are written out as plain CSS here.
    ========================================================================== */
 
-/* ── Base ─────────────────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
-body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+/* ── Base & Global Fluidity ──────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 85px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+body {
+  font-family: 'Cairo', 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior-y: none;
+}
+
+/* ── Universal Tactile Button & Press Responsiveness ─────────── */
+button,
+a[role="button"],
+.quick-stream-btn,
+.gift-filter-tab,
+.tactile-btn,
+.friend-track-btn,
+.friend-tiktok-btn {
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              background-color 0.2s ease,
+              border-color 0.2s ease,
+              color 0.2s ease,
+              opacity 0.2s ease !important;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: pointer;
+}
+
+button:active,
+a[role="button"]:active,
+.quick-stream-btn:active,
+.gift-filter-tab:active,
+.tactile-btn:active,
+.friend-track-btn:active,
+.friend-tiktok-btn:active {
+  transform: scale3d(0.93, 0.93, 1) !important;
+}
+
+/* Dynamic Click / Tap Ripple */
+.ripple-container {
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.ripple-wave {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 70%);
+  transform: scale3d(0, 0, 1);
+  animation: rippleSpread 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: none;
+  z-index: 99;
+}
+
+@keyframes rippleSpread {
+  0% {
+    transform: scale3d(0, 0, 1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale3d(2.6, 2.6, 1);
+    opacity: 0;
+  }
+}
 
 /* ── Glassmorphism Card ───────────────────────────────────────── */
 .glass-card {
@@ -17,10 +87,12 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   overflow: hidden;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.25s ease,
+              box-shadow 0.25s ease;
 }
 
 /* ── KPI Cards ────────────────────────────────────────────────── */
-/* Expanded from: @apply glass-card flex items-center gap-4 p-4 relative overflow-hidden cursor-default */
 .kpi-card {
   background: rgba(17, 24, 39, 0.7);
   border: 1px solid rgba(255, 255, 255, 0.07);
@@ -34,11 +106,18 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
   padding: 1rem;
   position: relative;
   cursor: default;
-  transition: transform 0.2s, border-color 0.2s;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+              border-color 0.25s ease,
+              box-shadow 0.25s ease;
+  will-change: transform;
 }
 .kpi-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.12);
+  transform: translate3d(0, -3px, 0);
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+}
+.kpi-card:active {
+  transform: scale3d(0.97, 0.97, 1);
 }
 
 .kpi-icon {
@@ -358,22 +437,106 @@ body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
 .status-offline    #statusDot { background: #ef4444; }
 .status-idle       #statusDot { background: #6b7280; }
 
-/* ── Animations ───────────────────────────────────────────────── */
+/* ── Animations (Hardware-Accelerated 60/120 FPS) ─────────────── */
 @keyframes slide-in-up {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translate3d(0, 14px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 @keyframes slide-in-right {
-  from { opacity: 0; transform: translateX(20px); }
-  to   { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; transform: translate3d(24px, 0, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 @keyframes toast-in {
-  from { opacity: 0; transform: translateX(100%); }
-  to   { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; transform: translate3d(100%, 0, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 @keyframes toast-out {
-  from { opacity: 1; transform: translateX(0); }
-  to   { opacity: 0; transform: translateX(100%); }
+  from { opacity: 1; transform: translate3d(0, 0, 0); }
+  to   { opacity: 0; transform: translate3d(100%, 0, 0); }
+}
+@keyframes tabFadeIn {
+  from { opacity: 0.2; transform: scale3d(0.98, 0.98, 1); }
+  to   { opacity: 1; transform: scale3d(1, 1, 1); }
+}
+.tab-fade-enter {
+  animation: tabFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ── Kinetic Drag-To-Scroll Utilities ─────────────────────────── */
+.drag-scrollable {
+  cursor: grab;
+  cursor: -webkit-grab;
+  user-select: none;
+  -webkit-user-select: none;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+.drag-scrolling {
+  cursor: grabbing !important;
+  cursor: -webkit-grabbing !important;
+  scroll-behavior: auto !important;
+}
+
+/* ── Floating Quick Navigation Dock (شريط التنقل السريع) ────────── */
+#floatingNavDock {
+  box-shadow: 0 10px 35px -5px rgba(0, 0, 0, 0.75), 0 0 20px rgba(236, 72, 153, 0.15);
+  animation: dockFloatIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity;
+}
+@keyframes dockFloatIn {
+  from { opacity: 0; transform: translate3d(-50%, 25px, 0) scale3d(0.95, 0.95, 1); }
+  to   { opacity: 1; transform: translate3d(-50%, 0, 0) scale3d(1, 1, 1); }
+}
+.nav-dock-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #94a3b8;
+  background: transparent;
+  border: 1px solid transparent;
+  transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+  cursor: pointer;
+  position: relative;
+  white-space: nowrap;
+}
+.nav-dock-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+  transform: translate3d(0, -2px, 0);
+}
+.nav-dock-btn:active {
+  transform: scale3d(0.9, 0.9, 1) !important;
+}
+.nav-dock-btn.active {
+  color: #ffffff;
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.35), rgba(99, 102, 241, 0.35));
+  border-color: rgba(236, 72, 153, 0.5);
+  box-shadow: 0 0 14px rgba(236, 72, 153, 0.45);
+}
+.nav-dock-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+html.theme-light #floatingNavDock {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.15), 0 0 15px rgba(236, 72, 153, 0.12) !important;
+}
+html.theme-light .nav-dock-btn {
+  color: #64748b;
+}
+html.theme-light .nav-dock-btn:hover {
+  color: #0f172a;
+  background: rgba(0, 0, 0, 0.05);
+}
+html.theme-light .nav-dock-btn.active {
+  color: #db2777;
+  background: rgba(244, 114, 182, 0.18);
+  border-color: #f472b6;
 }
 
 /* ── Toast ────────────────────────────────────────────────────── */

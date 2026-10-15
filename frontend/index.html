@@ -236,7 +236,7 @@
   <main class="max-w-screen-2xl mx-auto px-4 py-5 space-y-5">
 
     <!-- ── ACTIVE STREAMS & DEMO QUICK LAUNCHER ─────────────── -->
-    <section class="glass-card p-3 sm:p-4 border border-pink-900/40 shadow-xl space-y-3">
+    <section id="quickStreamsSection" class="glass-card p-3 sm:p-4 border border-pink-900/40 shadow-xl space-y-3 scroll-mt-24">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <!-- Quick Stream Selector -->
         <div class="flex flex-wrap items-center gap-2">
@@ -244,7 +244,7 @@
             <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
             <span>بثوث مباشرة مقترحة (انقر للتتبع فوراً):</span>
           </div>
-          <div class="flex flex-wrap items-center gap-1.5">
+          <div class="flex flex-wrap items-center gap-1.5 drag-scrollable">
             <button class="quick-stream-btn px-3 py-1.5 rounded-xl bg-gray-800/90 hover:bg-pink-950/60 border border-gray-700 hover:border-pink-500 text-xs font-bold text-white transition active:scale-95 flex items-center gap-1.5" data-user="aljazeera">
               <span class="text-red-400">🔴</span> <span>الجزيرة مباشر (@aljazeera)</span>
             </button>
@@ -272,7 +272,7 @@
     </section>
 
     <!-- ── KPI CARDS ─────────────────────────────────────────── -->
-    <section class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <section id="kpiSection" class="grid grid-cols-2 sm:grid-cols-4 gap-3 scroll-mt-24">
 
       <!-- Viewers -->
       <div class="kpi-card group">
@@ -331,7 +331,7 @@
     </section>
 
     <!-- ── PK BATTLE ARENA (ساحة الجولات التفاعلية) ─────────────── -->
-    <section id="pkSection" class="glass-card p-5 space-y-4 relative overflow-hidden transition-all duration-500">
+    <section id="pkSection" class="glass-card p-5 space-y-4 relative overflow-hidden transition-all duration-500 scroll-mt-24">
       <!-- Arena Header -->
       <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-gray-800/80">
         <div class="flex items-center gap-3">
@@ -506,7 +506,7 @@
             <div class="text-[11px] font-semibold text-red-300 mb-1.5 flex items-center gap-1">
               <span>⚔️ كبار الداعمين للخصم:</span>
             </div>
-            <div id="pkOppMvps" class="flex items-center gap-2 overflow-x-auto py-1">
+            <div id="pkOppMvps" class="flex items-center gap-2 overflow-x-auto py-1 drag-scrollable">
               <span class="text-xs text-gray-500 italic">في انتظار الداعمين...</span>
             </div>
           </div>
@@ -520,7 +520,7 @@
               </span>
               <span id="pkOppLastGift" class="text-[10px] text-red-300/80 font-mono truncate max-w-[140px]">في انتظار الدعم...</span>
             </div>
-            <div id="pkOppGiftsFeed" class="flex items-center gap-2 overflow-x-auto py-1 scrollbar-thin min-h-[44px]">
+            <div id="pkOppGiftsFeed" class="flex items-center gap-2 overflow-x-auto py-1 scrollbar-thin min-h-[44px] drag-scrollable">
               <span class="text-xs text-gray-500 italic">ستظهر هدايا الخصم هنا</span>
             </div>
           </div>
@@ -550,7 +550,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
       <!-- LEFT: Comments Feed -->
-      <div class="glass-card flex flex-col h-[600px]">
+      <div id="commentsSection" class="glass-card flex flex-col h-[600px] scroll-mt-24">
         <div class="p-4 border-b border-gray-800 flex items-center justify-between">
           <h2 class="font-bold text-sm flex items-center gap-2">
             <span class="text-purple-400">💬</span>
@@ -574,7 +574,7 @@
       </div>
 
       <!-- CENTER: Gift Alerts Feed (مع فصل هدايا فريقنا عن هدايا الخصم) -->
-      <div class="glass-card flex flex-col h-[600px] overflow-hidden">
+      <div id="giftsSection" class="glass-card flex flex-col h-[600px] overflow-hidden scroll-mt-24">
         <!-- Header with counters -->
         <div class="p-3.5 border-b border-gray-800 flex flex-wrap items-center justify-between gap-2 bg-gray-900/40">
           <div class="flex items-center gap-2">
@@ -600,7 +600,7 @@
         <!-- Filter & Split View Toolbar -->
         <div class="px-3 py-2 border-b border-gray-800/80 bg-gray-950/40 flex items-center justify-between gap-2">
           <!-- Filter Tabs -->
-          <div class="flex items-center gap-1.5 text-xs font-semibold">
+          <div class="flex items-center gap-1.5 text-xs font-semibold drag-scrollable">
             <button id="giftFilterBtnAll" class="gift-filter-tab active px-2.5 py-1 rounded-lg border transition-all text-gray-200 border-yellow-500/50 bg-yellow-500/10 flex items-center gap-1">
               <span>🌐 الكل</span>
               <span id="badgeFilterAll" class="text-[10px] px-1.5 py-0.2 rounded-full bg-gray-800 font-mono font-bold">0</span>
@@ -668,7 +668,7 @@
       </div>
 
       <!-- RIGHT: Top Supporters Leaderboard -->
-      <div class="glass-card flex flex-col h-[600px]">
+      <div id="leaderboardSection" class="glass-card flex flex-col h-[600px] scroll-mt-24">
         <div class="p-4 border-b border-gray-800">
           <h2 class="font-bold text-sm flex items-center gap-2">
             <span class="text-yellow-400">🏆</span>
@@ -703,13 +703,13 @@
     </div>
 
     <!-- ── TOP LIKERS (below the grid) ──────────────────────── -->
-    <section class="glass-card p-4">
+    <section id="likersSection" class="glass-card p-4 scroll-mt-24">
       <h2 class="font-bold text-sm flex items-center gap-2 mb-3">
         <span class="text-red-400">❤️</span>
         Top Likers
         <span class="text-xs text-gray-500 font-normal">المعجبون</span>
       </h2>
-      <div id="likersRow" class="flex gap-3 overflow-x-auto pb-1 scrollbar-thin">
+      <div id="likersRow" class="flex gap-3 overflow-x-auto pb-1 scrollbar-thin drag-scrollable">
         <div class="flex items-center gap-2 text-gray-500 text-xs py-2">
           <span class="text-red-400/80">❤️</span>
           <span>في انتظار نقرات الإعجاب المباشرة لتكريم الأكثر تفاعلاً...</span>
@@ -718,7 +718,7 @@
     </section>
 
     <!-- ── LIVE FRIENDS & CO-HOSTS (بثوث الأصدقاء والشركاء المباشرة) ──────────────────────── -->
-    <section id="liveFriendsSection" class="glass-card p-4 mt-6">
+    <section id="liveFriendsSection" class="glass-card p-4 mt-6 scroll-mt-24">
       <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div class="flex items-center gap-2.5">
           <span class="relative flex h-3 w-3">
@@ -771,6 +771,43 @@
         </div>
       </div>
     </section>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         FLOATING QUICK NAVIGATION DOCK (شريط التنقل السريع الفائق السلاسة)
+    ════════════════════════════════════════════════════════════════ -->
+    <nav id="floatingNavDock" class="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 bg-gray-900/85 backdrop-blur-xl border border-white/10 rounded-full px-2 sm:px-3 py-1.5 shadow-2xl flex items-center gap-1 sm:gap-2 transition-all duration-300 pointer-events-auto" aria-label="Quick navigation">
+      <!-- PK Arena -->
+      <button class="nav-dock-btn" data-target="pkSection" title="ساحة الجولة المباشرة">
+        <span class="nav-dock-icon">⚔️</span>
+        <span class="nav-dock-text hidden md:inline">الجولة</span>
+      </button>
+      <!-- Comments -->
+      <button class="nav-dock-btn" data-target="commentsSection" title="التعليقات المباشرة">
+        <span class="nav-dock-icon">💬</span>
+        <span class="nav-dock-text hidden md:inline">التعليقات</span>
+      </button>
+      <!-- Gifts -->
+      <button class="nav-dock-btn" data-target="giftsSection" title="تنبيهات الهدايا والدعم">
+        <span class="nav-dock-icon">🎁</span>
+        <span class="nav-dock-text hidden md:inline">الهدايا</span>
+      </button>
+      <!-- Supporters -->
+      <button class="nav-dock-btn" data-target="leaderboardSection" title="قائمة كبار الداعمين">
+        <span class="nav-dock-icon">🏆</span>
+        <span class="nav-dock-text hidden md:inline">الداعمين</span>
+      </button>
+      <!-- Friends -->
+      <button class="nav-dock-btn" data-target="liveFriendsSection" title="بثوث الأصدقاء والشركاء">
+        <span class="nav-dock-icon">👥</span>
+        <span class="nav-dock-text hidden md:inline">الأصدقاء</span>
+      </button>
+      <div class="w-px h-5 bg-gray-700/80 mx-0.5 sm:mx-1"></div>
+      <!-- Scroll to Top -->
+      <button id="navDockScrollTop" class="nav-dock-btn" title="العودة لأعلى الصفحة">
+        <span class="nav-dock-icon">🔝</span>
+        <span class="nav-dock-text hidden md:inline">للأعلى</span>
+      </button>
+    </nav>
 
   </main>
 
