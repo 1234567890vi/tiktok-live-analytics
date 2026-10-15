@@ -305,7 +305,11 @@ class BackgroundSupervisor:
                         break
                     clean_line = line.strip()
                     tf.write(line)
-                    tf.flush()
+                    if "unauthorized: tunnel not found" in clean_line.lower():
+                        logger.warning("Cloudflare reported tunnel expired/not found! Killing dead tunnel process...")
+                        if self.tunnel_proc and self.tunnel_proc.pid:
+                            kill_proc_tree(self.tunnel_proc.pid)
+                        break
 
                     match = url_pattern.search(clean_line)
                     if match:
@@ -450,6 +454,8 @@ class BackgroundSupervisor:
         self.start_tunnel()
 
         health_failures = 0
+        tunnel_failures = 0
+        tunnel_probe_counter = 0
 
         while self.running:
             time.sleep(5)
@@ -476,6 +482,36 @@ class BackgroundSupervisor:
             if self.tunnel_proc is None or self.tunnel_proc.poll() is not None:
                 logger.warning("Tunnel process died! Restarting...")
                 self.start_tunnel()
+
+            # 4. Check Public Tunnel URL validity (Self-Healing Watchdog)
+            if self.current_url:
+                tunnel_probe_counter += 1
+                if tunnel_probe_counter >= 6:  # Probe every 30 seconds
+                    tunnel_probe_counter = 0
+                    try:
+                        req = urllib.request.Request(
+                            f"{self.current_url}/health",
+                            headers={"User-Agent": "Mozilla/5.0"}
+                        )
+                        with urllib.request.urlopen(req, timeout=8.0) as resp:
+                            if resp.status == 200:
+                                tunnel_failures = 0
+                            else:
+                                tunnel_failures += 1
+                    except Exception as probe_err:
+                        tunnel_failures += 1
+                        logger.warning("Public tunnel health check failed (%d/3): %s", tunnel_failures, probe_err)
+
+                    if tunnel_failures >= 3:
+                        logger.warning("Public tunnel is unreachable or expired! Force-restarting tunnel...")
+                        tunnel_failures = 0
+                        if self.tunnel_proc and self.tunnel_proc.pid:
+                            kill_proc_tree(self.tunnel_proc.pid)
+                        try:
+                            subprocess.call("taskkill /F /IM cloudflared.exe", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        except Exception:
+                            pass
+                        self.start_tunnel()
 
 
 if __name__ == "__main__":
