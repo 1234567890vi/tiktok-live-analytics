@@ -1,0 +1,6 @@
+{
+  "enabled": true,
+  "notify_telegram": true,
+  "allow_hd": true,
+  "maintenance_message": "خدمة التنزيل متوقفة مؤقتاً للتحديث."
+}

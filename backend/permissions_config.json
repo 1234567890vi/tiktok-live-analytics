@@ -7,5 +7,14 @@
     "pk_battles": true,
     "live_friends": true
   },
-  "targets": {}
+  "targets": {
+    "dora.dzoff": {
+      "comments": true,
+      "likes": true,
+      "supporters": true,
+      "gifts": true,
+      "pk_battles": true,
+      "live_friends": true
+    }
+  }
 }

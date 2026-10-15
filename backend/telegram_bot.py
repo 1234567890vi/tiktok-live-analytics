@@ -277,6 +277,70 @@ class TelegramBotManager:
         )
         await self.send_message(text)
 
+    async def notify_video_download(
+        self,
+        author: str = "",
+        title: str = "",
+        quality: str = "",
+        filename: str = "",
+        video_url: str = "",
+        ip: str = "",
+        total_count: int = 0,
+    ) -> None:
+        """Notify Telegram when a TikTok video is downloaded."""
+        if not self.enabled:
+            return
+
+        text = (
+            "📥 <b>تنزيل فيديو جديد - TIKTOK VRF</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            f"👤 <b>صاحب المقطع:</b> @{html.escape(author or 'TikTok Creator')}\n"
+            f"🎬 <b>العنوان:</b> {html.escape((title or 'بدون عنوان')[:75])}\n"
+            f"🎯 <b>الجودة:</b> <b>{html.escape(quality or 'MP4')}</b>\n"
+            f"📦 <b>الملف:</b> <code>{html.escape(filename)}</code>\n"
+        )
+        if ip:
+            text += f"🌐 <b>IP العميل:</b> <code>{html.escape(ip)}</code>\n"
+        if video_url:
+            text += f"🔗 <a href='{html.escape(video_url)}'>رابط الفيديو على تيك توك</a>\n"
+        text += f"🕒 <b>الوقت:</b> {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+        if total_count > 0:
+            text += f"📊 <b>إجمالي التنزيلات المسجلة:</b> <code>{total_count:,}</code>"
+
+        await self.send_message(text)
+
+    async def send_downloader_stats_report(self, dl_stats: dict, dl_config: dict) -> tuple[bool, str]:
+        """Send complete statistical summary of TikTok Video Downloader to Telegram."""
+        if not self.enabled:
+            return False, "بوت تلغرام غير مفعّل."
+
+        status_icon = "🟢 مفعّلة (نشطة)" if dl_config.get("enabled", True) else "🔴 معطلة (مغلقة)"
+        total_dl = dl_stats.get("total_downloads", 0)
+        total_q = dl_stats.get("total_queries", 0)
+        by_q = dl_stats.get("downloads_by_quality", {})
+        hd_count = by_q.get("hd", 0)
+        sd_count = by_q.get("sd", 0)
+        audio_count = by_q.get("audio", 0)
+        img_count = by_q.get("images", 0)
+
+        report = (
+            "📊 <b>تقرير إحصائيات أداة تنزيل الفيديوهات</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            f"⚙️ <b>حالة الخدمة:</b> {status_icon}\n"
+            f"📥 <b>إجمالي التنزيلات الناجحة:</b> <code>{total_dl:,}</code>\n"
+            f"🔍 <b>إجمالي عمليات فحص الروابط:</b> <code>{total_q:,}</code>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "🎯 <b>تفصيل التنزيلات حسب الجودة:</b>\n"
+            f"  • ⭐ Ultra HD (1080p): <code>{hd_count:,}</code>\n"
+            f"  • ⚡ Standard SD: <code>{sd_count:,}</code>\n"
+            f"  • 🎵 Audio MP3: <code>{audio_count:,}</code>\n"
+            f"  • 🖼️ ألبوم صور Photos: <code>{img_count:,}</code>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            f"🕒 <b>تاريخ التقرير:</b> {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+            f"🤖 <i>TIKTOK VRF Analytics Platform</i>"
+        )
+        return await self.send_message(report)
+
     # -------------------------------------------------------------------------
     # Background Tasks: Long-Polling Commands & Periodic Reports
     # -------------------------------------------------------------------------
@@ -385,11 +449,12 @@ class TelegramBotManager:
                 "🤖 <b>بوت راصد تيك توك — TikTok Live Analytics</b>\n"
                 "━━━━━━━━━━━━━━━━━━━━\n"
                 "الأوامر المتاحة للتحكم والمتابعة:\n"
-                "📊 <b>/stats</b> أو <b>/report</b> — تقرير إحصائي مباشر ولحظي\n"
+                "📊 <b>/stats</b> أو <b>/report</b> — تقرير إحصائي شامل ولحظي\n"
+                "📥 <b>/downloader</b> — إحصائيات تنزيل الفيديوهات والجودات\n"
                 "👥 <b>/users</b> — المتصلون حالياً والبثوث المتابعة\n"
                 "📜 <b>/history</b> — آخر 10 عمليات بحث مكتملة ونشطة\n"
                 "ℹ️ <b>/help</b> — عرض هذه الرسالة\n\n"
-                "💡 <i>يتم إرسال تنبيهات تلقائية عند بدء تتبع أي بث جديد أو انتهائه.</i>"
+                "💡 <i>يتم إرسال تنبيهات تلقائية عند تنزيل أي فيديو أو بدء تتبع بث مباشر.</i>"
             )
             await self.send_message(help_text, chat_id=sender_chat_id)
 
@@ -432,6 +497,15 @@ class TelegramBotManager:
                 else:
                     lines.append("<i>لا يوجد سجل تتبع مسجل.</i>")
                 await self.send_message("\n".join(lines), chat_id=sender_chat_id)
+
+        elif cmd in ("/downloader", "/dlstats", "/downloads"):
+            if self._stats_provider:
+                stats = self._stats_provider()
+                dl_stats = stats.get("downloader_stats", {})
+                dl_config = stats.get("downloader_config", {})
+                await self.send_downloader_stats_report(dl_stats, dl_config)
+            else:
+                await self.send_message("⚠️ لم يتم ربط مزود الإحصائيات بالسيرفر.", chat_id=sender_chat_id)
 
     async def _periodic_loop(self) -> None:
         """Periodic automated report generator."""
