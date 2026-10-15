@@ -198,6 +198,10 @@
         <button id="tabBtnPermissions" class="px-4 py-3 text-xs sm:text-sm font-bold border-b-2 border-transparent text-gray-400 hover:text-gray-200 transition flex items-center gap-2 whitespace-nowrap">
           <span>🛡️</span> <span id="tabTitlePermissions">صلاحيات وتحكم المستخدمين</span>
         </button>
+        <button id="tabBtnDownloader" class="px-4 py-3 text-xs sm:text-sm font-bold border-b-2 border-transparent text-gray-400 hover:text-gray-200 transition flex items-center gap-2 whitespace-nowrap">
+          <span>📥</span> <span id="tabTitleDownloader">إدارة تنزيل الفيديوهات</span>
+          <span id="badgeDownloaderStatus" class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 font-bold">نشط</span>
+        </button>
       </div>
 
       <!-- ════════ TAB 1: SESSIONS & LIVE USER TRACKING ════════ -->
@@ -736,6 +740,214 @@
                 لا توجد حسابات مخصصة حالياً — تطبق الصلاحيات العامة أعلاه على جميع الحسابات.
               </div>
             </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ════════ TAB 7: TIKTOK VIDEO DOWNLOADER CONTROL & ANALYTICS ════════ -->
+      <div id="tabViewDownloader" class="hidden space-y-6">
+        <!-- Quick Action & Master Status Bar -->
+        <div class="glass-card p-5 border border-pink-900/40 flex flex-wrap items-center justify-between gap-4 shadow-xl">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-pink-500/20 to-purple-500/20 text-pink-400 flex items-center justify-center text-2xl border border-pink-500/30">
+              📥
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                <span>التحكم في تنزيلات الفيديوهات (TikTok Downloader)</span>
+                <span id="dlLiveStatusBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 font-bold">الخدمة تعمل بنجاح</span>
+              </h3>
+              <p class="text-xs text-gray-400 mt-0.5">
+                لوحة متكاملة لمراقبة عدد مرات الاستخدام، التحميلات حسب الجودة، وتوجيه إحصائيات التنزيل مباشرة لبوت تلغرام.
+              </p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <button
+              id="dlToggleServiceBtn"
+              class="px-4 py-2.5 rounded-xl bg-emerald-950/60 hover:bg-emerald-900/70 border border-emerald-600/50 text-xs font-bold text-emerald-300 transition flex items-center gap-2 shadow cursor-pointer"
+            >
+              <span id="dlToggleServiceIcon">🟢</span>
+              <span id="dlToggleServiceText">الخدمة: نشطة (انقر للإيقاف)</span>
+            </button>
+            <button
+              id="btnSendDlTelegramReport"
+              class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-pink-600 via-purple-600 to-blue-600 hover:from-pink-500 hover:to-blue-500 text-xs font-bold text-white transition flex items-center gap-2 shadow-lg shadow-pink-600/20 active:scale-98 cursor-pointer"
+            >
+              <span>📊</span>
+              <span>إرسال تقرير التنزيلات لتلغرام</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 5 KPI Cards: Total Downloads, Total Queries, Ultra HD 1080p, SD, Audio MP3 -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+          <!-- Total Downloads -->
+          <div class="glass-card p-4 border border-emerald-900/40 relative overflow-hidden">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs text-gray-400 font-semibold">إجمالي التنزيلات</span>
+              <span class="text-lg">📥</span>
+            </div>
+            <div id="dlKpiTotalDownloads" class="text-2xl font-black text-emerald-400 font-mono tracking-tight">0</div>
+            <div class="text-[10px] text-gray-500 mt-1">تنزيل مباشر ناجح</div>
+          </div>
+
+          <!-- Total Queries -->
+          <div class="glass-card p-4 border border-blue-900/40 relative overflow-hidden">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs text-gray-400 font-semibold">عمليات الاستخراج</span>
+              <span class="text-lg">🔍</span>
+            </div>
+            <div id="dlKpiTotalQueries" class="text-2xl font-black text-blue-400 font-mono tracking-tight">0</div>
+            <div class="text-[10px] text-gray-500 mt-1">فحص واستعلام روابط</div>
+          </div>
+
+          <!-- Ultra HD 1080p -->
+          <div class="glass-card p-4 border border-purple-900/40 relative overflow-hidden">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs text-gray-400 font-semibold">Ultra HD 1080p</span>
+              <span class="text-lg">💎</span>
+            </div>
+            <div id="dlKpiHd" class="text-2xl font-black text-purple-400 font-mono tracking-tight">0</div>
+            <div class="text-[10px] text-gray-500 mt-1">جودة فائقة أصلية</div>
+          </div>
+
+          <!-- Standard SD -->
+          <div class="glass-card p-4 border border-cyan-900/40 relative overflow-hidden">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs text-gray-400 font-semibold">Standard SD</span>
+              <span class="text-lg">⚡</span>
+            </div>
+            <div id="dlKpiSd" class="text-2xl font-black text-cyan-400 font-mono tracking-tight">0</div>
+            <div class="text-[10px] text-gray-500 mt-1">جودة قياسية سريعة</div>
+          </div>
+
+          <!-- Audio MP3 -->
+          <div class="glass-card p-4 border border-amber-900/40 relative overflow-hidden col-span-2 sm:col-span-1">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs text-gray-400 font-semibold">Audio MP3</span>
+              <span class="text-lg">🎵</span>
+            </div>
+            <div id="dlKpiAudio" class="text-2xl font-black text-amber-400 font-mono tracking-tight">0</div>
+            <div class="text-[10px] text-gray-500 mt-1">مقاطع صوتية مستخرجة</div>
+          </div>
+        </div>
+
+        <!-- Settings & Telegram Alerts Config Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Downloader Config Form -->
+          <div class="glass-card p-6 space-y-4 border border-gray-800">
+            <h4 class="text-sm font-bold text-white flex items-center gap-2 border-b border-gray-800 pb-3">
+              <span>⚙️</span>
+              <span>خيارات وسياسة تنزيل الفيديوهات</span>
+            </h4>
+
+            <!-- Toggle Allow HD -->
+            <div class="flex items-center justify-between p-3 rounded-xl bg-gray-900/60 border border-gray-800">
+              <div>
+                <div class="text-xs font-bold text-white">إتاحة جودة Ultra HD 1080p</div>
+                <div class="text-[11px] text-gray-400">السماح للمستخدمين بتنزيل الجودة الفائقة الأصلية بدون علامة</div>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="dlAllowHdCheck" class="sr-only peer" checked>
+                <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-pink-600"></div>
+              </label>
+            </div>
+
+            <!-- Maintenance message -->
+            <div class="space-y-1.5">
+              <label class="block text-xs font-semibold text-gray-300">
+                <span>رسالة التوقف أو الصيانة (تظهر للزوار عند إيقاف الخدمة):</span>
+              </label>
+              <input
+                type="text"
+                id="dlMaintMsgInput"
+                placeholder="خدمة تنزيل الفيديوهات متوقفة مؤقتاً لأعمال الصيانة والتحديث."
+                class="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-pink-500 transition"
+              />
+            </div>
+
+            <button
+              id="btnSaveDlConfig"
+              class="w-full py-2.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-xs font-bold text-white transition active:scale-98 shadow flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>💾</span>
+              <span>حفظ خيارات التنزيل</span>
+            </button>
+          </div>
+
+          <!-- Telegram Bot Notifications Card -->
+          <div class="glass-card p-6 space-y-4 border border-gray-800">
+            <h4 class="text-sm font-bold text-white flex items-center gap-2 border-b border-gray-800 pb-3">
+              <span>🤖</span>
+              <span>إشعارات بوت تلغرام اللحظية</span>
+            </h4>
+
+            <!-- Toggle Telegram Notifications -->
+            <div class="flex items-center justify-between p-3 rounded-xl bg-gray-900/60 border border-gray-800">
+              <div>
+                <div class="text-xs font-bold text-white">إرسال إشعار فوري عند كل تنزيل</div>
+                <div class="text-[11px] text-gray-400">إشعار تلغرام لحظي يتضمن اسم الفيديو، الناشر، الجودة، والـ IP</div>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="dlNotifyTelegramCheck" class="sr-only peer" checked>
+                <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+              </label>
+            </div>
+
+            <div class="p-3.5 rounded-xl bg-gray-900/50 border border-gray-800/80 space-y-2 text-xs">
+              <div class="font-bold text-purple-300 flex items-center gap-1.5">
+                <span>💬</span>
+                <span>أوامر التلغرام التفاعلية المتاحة:</span>
+              </div>
+              <p class="text-gray-400 text-[11px] leading-relaxed">
+                يمكنك في أي وقت فتح البوت في تلغرام وإرسال الأمر <code class="px-1.5 py-0.5 rounded bg-gray-800 text-purple-300 font-mono">/downloader</code> أو <code class="px-1.5 py-0.5 rounded bg-gray-800 text-purple-300 font-mono">/dlstats</code> لتلقي تقرير إحصائي مفصل ومباشر لعدد التحميلات وتوزيع الجودات.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Downloads Activity Log Table -->
+        <div class="glass-card p-6 space-y-4 border border-gray-800 shadow-xl">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                <span>📋</span>
+                <span>سجل أحدث عمليات التنزيل المباشر</span>
+                <span id="dlHistoryCountBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700 font-mono">0</span>
+              </h4>
+              <p class="text-xs text-gray-400 mt-0.5">
+                يعرض الفيديوهات المحملة، صاحب المقطع، الجودة المختارة، عنوان الـ IP ووقت التحميل.
+              </p>
+            </div>
+            <button
+              id="btnClearDlHistory"
+              class="px-3.5 py-1.5 rounded-xl bg-red-950/60 hover:bg-red-900/70 border border-red-700/50 text-xs font-semibold text-red-300 transition flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>🗑️</span>
+              <span>مسح السجل</span>
+            </button>
+          </div>
+
+          <div class="overflow-x-auto rounded-xl border border-gray-800">
+            <table class="w-full text-right text-xs">
+              <thead class="bg-gray-900/80 text-gray-400 font-bold border-b border-gray-800">
+                <tr>
+                  <th class="p-3">الوقت</th>
+                  <th class="p-3">صانع المحتوى</th>
+                  <th class="p-3">عنوان الفيديو</th>
+                  <th class="p-3 text-center">الجودة</th>
+                  <th class="p-3">الـ IP</th>
+                  <th class="p-3 text-center">الرابط</th>
+                </tr>
+              </thead>
+              <tbody id="dlHistoryTableBody" class="divide-y divide-gray-800 font-sans text-gray-300">
+                <tr>
+                  <td colspan="6" class="p-6 text-center text-gray-500">لا توجد عمليات تنزيل مسجلة حتى الآن.</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 

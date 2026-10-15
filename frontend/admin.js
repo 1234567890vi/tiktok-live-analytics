@@ -30,6 +30,7 @@ const I18N = {
     tabTitleApiSettings: 'مفتاح التوقيع (Sign API)',
     tabTitleTelegram: 'بوت تلغرام (الإحصائيات)',
     tabTitlePermissions: 'صلاحيات وتحكم المستخدمين',
+    tabTitleDownloader: 'إدارة تنزيل الفيديوهات',
     permTitle: 'التحكم في صلاحيات العرض للمستخدمين',
     permSubtitle: 'تحكم كامل فيما يُسمح للمستخدم الذي يتتبع البث برؤيته (تعليقات، إعجابات، كبار الداعمين، هدايا، إلخ).',
     btnSavePermsText: 'حفظ الصلاحيات وتطبيقها فوراً',
@@ -87,6 +88,7 @@ const I18N = {
     tabTitleApiSettings: 'Signature Key (Sign API)',
     tabTitleTelegram: 'Telegram Bot (Stats)',
     tabTitlePermissions: 'Viewer Permissions & Controls',
+    tabTitleDownloader: 'Video Downloader Control',
     permTitle: 'Viewer Display Permissions Controller',
     permSubtitle: 'Full control over what users tracking a live stream are permitted to see (comments, likes, top supporters, gifts, pk battle, etc.).',
     btnSavePermsText: 'Save & Apply Permissions Now',
@@ -260,6 +262,29 @@ const DOM = {
   btnConfigureTargetPerms: $('btnConfigureTargetPerms'),
   customTargetsList:       $('customTargetsList'),
 
+  // Tab 7 Views (TikTok Video Downloader)
+  tabBtnDownloader:         $('tabBtnDownloader'),
+  tabTitleDownloader:       $('tabTitleDownloader'),
+  badgeDownloaderStatus:    $('badgeDownloaderStatus'),
+  tabViewDownloader:        $('tabViewDownloader'),
+  dlLiveStatusBadge:        $('dlLiveStatusBadge'),
+  dlToggleServiceBtn:       $('dlToggleServiceBtn'),
+  dlToggleServiceIcon:      $('dlToggleServiceIcon'),
+  dlToggleServiceText:      $('dlToggleServiceText'),
+  btnSendDlTelegramReport:  $('btnSendDlTelegramReport'),
+  dlKpiTotalDownloads:      $('dlKpiTotalDownloads'),
+  dlKpiTotalQueries:        $('dlKpiTotalQueries'),
+  dlKpiHd:                  $('dlKpiHd'),
+  dlKpiSd:                  $('dlKpiSd'),
+  dlKpiAudio:               $('dlKpiAudio'),
+  dlAllowHdCheck:           $('dlAllowHdCheck'),
+  dlMaintMsgInput:          $('dlMaintMsgInput'),
+  btnSaveDlConfig:          $('btnSaveDlConfig'),
+  dlNotifyTelegramCheck:    $('dlNotifyTelegramCheck'),
+  dlHistoryCountBadge:      $('dlHistoryCountBadge'),
+  btnClearDlHistory:        $('btnClearDlHistory'),
+  dlHistoryTableBody:       $('dlHistoryTableBody'),
+
   // Toast
   toastContainer:        $('toastContainer'),
 };
@@ -385,6 +410,7 @@ function applyLanguage(lang) {
     [DOM.labelCurrentStatus, t.labelCurrentStatus],
     [DOM.tabTitleTelegram, t.tabTitleTelegram],
     [DOM.tabTitlePermissions, t.tabTitlePermissions],
+    [DOM.tabTitleDownloader, t.tabTitleDownloader],
     [DOM.permTitle, t.permTitle],
     [DOM.permSubtitle, t.permSubtitle],
     [DOM.btnSavePermsText, t.btnSavePermsText],
@@ -417,12 +443,13 @@ function showDashboard() {
 }
 
 function switchAdminTab(tab) {
-  const isSessions = tab === 'sessions';
-  const isBanned   = tab === 'banned';
-  const isBcast    = tab === 'broadcast';
-  const isApi      = tab === 'api_settings';
-  const isTelegram = tab === 'telegram';
-  const isPerms    = tab === 'permissions';
+  const isSessions   = tab === 'sessions';
+  const isBanned     = tab === 'banned';
+  const isBcast      = tab === 'broadcast';
+  const isApi        = tab === 'api_settings';
+  const isTelegram   = tab === 'telegram';
+  const isPerms      = tab === 'permissions';
+  const isDownloader = tab === 'downloader';
 
   if (DOM.tabViewSessions) DOM.tabViewSessions.classList.toggle('hidden', !isSessions);
   if (DOM.tabViewBanned) DOM.tabViewBanned.classList.toggle('hidden', !isBanned);
@@ -430,6 +457,7 @@ function switchAdminTab(tab) {
   if (DOM.tabViewApiSettings) DOM.tabViewApiSettings.classList.toggle('hidden', !isApi);
   if (DOM.tabViewTelegram) DOM.tabViewTelegram.classList.toggle('hidden', !isTelegram);
   if (DOM.tabViewPermissions) DOM.tabViewPermissions.classList.toggle('hidden', !isPerms);
+  if (DOM.tabViewDownloader) DOM.tabViewDownloader.classList.toggle('hidden', !isDownloader);
 
   const activeTabClass = 'px-4 py-3 text-xs sm:text-sm font-bold border-b-2 border-purple-500 text-purple-300 transition flex items-center gap-2 whitespace-nowrap';
   const inactiveTabClass = 'px-4 py-3 text-xs sm:text-sm font-bold border-b-2 border-transparent text-gray-400 hover:text-gray-200 transition flex items-center gap-2 whitespace-nowrap';
@@ -440,9 +468,13 @@ function switchAdminTab(tab) {
   if (DOM.tabBtnApiSettings) DOM.tabBtnApiSettings.className = isApi ? activeTabClass : inactiveTabClass;
   if (DOM.tabBtnTelegram) DOM.tabBtnTelegram.className = isTelegram ? activeTabClass : inactiveTabClass;
   if (DOM.tabBtnPermissions) DOM.tabBtnPermissions.className = isPerms ? activeTabClass : inactiveTabClass;
+  if (DOM.tabBtnDownloader) DOM.tabBtnDownloader.className = isDownloader ? activeTabClass : inactiveTabClass;
 
   if (isPerms) {
     loadPermissionsView();
+  }
+  if (isDownloader) {
+    loadDownloaderStats();
   }
 }
 
@@ -548,6 +580,11 @@ async function loadAdminStats() {
       // Telegram status
       if (data.telegram) {
         updateTelegramUI(data.telegram);
+      }
+
+      // Downloader status & stats
+      if (data.downloader_config || data.downloader_stats) {
+        updateDownloaderUI(data.downloader_config, data.downloader_stats);
       }
     }
   } catch (err) {
@@ -1287,6 +1324,279 @@ function stopAdminRefresh() {
 }
 
 // ---------------------------------------------------------------------------
+// TikTok Video Downloader Controls & Analytics
+// ---------------------------------------------------------------------------
+let currentDownloaderConfig = {
+  enabled: true,
+  notify_telegram: true,
+  allow_hd: true,
+  maintenance_message: "خدمة تنزيل الفيديوهات متوقفة مؤقتاً لأعمال الصيانة والتحديث."
+};
+
+function updateDownloaderUI(cfg, stats) {
+  if (cfg) {
+    currentDownloaderConfig = { ...currentDownloaderConfig, ...cfg };
+    const isEnabled = currentDownloaderConfig.enabled !== false;
+
+    // Badges & buttons
+    if (DOM.badgeDownloaderStatus) {
+      DOM.badgeDownloaderStatus.textContent = isEnabled
+        ? (currentLang === 'ar' ? 'نشط' : 'Active')
+        : (currentLang === 'ar' ? 'معطل' : 'Paused');
+      DOM.badgeDownloaderStatus.className = isEnabled
+        ? 'text-[10px] px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 font-bold'
+        : 'text-[10px] px-2 py-0.5 rounded-full bg-red-950/80 text-red-300 border border-red-700/60 font-bold';
+    }
+
+    if (DOM.dlLiveStatusBadge) {
+      DOM.dlLiveStatusBadge.textContent = isEnabled
+        ? (currentLang === 'ar' ? 'الخدمة تعمل بنجاح' : 'Service Operational')
+        : (currentLang === 'ar' ? 'الخدمة متوقفة (صيانة)' : 'Service Paused (Maintenance)');
+      DOM.dlLiveStatusBadge.className = isEnabled
+        ? 'text-[10px] px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 font-bold'
+        : 'text-[10px] px-2 py-0.5 rounded-full bg-red-950/80 text-red-300 border border-red-700/60 font-bold';
+    }
+
+    if (DOM.dlToggleServiceBtn) {
+      if (isEnabled) {
+        DOM.dlToggleServiceBtn.className = 'px-4 py-2.5 rounded-xl bg-emerald-950/60 hover:bg-emerald-900/70 border border-emerald-600/50 text-xs font-bold text-emerald-300 transition flex items-center gap-2 shadow cursor-pointer';
+        if (DOM.dlToggleServiceIcon) DOM.dlToggleServiceIcon.textContent = '🟢';
+        if (DOM.dlToggleServiceText) DOM.dlToggleServiceText.textContent = currentLang === 'ar' ? 'الخدمة: نشطة (انقر للإيقاف)' : 'Service: Active (Click to Pause)';
+      } else {
+        DOM.dlToggleServiceBtn.className = 'px-4 py-2.5 rounded-xl bg-red-950/60 hover:bg-red-900/70 border border-red-600/50 text-xs font-bold text-red-300 transition flex items-center gap-2 shadow cursor-pointer';
+        if (DOM.dlToggleServiceIcon) DOM.dlToggleServiceIcon.textContent = '🔴';
+        if (DOM.dlToggleServiceText) DOM.dlToggleServiceText.textContent = currentLang === 'ar' ? 'الخدمة: معطلة (انقر للتفعيل)' : 'Service: Paused (Click to Enable)';
+      }
+    }
+
+    // Checkboxes & inputs (update only if not actively focused by user)
+    if (DOM.dlAllowHdCheck && document.activeElement !== DOM.dlAllowHdCheck) {
+      DOM.dlAllowHdCheck.checked = currentDownloaderConfig.allow_hd !== false;
+    }
+    if (DOM.dlNotifyTelegramCheck && document.activeElement !== DOM.dlNotifyTelegramCheck) {
+      DOM.dlNotifyTelegramCheck.checked = currentDownloaderConfig.notify_telegram !== false;
+    }
+    if (DOM.dlMaintMsgInput && document.activeElement !== DOM.dlMaintMsgInput) {
+      DOM.dlMaintMsgInput.value = currentDownloaderConfig.maintenance_message || '';
+    }
+  }
+
+  if (stats) {
+    if (DOM.dlKpiTotalDownloads) DOM.dlKpiTotalDownloads.textContent = fmt(stats.total_downloads || 0);
+    if (DOM.dlKpiTotalQueries) DOM.dlKpiTotalQueries.textContent = fmt(stats.total_queries || 0);
+
+    const byQ = stats.downloads_by_quality || {};
+    if (DOM.dlKpiHd) DOM.dlKpiHd.textContent = fmt(byQ.hd || 0);
+    if (DOM.dlKpiSd) DOM.dlKpiSd.textContent = fmt(byQ.sd || 0);
+    if (DOM.dlKpiAudio) DOM.dlKpiAudio.textContent = fmt(byQ.audio || 0);
+
+    const history = stats.history || stats.recent_downloads || [];
+    if (DOM.dlHistoryCountBadge) {
+      DOM.dlHistoryCountBadge.textContent = history.length;
+    }
+    renderDownloaderHistoryTable(history);
+  }
+}
+
+function renderDownloaderHistoryTable(history) {
+  if (!DOM.dlHistoryTableBody) return;
+  DOM.dlHistoryTableBody.innerHTML = '';
+
+  if (!history || history.length === 0) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td colspan="6" class="p-6 text-center text-gray-500">${currentLang === 'ar' ? 'لا توجد عمليات تنزيل مسجلة حتى الآن.' : 'No download activities recorded yet.'}</td>`;
+    DOM.dlHistoryTableBody.appendChild(tr);
+    return;
+  }
+
+  history.forEach(item => {
+    const tr = document.createElement('tr');
+    tr.className = 'hover:bg-gray-800/40 transition border-b border-gray-800/60';
+
+    // Timestamp
+    const timeFormatted = item.timestamp
+      ? new Date(item.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      : '--:--';
+    const dateFormatted = item.timestamp
+      ? new Date(item.timestamp * 1000).toLocaleDateString([], { month: 'numeric', day: 'numeric' })
+      : '';
+
+    // Quality badge color
+    let qBadgeClass = 'bg-gray-800 text-gray-300 border-gray-700';
+    let qLabel = (item.quality || 'sd').toUpperCase();
+    if (qLabel.includes('HD') || qLabel === '1080P') {
+      qBadgeClass = 'bg-purple-950/80 text-purple-300 border-purple-700/60 font-bold';
+    } else if (qLabel.includes('MP3') || qLabel.includes('AUDIO')) {
+      qBadgeClass = 'bg-amber-950/80 text-amber-300 border-amber-700/60 font-bold';
+    } else if (qLabel.includes('SD')) {
+      qBadgeClass = 'bg-cyan-950/80 text-cyan-300 border-cyan-700/60 font-bold';
+    }
+
+    const safeTitle = (item.title || 'بدون عنوان').replace(/"/g, '&quot;');
+    const shortTitle = safeTitle.length > 35 ? safeTitle.substring(0, 35) + '...' : safeTitle;
+    const authorHandle = item.author ? `@${item.author.replace(/^@/, '')}` : '@unknown';
+
+    tr.innerHTML = `
+      <td class="p-3 text-xs text-gray-400 whitespace-nowrap dir-ltr">
+        <span class="font-mono text-gray-300">${timeFormatted}</span>
+        <span class="text-[10px] text-gray-500 block">${dateFormatted}</span>
+      </td>
+      <td class="p-3 text-xs font-mono font-bold text-pink-400 whitespace-nowrap">
+        ${authorHandle}
+      </td>
+      <td class="p-3 text-xs text-gray-200 max-w-xs truncate" title="${safeTitle}">
+        ${shortTitle}
+      </td>
+      <td class="p-3 text-center whitespace-nowrap">
+        <span class="text-[10px] px-2 py-0.5 rounded-full border ${qBadgeClass}">
+          ${qLabel}
+        </span>
+      </td>
+      <td class="p-3 text-xs font-mono text-gray-400 whitespace-nowrap dir-ltr">
+        ${item.ip || '—'}
+      </td>
+      <td class="p-3 text-center whitespace-nowrap">
+        ${item.video_url ? `<a href="${item.video_url}" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 rounded-lg bg-pink-950/60 hover:bg-pink-900 border border-pink-700/60 text-pink-300 text-[11px] font-bold transition inline-flex items-center gap-1"><span>🔗</span><span>عرض</span></a>` : '—'}
+      </td>
+    `;
+    DOM.dlHistoryTableBody.appendChild(tr);
+  });
+}
+
+async function loadDownloaderStats() {
+  const token = getAdminToken();
+  if (!token) return;
+
+  try {
+    const res = await fetch(`/api/admin/downloader/stats?token=${encodeURIComponent(token)}`);
+    if (res.status === 401) {
+      showLogin();
+      return;
+    }
+    const data = await res.json();
+    if (data.status === 'ok') {
+      updateDownloaderUI(data.config, data.stats);
+    }
+  } catch (err) {
+    console.error('Failed to load downloader stats:', err);
+  }
+}
+
+async function handleToggleDownloaderService() {
+  const token = getAdminToken();
+  if (!token) return;
+
+  const newStatus = !(currentDownloaderConfig.enabled !== false);
+  try {
+    const res = await fetch('/api/admin/downloader/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, enabled: newStatus }),
+    });
+    const data = await res.json();
+    if (res.ok && data.status === 'ok') {
+      currentDownloaderConfig.enabled = newStatus;
+      updateDownloaderUI(data.config || { enabled: newStatus });
+      toast(
+        newStatus
+          ? (currentLang === 'ar' ? '🟢 تم تفعيل خدمة تنزيل الفيديوهات بنجاح' : '🟢 Downloader service enabled')
+          : (currentLang === 'ar' ? '🔴 تم إيقاف خدمة تنزيل الفيديوهات (وضع الصيانة)' : '🔴 Downloader service paused'),
+        newStatus ? 'success' : 'warning'
+      );
+    } else {
+      toast(data.message || 'فشل تغيير حالة الخدمة', 'error');
+    }
+  } catch (err) {
+    toast(`خطأ: ${err.message}`, 'error');
+  }
+}
+
+async function handleSaveDownloaderConfig() {
+  const token = getAdminToken();
+  if (!token) return;
+
+  const payload = {
+    token,
+    allow_hd: DOM.dlAllowHdCheck ? DOM.dlAllowHdCheck.checked : true,
+    notify_telegram: DOM.dlNotifyTelegramCheck ? DOM.dlNotifyTelegramCheck.checked : true,
+    maintenance_message: DOM.dlMaintMsgInput ? DOM.dlMaintMsgInput.value.trim() : '',
+  };
+
+  try {
+    const res = await fetch('/api/admin/downloader/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (res.ok && data.status === 'ok') {
+      updateDownloaderUI(data.config);
+      toast(currentLang === 'ar' ? '💾 تم حفظ إعدادات خدمة التنزيل بنجاح' : '💾 Downloader settings saved successfully', 'success');
+    } else {
+      toast(data.message || 'فشل حفظ الإعدادات', 'error');
+    }
+  } catch (err) {
+    toast(`خطأ: ${err.message}`, 'error');
+  }
+}
+
+async function handleSendDownloaderTelegramReport() {
+  const token = getAdminToken();
+  if (!token) return;
+
+  if (DOM.btnSendDlTelegramReport) {
+    DOM.btnSendDlTelegramReport.disabled = true;
+    DOM.btnSendDlTelegramReport.classList.add('opacity-50');
+  }
+
+  try {
+    const res = await fetch('/api/admin/downloader/send-telegram-report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    const data = await res.json();
+    if (res.ok && data.status === 'ok') {
+      toast(currentLang === 'ar' ? '✈️ تم إرسال تقرير إحصائيات التنزيل إلى بوت تلغرام بنجاح!' : '✈️ Downloader stats report sent to Telegram!', 'success');
+    } else {
+      toast(data.message || 'فشل إرسال التقرير لتلغرام', 'error');
+    }
+  } catch (err) {
+    toast(`خطأ: ${err.message}`, 'error');
+  } finally {
+    if (DOM.btnSendDlTelegramReport) {
+      DOM.btnSendDlTelegramReport.disabled = false;
+      DOM.btnSendDlTelegramReport.classList.remove('opacity-50');
+    }
+  }
+}
+
+async function handleClearDownloaderHistory() {
+  const token = getAdminToken();
+  if (!token) return;
+
+  const confirmed = confirm(currentLang === 'ar' ? 'هل أنت متأكد من رغبتك في مسح سجل التنزيلات السابق؟ (العدادات الإجمالية ستبقى كما هي)' : 'Are you sure you want to clear the download activity log?');
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch('/api/admin/downloader/clear-history', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    const data = await res.json();
+    if (res.ok && data.status === 'ok') {
+      toast(currentLang === 'ar' ? '🗑️ تم مسح سجل التنزيلات بنجاح' : '🗑️ Download history cleared', 'info');
+      await loadDownloaderStats();
+    } else {
+      toast(data.message || 'فشل مسح السجل', 'error');
+    }
+  } catch (err) {
+    toast(`خطأ: ${err.message}`, 'error');
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Event Listeners
 // ---------------------------------------------------------------------------
 if (DOM.langArBtn) DOM.langArBtn.addEventListener('click', () => applyLanguage('ar'));
@@ -1310,6 +1620,12 @@ if (DOM.tabBtnBroadcast) DOM.tabBtnBroadcast.addEventListener('click', () => swi
 if (DOM.tabBtnApiSettings) DOM.tabBtnApiSettings.addEventListener('click', () => switchAdminTab('api_settings'));
 if (DOM.tabBtnTelegram) DOM.tabBtnTelegram.addEventListener('click', () => switchAdminTab('telegram'));
 if (DOM.tabBtnPermissions) DOM.tabBtnPermissions.addEventListener('click', () => switchAdminTab('permissions'));
+if (DOM.tabBtnDownloader) DOM.tabBtnDownloader.addEventListener('click', () => switchAdminTab('downloader'));
+
+if (DOM.dlToggleServiceBtn) DOM.dlToggleServiceBtn.addEventListener('click', handleToggleDownloaderService);
+if (DOM.btnSaveDlConfig) DOM.btnSaveDlConfig.addEventListener('click', handleSaveDownloaderConfig);
+if (DOM.btnSendDlTelegramReport) DOM.btnSendDlTelegramReport.addEventListener('click', handleSendDownloaderTelegramReport);
+if (DOM.btnClearDlHistory) DOM.btnClearDlHistory.addEventListener('click', handleClearDownloaderHistory);
 
 if (DOM.btnSaveTelegramSettings) DOM.btnSaveTelegramSettings.addEventListener('click', handleSaveTelegramSettings);
 if (DOM.btnTelegramTest) DOM.btnTelegramTest.addEventListener('click', handleTestTelegram);

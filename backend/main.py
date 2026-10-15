@@ -85,6 +85,59 @@ def _save_permissions(data: dict) -> None:
 
 _viewer_permissions: dict = _load_permissions()
 
+# ---------------------------------------------------------------------------
+# TikTok Downloader Registry & Statistics (إدارة تنزيل الفيديوهات وإحصائياتها)
+# ---------------------------------------------------------------------------
+DOWNLOADER_CONFIG_FILE = BASE_DIR / "backend" / "downloader_config.json"
+DOWNLOADER_STATS_FILE = BASE_DIR / "backend" / "downloader_stats.json"
+
+DEFAULT_DOWNLOADER_CONFIG: dict[str, Any] = {
+    "enabled": True,
+    "notify_telegram": True,
+    "allow_hd": True,
+    "maintenance_message": "خدمة تنزيل الفيديوهات متوقفة مؤقتاً لأعمال الصيانة والتحديث من قِبل الإدارة.",
+}
+
+def _load_downloader_config() -> dict:
+    if DOWNLOADER_CONFIG_FILE.exists():
+        try:
+            data = json.loads(DOWNLOADER_CONFIG_FILE.read_text(encoding="utf-8"))
+            conf = dict(DEFAULT_DOWNLOADER_CONFIG)
+            conf.update(data)
+            return conf
+        except Exception as exc:
+            logger.warning("Could not load downloader_config.json: %s", exc)
+    return dict(DEFAULT_DOWNLOADER_CONFIG)
+
+def _save_downloader_config(data: dict) -> None:
+    try:
+        DOWNLOADER_CONFIG_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    except Exception as exc:
+        logger.warning("Could not save downloader_config.json: %s", exc)
+
+_downloader_config: dict = _load_downloader_config()
+
+def _load_downloader_stats() -> dict:
+    if DOWNLOADER_STATS_FILE.exists():
+        try:
+            return json.loads(DOWNLOADER_STATS_FILE.read_text(encoding="utf-8"))
+        except Exception as exc:
+            logger.warning("Could not load downloader_stats.json: %s", exc)
+    return {
+        "total_downloads": 0,
+        "total_queries": 0,
+        "downloads_by_quality": {"hd": 0, "sd": 0, "audio": 0, "images": 0},
+        "history": [],
+    }
+
+def _save_downloader_stats(data: dict) -> None:
+    try:
+        DOWNLOADER_STATS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    except Exception as exc:
+        logger.warning("Could not save downloader_stats.json: %s", exc)
+
+_downloader_stats: dict = _load_downloader_stats()
+
 def get_target_permissions(username: str) -> dict:
     """Return effective permissions for a streamer target (target override > global)."""
     clean = username.lstrip("@").strip().lower()
@@ -179,6 +232,14 @@ def _get_current_stats() -> dict:
         "tracking_enabled": _tracking_enabled,
         "banned_targets": sorted(list(_banned_targets)),
         "permissions": _viewer_permissions,
+        "downloader_config": _downloader_config,
+        "downloader_stats": {
+            "total_downloads": _downloader_stats.get("total_downloads", 0),
+            "total_queries": _downloader_stats.get("total_queries", 0),
+            "downloads_by_quality": _downloader_stats.get("downloads_by_quality", {"hd": 0, "sd": 0, "audio": 0, "images": 0}),
+            "history_count": len(_downloader_stats.get("history", [])),
+            "recent_downloads": _downloader_stats.get("history", [])[:40],
+        },
     }
 
 
@@ -698,6 +759,79 @@ async def admin_logout(data: dict):
     return {"status": "ok"}
 
 
+# ── TikTok Video Downloader Admin Endpoints ─────────────────────────────────
+
+@app.get("/api/admin/downloader/stats")
+async def admin_downloader_stats(request: Request):
+    """Retrieve TikTok Video Downloader statistics, settings, and logs."""
+    tok = _get_admin_token(request)
+    if not tok or tok not in _admin_tokens:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
+    return {
+        "status": "ok",
+        "config": _downloader_config,
+        "stats": {
+            "total_downloads": _downloader_stats.get("total_downloads", 0),
+            "total_queries": _downloader_stats.get("total_queries", 0),
+            "downloads_by_quality": _downloader_stats.get("downloads_by_quality", {"hd": 0, "sd": 0, "audio": 0, "images": 0}),
+            "history": _downloader_stats.get("history", [])[:80],
+        }
+    }
+
+
+@app.post("/api/admin/downloader/config")
+async def admin_downloader_save_config(request: Request, data: dict):
+    """Save TikTok Video Downloader settings."""
+    tok = _get_admin_token(request, data)
+    if not tok or tok not in _admin_tokens:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
+
+    if "enabled" in data:
+        _downloader_config["enabled"] = bool(data["enabled"])
+    if "notify_telegram" in data:
+        _downloader_config["notify_telegram"] = bool(data["notify_telegram"])
+    if "allow_hd" in data:
+        _downloader_config["allow_hd"] = bool(data["allow_hd"])
+    if "maintenance_message" in data:
+        _downloader_config["maintenance_message"] = str(data["maintenance_message"]).strip()
+
+    _save_downloader_config(_downloader_config)
+    logger.info("Admin updated downloader config: %s", _downloader_config)
+    return {
+        "status": "ok",
+        "config": _downloader_config,
+        "message": "تم حفظ إعدادات أداة التنزيل بنجاح.",
+    }
+
+
+@app.post("/api/admin/downloader/send-telegram-report")
+async def admin_downloader_send_telegram_report(request: Request, data: dict = None):
+    """Force-send summary statistics report of TikTok Video Downloader to Telegram."""
+    tok = _get_admin_token(request, data)
+    if not tok or tok not in _admin_tokens:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
+
+    if not telegram_bot.enabled:
+        return JSONResponse(status_code=400, content={"status": "error", "message": "بوت تلغرام غير مفعّل أو بيانات التوكن غير مضبوطة."})
+
+    ok, msg = await telegram_bot.send_downloader_stats_report(_downloader_stats, _downloader_config)
+    if ok:
+        return {"status": "ok", "message": "تم إرسال تقرير إحصائيات التنزيل إلى بوت تلغرام بنجاح! 📨"}
+    return JSONResponse(status_code=500, content={"status": "error", "message": f"فشل الإرسال: {msg}"})
+
+
+@app.post("/api/admin/downloader/clear-history")
+async def admin_downloader_clear_history(request: Request, data: dict = None):
+    """Clear download activity history while retaining total counters."""
+    tok = _get_admin_token(request, data)
+    if not tok or tok not in _admin_tokens:
+        return JSONResponse(status_code=401, content={"status": "error", "message": "Unauthorized"})
+
+    _downloader_stats["history"] = []
+    _save_downloader_stats(_downloader_stats)
+    return {"status": "ok", "message": "تم مسح سجل عمليات التنزيل بنجاح."}
+
+
 @app.get("/api/stream_proxy")
 async def stream_proxy(request: Request, url: str):
     """
@@ -843,6 +977,10 @@ async def tiktok_video_info(request: Request, data: dict):
     Fetch TikTok video details and available qualities without watermark.
     Extracts HD (1080p), SD, and MP3 audio download streams.
     """
+    if not _downloader_config.get("enabled", True):
+        msg = _downloader_config.get("maintenance_message") or "خدمة تنزيل الفيديوهات متوقفة حالياً للصيانة من قِبل الإدارة."
+        return JSONResponse(status_code=403, content={"status": "error", "message": msg, "disabled": True})
+
     raw_url = str(data.get("url", "")).strip()
     if not raw_url:
         return JSONResponse(status_code=400, content={"status": "error", "message": "يرجى إدخال رابط فيديو تيك توك"})
@@ -874,6 +1012,12 @@ async def tiktok_video_info(request: Request, data: dict):
         cover = d.get("cover") or d.get("origin_cover") or ""
         duration = int(d.get("duration") or 0)
         author = d.get("author") or {}
+        author_handle = str(author.get("unique_id") or "user")
+        clean_title = re.sub(r'[^\w\s\u0600-\u06FF.-]', ' ', str(title or "TikTok Video"))[:65].strip()
+
+        # Track query count
+        _downloader_stats["total_queries"] = _downloader_stats.get("total_queries", 0) + 1
+        _save_downloader_stats(_downloader_stats)
 
         def _fmt_size(b):
             if not b:
@@ -885,9 +1029,9 @@ async def tiktok_video_info(request: Request, data: dict):
             return f"{b} B"
 
         qualities = []
-        # 1. HD (1080p No Watermark) if available
+        # 1. HD (1080p No Watermark) if available and allowed
         hd_url = d.get("hdplay")
-        if hd_url:
+        if hd_url and _downloader_config.get("allow_hd", True):
             qualities.append({
                 "id": "hd",
                 "label": "جودة فائقة HD (1080p)",
@@ -898,7 +1042,7 @@ async def tiktok_video_info(request: Request, data: dict):
                 "size": _fmt_size(d.get("hd_size")),
                 "size_bytes": d.get("hd_size"),
                 "direct_url": hd_url,
-                "download_url": f"/api/tiktok/download-stream?url={quote(hd_url)}&filename=tiktok_hd_{vid_id}.mp4",
+                "download_url": f"/api/tiktok/download-stream?url={quote(hd_url)}&filename=tiktok_hd_{vid_id}.mp4&quality=1080p&author={quote(author_handle)}&title={quote(clean_title)}",
             })
 
         # 2. SD (Standard Definition No Watermark)
@@ -914,7 +1058,7 @@ async def tiktok_video_info(request: Request, data: dict):
                 "size": _fmt_size(d.get("size")),
                 "size_bytes": d.get("size"),
                 "direct_url": sd_url,
-                "download_url": f"/api/tiktok/download-stream?url={quote(sd_url)}&filename=tiktok_{vid_id}.mp4",
+                "download_url": f"/api/tiktok/download-stream?url={quote(sd_url)}&filename=tiktok_{vid_id}.mp4&quality=sd&author={quote(author_handle)}&title={quote(clean_title)}",
             })
 
         # 3. Audio / MP3
@@ -930,7 +1074,7 @@ async def tiktok_video_info(request: Request, data: dict):
                 "size": "MP3",
                 "size_bytes": None,
                 "direct_url": music_url,
-                "download_url": f"/api/tiktok/download-stream?url={quote(music_url)}&filename=tiktok_audio_{vid_id}.mp3",
+                "download_url": f"/api/tiktok/download-stream?url={quote(music_url)}&filename=tiktok_audio_{vid_id}.mp3&quality=audio&author={quote(author_handle)}&title={quote(clean_title)}",
             })
 
         # 4. Images / Photo Slideshow (if it's a photo mode post)
@@ -940,7 +1084,7 @@ async def tiktok_video_info(request: Request, data: dict):
             image_items.append({
                 "index": idx + 1,
                 "url": img_u,
-                "download_url": f"/api/tiktok/download-stream?url={quote(img_u)}&filename=tiktok_photo_{vid_id}_{idx+1}.jpg",
+                "download_url": f"/api/tiktok/download-stream?url={quote(img_u)}&filename=tiktok_photo_{vid_id}_{idx+1}.jpg&quality=images&author={quote(author_handle)}&title={quote(clean_title)}",
             })
 
         return {
@@ -972,11 +1116,23 @@ async def tiktok_video_info(request: Request, data: dict):
 
 
 @app.get("/api/tiktok/download-stream")
-async def tiktok_download_stream(request: Request, url: str, filename: str = "tiktok_video.mp4"):
+async def tiktok_download_stream(
+    request: Request,
+    url: str,
+    filename: str = "tiktok_video.mp4",
+    quality: str = "",
+    author: str = "",
+    title: str = "",
+):
     """
     Direct proxy download stream for TikTok video or audio.
     Sets Content-Disposition attachment so the browser downloads the file directly to the user's device.
+    Tracks statistics and notifies Telegram bot.
     """
+    if not _downloader_config.get("enabled", True):
+        msg = _downloader_config.get("maintenance_message") or "خدمة التنزيل متوقفة حالياً من قِبل الإدارة."
+        return JSONResponse(status_code=403, content={"error": msg, "disabled": True})
+
     if not url or not (url.startswith("http://") or url.startswith("https://")):
         return JSONResponse(status_code=400, content={"error": "Invalid URL"})
 
@@ -984,6 +1140,57 @@ async def tiktok_download_stream(request: Request, url: str, filename: str = "ti
     clean_filename = re.sub(r'[^\w\.-]', '_', filename)
     if not clean_filename:
         clean_filename = "tiktok_download.mp4"
+
+    # Guess media type
+    media_type = "video/mp4"
+    if clean_filename.endswith(".mp3"):
+        media_type = "audio/mpeg"
+    elif clean_filename.endswith(".jpg") or clean_filename.endswith(".jpeg"):
+        media_type = "image/jpeg"
+    elif clean_filename.endswith(".png"):
+        media_type = "image/png"
+
+    # Log and track download event
+    try:
+        q_norm = quality.lower()
+        if not q_norm:
+            q_norm = "hd" if "hd" in clean_filename else ("audio" if clean_filename.endswith(".mp3") else ("images" if "photo" in clean_filename else "sd"))
+        elif q_norm == "1080p":
+            q_norm = "hd"
+
+        _downloader_stats["total_downloads"] = _downloader_stats.get("total_downloads", 0) + 1
+        _downloader_stats.setdefault("downloads_by_quality", {"hd": 0, "sd": 0, "audio": 0, "images": 0})
+        _downloader_stats["downloads_by_quality"][q_norm] = _downloader_stats["downloads_by_quality"].get(q_norm, 0) + 1
+
+        client_ip = request.client.host if request.client else ""
+        log_entry = {
+            "id": secrets.token_hex(4),
+            "ts": int(time.time()),
+            "author": author or "TikTok User",
+            "title": title or "TikTok Video",
+            "quality": quality.upper() if quality else q_norm.upper(),
+            "filename": clean_filename,
+            "ip": client_ip,
+            "url": url,
+        }
+        _downloader_stats.setdefault("history", []).insert(0, log_entry)
+        if len(_downloader_stats["history"]) > 200:
+            _downloader_stats["history"] = _downloader_stats["history"][:200]
+        _save_downloader_stats(_downloader_stats)
+
+        # Notify Telegram bot
+        if _downloader_config.get("notify_telegram", True) and telegram_bot.enabled:
+            asyncio.create_task(telegram_bot.notify_video_download(
+                author=author,
+                title=title,
+                quality=quality.upper() if quality else q_norm.upper(),
+                filename=clean_filename,
+                video_url=url,
+                ip=client_ip,
+                total_count=_downloader_stats["total_downloads"],
+            ))
+    except Exception as stat_err:
+        logger.warning("Downloader stats tracking error: %s", stat_err)
 
     # Guess media type
     media_type = "video/mp4"
