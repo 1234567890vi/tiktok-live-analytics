@@ -332,7 +332,25 @@ const DOM = {
   pkTriPctHost:          $('pkTriPctHost'),
   pkTriPctRival1:        $('pkTriPctRival1'),
   pkTriPctRival2:        $('pkTriPctRival2'),
-  pkTriLeadLabel:        $('pkTriLeadLabel'),
+  // Presence & Co-Host Roster (وحيداً / مع شخص / مع 2 / مع 3)
+  pkPresenceDeck:        $('pkPresenceDeck'),
+  pkPresenceBanner:      $('pkPresenceBanner'),
+  pkPresenceDesc:        $('pkPresenceDesc'),
+  pkPresenceStageBadge:  $('pkPresenceStageBadge'),
+  pkPresenceGrid:        $('pkPresenceGrid'),
+  btnPresenceSolo:       $('btnPresenceSolo'),
+  btnPresenceDuo:        $('btnPresenceDuo'),
+  btnPresenceTrio:       $('btnPresenceTrio'),
+  btnPresenceSquad:      $('btnPresenceSquad'),
+
+  // Arena Anchors Live Viewer Count Badges
+  pkHostViewersCount:    $('pkHostViewersCount'),
+  pkTeammateViewersCount:$('pkTeammateViewersCount'),
+  pkOppViewersCount1:    $('pkOppViewersCount1'),
+  pkOppViewersCount2:    $('pkOppViewersCount2'),
+  pkTriHostViewers:      $('pkTriHostViewers'),
+  pkTriRival1Viewers:    $('pkTriRival1Viewers'),
+  pkTriRival2Viewers:    $('pkTriRival2Viewers'),
 
   // Feeds & Gift Separation
   commentsFeed:        $('commentsFeed'),
@@ -1994,6 +2012,345 @@ function setPkViewMode(mode, isManual = false) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Co-Host & Guest Presence Roster (تتبع التواجد وحيداً أو مع 1 أو 2 أو 3 قبل البداية وعند الانتهاء)
+// ---------------------------------------------------------------------------
+let currentPresenceRoster = null;
+
+function renderPresenceRoster(rosterData) {
+  if (!rosterData) return;
+  currentPresenceRoster = rosterData;
+
+  const members = Array.isArray(rosterData.members) ? rosterData.members : [];
+  const count = members.length;
+  const mode = rosterData.mode || (count === 1 ? 'solo' : count === 2 ? 'duo' : count === 3 ? 'trio' : 'squad');
+
+  // 1. Update Banner & Subtitle
+  if (DOM.pkPresenceBanner) {
+    if (count === 1) {
+      DOM.pkPresenceBanner.innerHTML = `<span class="text-indigo-400">👤</span> صاحب البث وحيداً في اللايف (بدون قست)`;
+    } else if (count === 2) {
+      DOM.pkPresenceBanner.innerHTML = `<span class="text-cyan-400">👥</span> صاحب البث في بث مشترك مع شخص واحد (ثنائي)`;
+    } else if (count === 3) {
+      DOM.pkPresenceBanner.innerHTML = `<span class="text-pink-400">🔺</span> صاحب البث في بث مشترك مع شخصين (ثلاثي)`;
+    } else {
+      DOM.pkPresenceBanner.innerHTML = `<span class="text-amber-400">🛡️</span> صاحب البث في بث مشترك مع ثلاثة أشخاص (رباعي)`;
+    }
+  }
+
+  if (DOM.pkPresenceDesc) {
+    DOM.pkPresenceDesc.textContent = rosterData.header_desc || (
+      count === 1
+        ? 'يبث المضيف بمفرده حالياً دون وجود أي شركاء أو منافسين في القست'
+        : `يتواجد ${count - 1} ${count === 2 ? 'شخص' : 'أشخاص'} في القست مع المضيف بمجموع ${count} مذيعين`
+    );
+  }
+
+  // 2. Update Stage Badge (قبل البداية أو عند الانتهاء)
+  if (DOM.pkPresenceStageBadge) {
+    const stage = rosterData.stage || (lastPkStatus === 'ENDED' ? 'after_round' : 'before_round');
+    if (stage === 'after_round' || lastPkStatus === 'ENDED') {
+      DOM.pkPresenceStageBadge.textContent = '🏆 بعد انتهاء الجولة';
+      DOM.pkPresenceStageBadge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm';
+    } else if (stage === 'punish' || lastPkStatus === 'PUNISH') {
+      DOM.pkPresenceStageBadge.textContent = '⏱️ وقت الحكم والتحدي';
+      DOM.pkPresenceStageBadge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse';
+    } else if (stage === 'in_round' || lastPkStatus === 'ACTIVE') {
+      DOM.pkPresenceStageBadge.textContent = '⚔️ جولة نشطة';
+      DOM.pkPresenceStageBadge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-red-500/20 text-red-300 border border-red-500/40 animate-pulse';
+    } else {
+      DOM.pkPresenceStageBadge.textContent = count > 1 ? '🤝 قبل بداية الجولة' : '👤 بث فردي';
+      DOM.pkPresenceStageBadge.className = 'px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40';
+    }
+  }
+
+  // 3. Update Preview Buttons Style
+  const btnMap = {
+    solo: DOM.btnPresenceSolo,
+    duo: DOM.btnPresenceDuo,
+    trio: DOM.btnPresenceTrio,
+    squad: DOM.btnPresenceSquad,
+  };
+  Object.entries(btnMap).forEach(([k, btn]) => {
+    if (!btn) return;
+    if (k === mode) {
+      btn.className = 'px-2.5 py-1 rounded-lg font-bold transition-all text-white bg-indigo-600 border border-indigo-400 shadow-[0_0_10px_rgba(99,102,241,0.5)]';
+    } else {
+      btn.className = 'px-2.5 py-1 rounded-lg font-bold transition-all text-gray-400 hover:text-white bg-transparent border-transparent';
+    }
+  });
+
+  // 4. Render Member Cards
+  if (!DOM.pkPresenceGrid) return;
+  DOM.pkPresenceGrid.innerHTML = '';
+
+  const maxViewers = Math.max(...members.map(m => Number(m.viewer_count) || 0), 0);
+
+  let gridColsClass = 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4';
+  if (count === 1) gridColsClass = 'grid-cols-1 max-w-md mx-auto';
+  else if (count === 2) gridColsClass = 'grid-cols-1 sm:grid-cols-2 max-w-3xl mx-auto';
+  else if (count === 3) gridColsClass = 'grid-cols-1 sm:grid-cols-3 max-w-5xl mx-auto';
+  DOM.pkPresenceGrid.className = `grid ${gridColsClass} gap-3.5 items-stretch w-full`;
+
+  members.forEach((m, idx) => {
+    const vc = Number(m.viewer_count) || 0;
+    const isTop = (vc === maxViewers && maxViewers > 0 && count > 1);
+    const isHost = !!m.is_host || idx === 0;
+
+    let borderCls = 'border-gray-800 bg-gray-900/80';
+    let ringCls = 'border-cyan-500';
+    let roleBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">🤝 شريك بث</span>`;
+
+    if (isHost) {
+      borderCls = 'border-indigo-600/50 bg-gradient-to-b from-indigo-950/40 to-slate-900/70 shadow-[0_0_15px_rgba(99,102,241,0.15)]';
+      ringCls = 'border-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.6)]';
+      roleBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">👑 المضيف (صاحب البث)</span>`;
+    } else if (m.role === 'rival') {
+      borderCls = 'border-red-600/40 bg-gradient-to-b from-red-950/30 to-slate-900/70 shadow-[0_0_15px_rgba(239,68,68,0.12)]';
+      ringCls = 'border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.6)]';
+      roleBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/20 text-red-300 border border-red-500/30">🥊 منافس في الجولة</span>`;
+    } else if (m.role === 'ally') {
+      borderCls = 'border-blue-600/40 bg-gradient-to-b from-blue-950/30 to-slate-900/70 shadow-[0_0_15px_rgba(59,130,246,0.12)]';
+      ringCls = 'border-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.6)]';
+      roleBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">⚔️ شريك / حليف</span>`;
+    }
+
+    const card = document.createElement('div');
+    card.className = `p-4 rounded-2xl border ${borderCls} flex flex-col justify-between space-y-3 relative overflow-hidden transition-all duration-300 hover:scale-[1.01]`;
+
+    card.innerHTML = `
+      <div class="flex items-center justify-between gap-1.5 flex-wrap">
+        ${roleBadge}
+        ${isTop ? `
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm animate-pulse flex items-center gap-1">
+            <span>🔥</span> الأكثر مشاهدة في القست
+          </span>
+        ` : `
+          <span class="text-[10px] text-gray-400 font-mono">#${idx + 1}</span>
+        `}
+      </div>
+
+      <div class="flex items-center gap-3.5 pt-1">
+        <div class="relative flex-shrink-0">
+          <img class="w-14 h-14 rounded-full object-cover border-2 ${ringCls}" src="${m.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=faces'}" alt="${escapeHtml(m.nickname || m.unique_id || 'streamer')}" onerror="this.src='https://placehold.co/100x100/1e3a8a/white?text=LIVE'" />
+          <span class="absolute -bottom-1 left-1/2 -translate-x-1/2 px-1.5 py-0.2 rounded-full text-[8px] font-black bg-emerald-500 text-black border border-emerald-300 tracking-wider">LIVE</span>
+        </div>
+        <div class="min-w-0 flex-1">
+          <div class="text-sm sm:text-base font-black text-white truncate" title="${escapeHtml(m.nickname || m.unique_id || '')}">
+            ${escapeHtml(m.nickname || m.unique_id || 'مذيع')}
+          </div>
+          <div class="text-xs text-cyan-300 font-mono truncate" dir="ltr">
+            @${escapeHtml(m.unique_id || 'streamer')}
+          </div>
+          <div class="text-[10px] text-gray-400 flex items-center gap-1 mt-0.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>متصل في اللايف الآن</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-2.5 rounded-xl bg-gray-950/90 border border-gray-800/80 text-center space-y-0.5 shadow-inner">
+        <div class="text-[10px] text-gray-400 font-medium">عدد المشاهدات في لايف تبعه</div>
+        <div class="text-lg sm:text-xl font-black ${isTop ? 'text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]' : 'text-cyan-400'} font-mono flex items-center justify-center gap-1.5">
+          <span class="text-sm">👥</span>
+          <span>${fmt(vc)}</span>
+          <span class="text-xs font-normal text-gray-400">مشاهد</span>
+        </div>
+      </div>
+    `;
+
+    DOM.pkPresenceGrid.appendChild(card);
+  });
+}
+
+function generatePresenceRosterFromPk(pkData) {
+  const hostNick = (DOM.pkSoloNick?.textContent || pkData?.host_username || currentUsername || 'المضيف');
+  const hostUser = (currentUsername || pkData?.host_username || 'host');
+  const hostAv = (DOM.pkSoloAvatar?.src || 'https://placehold.co/100x100/1e3a8a/white?text=Host');
+  const hostVc = parseInt((DOM.kpiViewers?.textContent || '0').replace(/[^0-9]/g, ''), 10) || 2450;
+
+  const hostMember = {
+    unique_id: hostUser,
+    nickname: hostNick,
+    avatar_url: hostAv,
+    viewer_count: hostVc,
+    role: 'host',
+    is_host: true,
+  };
+
+  const bType = pkData?.battle_type || currentPkMode || 'solo';
+  const oppAnchors = pkData?.opponent_anchors || [];
+  const hostAnchors = pkData?.host_anchors || [];
+
+  if (bType === 'solo' || (!pkData?.is_active && pkData?.status === 'IDLE' && oppAnchors.length === 0)) {
+    return {
+      mode: 'solo',
+      stage: 'solo_stream',
+      header_desc: 'المضيف يبث بمفرده حالياً بدون أي ضيوف أو منافسين في القست',
+      members: [hostMember],
+    };
+  }
+
+  const members = [hostMember];
+
+  if (bType === '2v2') {
+    const ally = hostAnchors[1] || { unique_id: 'samfire_55', nickname: 'سام فاير 🔥', avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=faces', viewer_count: 1420 };
+    members.push({ ...ally, role: 'ally', is_host: false });
+
+    const op0 = oppAnchors[0] || { unique_id: 'king_fahad_pk', nickname: 'الكينغ أبو فهد 👑', avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces', viewer_count: 8950 };
+    members.push({ ...op0, role: 'rival', is_host: false });
+
+    const op1 = oppAnchors[1] || { unique_id: 'captain_majed_live', nickname: 'كابتن ماجد ⚽', avatar_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&crop=faces', viewer_count: 2300 };
+    members.push({ ...op1, role: 'rival', is_host: false });
+
+    return {
+      mode: 'squad',
+      stage: pkData?.status === 'ENDED' ? 'after_round' : (pkData?.status === 'PUNISH' ? 'punish' : 'in_round'),
+      header_desc: 'يتواجد ثلاثة أشخاص في القست مع المضيف بمجموع مذيعين 4',
+      members,
+    };
+  }
+
+  if (bType === '3-way') {
+    const op0 = oppAnchors[0] || { unique_id: 'king_fahad_pk', nickname: 'الكينغ أبو فهد 👑', avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces', viewer_count: 8950 };
+    members.push({ ...op0, role: 'rival', is_host: false });
+
+    const op1 = oppAnchors[1] || { unique_id: 'sara_live_official', nickname: 'سارة القحطاني 🇸🇦', avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=faces', viewer_count: 3840 };
+    members.push({ ...op1, role: 'rival', is_host: false });
+
+    return {
+      mode: 'trio',
+      stage: pkData?.status === 'ENDED' ? 'after_round' : (pkData?.status === 'PUNISH' ? 'punish' : 'in_round'),
+      header_desc: 'يتواجد شخصان في القست مع المضيف بمجموع مذيعين 3',
+      members,
+    };
+  }
+
+  // 1v1
+  const op0 = oppAnchors[0] || { unique_id: 'king_fahad_pk', nickname: 'الكينغ أبو فهد 👑', avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces', viewer_count: 8950 };
+  members.push({ ...op0, role: 'rival', is_host: false });
+
+  return {
+    mode: 'duo',
+    stage: pkData?.status === 'ENDED' ? 'after_round' : (pkData?.status === 'PUNISH' ? 'punish' : 'in_round'),
+    header_desc: 'يتواجد شخص واحد في القست مع المضيف بمجموع مذيعين 2',
+    members,
+  };
+}
+
+function initPresenceButtons() {
+  const getHostInfo = () => ({
+    unique_id: currentUsername || 'demo_live_stream',
+    nickname: currentUsername ? `المضيف (${currentUsername})` : 'المضيف 👑',
+    avatar_url: DOM.pkSoloAvatar?.src || 'https://placehold.co/100x100/1e3a8a/white?text=Host',
+    viewer_count: parseInt((DOM.kpiViewers?.textContent || '2450').replace(/[^0-9]/g, ''), 10) || 2450,
+    role: 'host',
+    is_host: true,
+  });
+
+  if (DOM.btnPresenceSolo) {
+    DOM.btnPresenceSolo.addEventListener('click', () => {
+      renderPresenceRoster({
+        mode: 'solo',
+        header_desc: 'المضيف يبث بمفرده حالياً بدون أي ضيوف أو منافسين في القست',
+        stage: (lastPkStatus === 'ENDED' ? 'after_round' : 'before_round'),
+        members: [getHostInfo()]
+      });
+      toast('👤 تم التحويل إلى عرض: صاحب البث وحيداً في اللايف', 'info', 2500);
+    });
+  }
+
+  if (DOM.btnPresenceDuo) {
+    DOM.btnPresenceDuo.addEventListener('click', () => {
+      renderPresenceRoster({
+        mode: 'duo',
+        header_desc: 'يتواجد شخص واحد في القست مع المضيف بمجموع مذيعين 2',
+        stage: (lastPkStatus === 'ENDED' ? 'after_round' : 'before_round'),
+        members: [
+          getHostInfo(),
+          {
+            unique_id: 'king_fahad_pk',
+            nickname: 'الكينغ أبو فهد 👑',
+            avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces',
+            viewer_count: 8950,
+            role: 'rival',
+            is_host: false,
+          }
+        ]
+      });
+      toast('👥 تم التحويل إلى عرض: صاحب البث مع شخص واحد (ثنائي)', 'info', 2500);
+    });
+  }
+
+  if (DOM.btnPresenceTrio) {
+    DOM.btnPresenceTrio.addEventListener('click', () => {
+      renderPresenceRoster({
+        mode: 'trio',
+        header_desc: 'يتواجد شخصان في القست مع المضيف بمجموع مذيعين 3',
+        stage: (lastPkStatus === 'ENDED' ? 'after_round' : 'before_round'),
+        members: [
+          getHostInfo(),
+          {
+            unique_id: 'king_fahad_pk',
+            nickname: 'الكينغ أبو فهد 👑',
+            avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces',
+            viewer_count: 8950,
+            role: 'rival',
+            is_host: false,
+          },
+          {
+            unique_id: 'sara_live_official',
+            nickname: 'سارة القحطاني 🇸🇦',
+            avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=faces',
+            viewer_count: 3840,
+            role: 'rival',
+            is_host: false,
+          }
+        ]
+      });
+      toast('🔺 تم التحويل إلى عرض: صاحب البث مع شخصين (ثلاثي)', 'info', 2500);
+    });
+  }
+
+  if (DOM.btnPresenceSquad) {
+    DOM.btnPresenceSquad.addEventListener('click', () => {
+      renderPresenceRoster({
+        mode: 'squad',
+        header_desc: 'يتواجد ثلاثة أشخاص في القست مع المضيف بمجموع مذيعين 4',
+        stage: (lastPkStatus === 'ENDED' ? 'after_round' : 'before_round'),
+        members: [
+          getHostInfo(),
+          {
+            unique_id: 'samfire_55',
+            nickname: 'سام فاير 🔥',
+            avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=faces',
+            viewer_count: 1420,
+            role: 'ally',
+            is_host: false,
+          },
+          {
+            unique_id: 'king_fahad_pk',
+            nickname: 'الكينغ أبو فهد 👑',
+            avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces',
+            viewer_count: 8950,
+            role: 'rival',
+            is_host: false,
+          },
+          {
+            unique_id: 'dr_layla_stream',
+            nickname: 'دكتورة ليلى 🩺',
+            avatar_url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop&crop=faces',
+            viewer_count: 2150,
+            role: 'rival',
+            is_host: false,
+          }
+        ]
+      });
+      toast('🛡️ تم التحويل إلى عرض: صاحب البث مع ثلاثة أشخاص (رباعي)', 'info', 2500);
+    });
+  }
+}
+
 function updateSoloDeck(pkData) {
   const hostAnchors = pkData?.host_anchors || [];
   const h0 = hostAnchors[0] || {};
@@ -2004,6 +2361,9 @@ function updateSoloDeck(pkData) {
   if (DOM.pkSoloAvatar) DOM.pkSoloAvatar.src = hostAv;
   if (DOM.pkSoloNick)   DOM.pkSoloNick.textContent = hostNick;
   if (DOM.pkSoloName)   DOM.pkSoloName.textContent = `@${hostUser}`;
+
+  // Update Presence Roster Deck
+  renderPresenceRoster(pkData?.co_host_roster || generatePresenceRosterFromPk(pkData));
 
   // Live Stream KPIs in Solo Deck
   if (DOM.pkSoloViewers) {
@@ -2058,6 +2418,7 @@ function updateTripleArena(pkData) {
   if (DOM.pkTriHostNick)   DOM.pkTriHostNick.textContent = p1.nickname || p1.unique_id || 'المضيف';
   if (DOM.pkTriHostName)   DOM.pkTriHostName.textContent = p1.unique_id ? `@${p1.unique_id}` : '@host';
   if (DOM.pkTriHostScore)  DOM.pkTriHostScore.textContent = fmt(s1);
+  if (DOM.pkTriHostViewers)DOM.pkTriHostViewers.textContent = fmt(p1.viewer_count || parseInt((DOM.kpiViewers?.textContent || '0').replace(/[^0-9]/g, ''), 10) || 2450);
   renderPkMvps(DOM.pkTriHostMvps, p1.contributors || pkData?.host_armies, 'host-score');
 
   // Streamer 2: Rival 1
@@ -2065,6 +2426,7 @@ function updateTripleArena(pkData) {
   if (DOM.pkTriRival1Nick)   DOM.pkTriRival1Nick.textContent = p2.nickname || p2.unique_id || 'الخصم الأول';
   if (DOM.pkTriRival1Name)   DOM.pkTriRival1Name.textContent = p2.unique_id ? `@${p2.unique_id}` : '@rival1';
   if (DOM.pkTriRival1Score)  DOM.pkTriRival1Score.textContent = fmt(s2);
+  if (DOM.pkTriRival1Viewers)DOM.pkTriRival1Viewers.textContent = fmt(p2.viewer_count || 8950);
   renderPkMvps(DOM.pkTriRival1Mvps, p2.contributors || pkData?.opponent_armies, 'opp-score');
 
   // Streamer 3: Rival 2
@@ -2072,6 +2434,7 @@ function updateTripleArena(pkData) {
   if (DOM.pkTriRival2Nick)   DOM.pkTriRival2Nick.textContent = p3.nickname || p3.unique_id || 'الخصم الثاني';
   if (DOM.pkTriRival2Name)   DOM.pkTriRival2Name.textContent = p3.unique_id ? `@${p3.unique_id}` : '@rival2';
   if (DOM.pkTriRival2Score)  DOM.pkTriRival2Score.textContent = fmt(s3);
+  if (DOM.pkTriRival2Viewers)DOM.pkTriRival2Viewers.textContent = fmt(p3.viewer_count || 3840);
   renderPkMvps(DOM.pkTriRival2Mvps, p3.contributors || (pkData?.opponent_armies ? pkData.opponent_armies.slice(1) : []), 'purple-score');
 
   // Compute Ranks
@@ -2130,14 +2493,16 @@ function updateDualArena(pkData, battleType) {
     if (DOM.pkHostNick)   DOM.pkHostNick.textContent   = h0.nickname || h0.unique_id || 'المضيف';
     if (DOM.pkHostName)   DOM.pkHostName.textContent   = h0.unique_id ? `@${h0.unique_id}` : '';
     if (DOM.pkHostAvatar && h0.avatar_url) DOM.pkHostAvatar.src = h0.avatar_url;
+    if (DOM.pkHostViewersCount) DOM.pkHostViewersCount.textContent = fmt(h0.viewer_count || (parseInt((DOM.kpiViewers?.textContent || '0').replace(/[^0-9]/g, ''), 10) || 0));
 
     // Teammate (if 2v2)
     if (hostAnchors.length > 1 || battleType === '2v2') {
-      const h1 = hostAnchors[1] || { nickname: 'سام فاير 🔥', unique_id: 'samfire_55', avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=faces' };
+      const h1 = hostAnchors[1] || { nickname: 'سام فاير 🔥', unique_id: 'samfire_55', avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=faces', viewer_count: 1420 };
       if (DOM.pkTeammateCard) DOM.pkTeammateCard.classList.remove('hidden');
       if (DOM.pkTeammateNick) DOM.pkTeammateNick.textContent = h1.nickname || h1.unique_id || 'الحليف';
       if (DOM.pkTeammateName) DOM.pkTeammateName.textContent = h1.unique_id ? `@${h1.unique_id}` : '@ally';
       if (DOM.pkTeammateAvatar && h1.avatar_url) DOM.pkTeammateAvatar.src = h1.avatar_url;
+      if (DOM.pkTeammateViewersCount) DOM.pkTeammateViewersCount.textContent = fmt(h1.viewer_count || 1420);
 
       // Individual Anchor Points
       const h0pts = h0.points != null ? h0.points : Math.round(hostScore * 0.65);
@@ -2159,6 +2524,7 @@ function updateDualArena(pkData, battleType) {
   } else if (pkData?.host_username) {
     if (DOM.pkHostName) DOM.pkHostName.textContent = `@${pkData.host_username}`;
     if (DOM.pkHostNick) DOM.pkHostNick.textContent = pkData.host_username;
+    if (DOM.pkHostViewersCount) DOM.pkHostViewersCount.textContent = DOM.kpiViewers ? DOM.kpiViewers.textContent : '0';
   }
 
   // Populate Opponent Side (ضده)
@@ -2167,14 +2533,16 @@ function updateDualArena(pkData, battleType) {
     if (DOM.pkOppNick1)   DOM.pkOppNick1.textContent   = op0.nickname || op0.unique_id || 'الخصم';
     if (DOM.pkOppName1)   DOM.pkOppName1.textContent   = op0.unique_id ? `@${op0.unique_id}` : '';
     if (DOM.pkOppAvatar1 && op0.avatar_url) DOM.pkOppAvatar1.src = op0.avatar_url;
+    if (DOM.pkOppViewersCount1) DOM.pkOppViewersCount1.textContent = fmt(op0.viewer_count || 8950);
 
     // Opponent 2 (if 2v2)
     if (oppAnchors.length > 1 || battleType === '2v2') {
-      const op1 = oppAnchors[1] || { nickname: 'الكينغ أبو فهد 👑', unique_id: 'king_fahad_pk', avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces' };
+      const op1 = oppAnchors[1] || { nickname: 'الكينغ أبو فهد 👑', unique_id: 'king_fahad_pk', avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces', viewer_count: 3840 };
       if (DOM.pkOppCard2)   DOM.pkOppCard2.classList.remove('hidden');
       if (DOM.pkOppNick2)   DOM.pkOppNick2.textContent   = op1.nickname || op1.unique_id || 'الخصم الثاني';
       if (DOM.pkOppName2)   DOM.pkOppName2.textContent   = op1.unique_id ? `@${op1.unique_id}` : '@rival2';
       if (DOM.pkOppAvatar2 && op1.avatar_url) DOM.pkOppAvatar2.src = op1.avatar_url;
+      if (DOM.pkOppViewersCount2) DOM.pkOppViewersCount2.textContent = fmt(op1.viewer_count || 3840);
 
       // Individual Anchor Points
       const op0pts = op0.points != null ? op0.points : Math.round(oppScore * 0.55);
@@ -2366,6 +2734,10 @@ function updatePK(pkData, eventType) {
     updateDualArena(pkData, battleType);
   }
 
+  // Update Presence Roster Deck (تتبع التواجد وحيداً أو مع شخص أو مع 2 أو مع 3 قبل البداية وعند الانتهاء)
+  const rosterData = pkData?.co_host_roster || generatePresenceRosterFromPk(pkData);
+  renderPresenceRoster(rosterData);
+
   if (eventType === 'ended' || status === 'ENDED') {
     const hostAnchors = pkData?.host_anchors || [];
     const oppAnchors  = pkData?.opponent_anchors || [];
@@ -2505,6 +2877,7 @@ function applySnapshot(data) {
   }
 
   if (data.pk_state)       updatePK(data.pk_state, 'snapshot');
+  if (data.co_host_roster) renderPresenceRoster(data.co_host_roster);
   if (data.top_supporters) updateLeaderboard(data.top_supporters);
   if (data.top_likers)     renderLikers(data.top_likers);
   if (data.live_friends)   renderLiveFriends(data.live_friends);
@@ -3164,6 +3537,12 @@ function connectWs(username) {
       case 'live_friends':
         if (Array.isArray(msg.data)) {
           renderLiveFriends(msg.data);
+        }
+        break;
+
+      case 'co_host_roster':
+        if (msg.data) {
+          renderPresenceRoster(msg.data);
         }
         break;
 
@@ -4142,12 +4521,12 @@ function startDemoSimulation() {
         host_points: demoHostScore,
         opponent_points: demoOppScore,
         host_anchors: [
-          { nickname: 'المضيف (أنت 👑)', unique_id: 'demo_live_stream', points: Math.round(demoHostScore * (currentPkMode === '2v2' ? 0.65 : 1)) },
-          ...(currentPkMode === '2v2' ? [{ nickname: 'سام فاير 🔥', unique_id: 'samfire_55', points: Math.round(demoHostScore * 0.35), avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=faces' }] : [])
+          { nickname: 'المضيف (أنت 👑)', unique_id: 'demo_live_stream', points: Math.round(demoHostScore * (currentPkMode === '2v2' ? 0.65 : 1)), viewer_count: 2450 + Math.floor(Math.sin(tick) * 50) },
+          ...(currentPkMode === '2v2' ? [{ nickname: 'سام فاير 🔥', unique_id: 'samfire_55', points: Math.round(demoHostScore * 0.35), viewer_count: 1420 + Math.floor(Math.cos(tick) * 30), avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=faces' }] : [])
         ],
         opponent_anchors: [
-          { nickname: 'الكينغ أبو فهد 👑', unique_id: 'king_fahad_pk', points: Math.round(demoOppScore * (currentPkMode === '2v2' ? 0.55 : (currentPkMode === '3-way' ? 0.52 : 1))), avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces' },
-          ...((currentPkMode === '2v2' || currentPkMode === '3-way') ? [{ nickname: (currentPkMode === '3-way' ? 'سارة القحطاني 🇸🇦' : 'كابتن ماجد ⚽'), unique_id: (currentPkMode === '3-way' ? 'sara_live_official' : 'captain_majed_live'), points: Math.round(demoOppScore * (currentPkMode === '2v2' ? 0.45 : 0.48)), avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=faces' }] : [])
+          { nickname: 'الكينغ أبو فهد 👑', unique_id: 'king_fahad_pk', points: Math.round(demoOppScore * (currentPkMode === '2v2' ? 0.55 : (currentPkMode === '3-way' ? 0.52 : 1))), viewer_count: 8950 + Math.floor(Math.sin(tick * 0.8) * 120), avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces' },
+          ...((currentPkMode === '2v2' || currentPkMode === '3-way') ? [{ nickname: (currentPkMode === '3-way' ? 'سارة القحطاني 🇸🇦' : 'كابتن ماجد ⚽'), unique_id: (currentPkMode === '3-way' ? 'sara_live_official' : 'captain_majed_live'), points: Math.round(demoOppScore * (currentPkMode === '2v2' ? 0.45 : 0.48)), viewer_count: (currentPkMode === '3-way' ? 3840 : 2300) + Math.floor(Math.cos(tick * 0.8) * 60), avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=faces' }] : [])
         ]
       }, 'points_update');
     }
@@ -4477,8 +4856,10 @@ initSmoothScrollEngine();
 
 // Initialize Multi-Mode Arena & Default to Solo Deck
 initPkModeButtons();
+initPresenceButtons();
 setPkViewMode('solo');
 updateSoloDeck();
+renderPresenceRoster(generatePresenceRosterFromPk({ battle_type: 'solo', status: 'IDLE' }));
 
-console.log('🎯 TIKTOK VRF initialized successfully with Fluid UI & Multi-Mode Arena.');
+console.log('🎯 TIKTOK VRF initialized successfully with Fluid UI & Presence Roster Deck.');
 
