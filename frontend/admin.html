@@ -195,6 +195,9 @@
           <span>🤖</span> <span id="tabTitleTelegram">بوت تلغرام (الإحصائيات)</span>
           <span id="badgeTelegramStatus" class="text-[10px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700">معطل</span>
         </button>
+        <button id="tabBtnPermissions" class="px-4 py-3 text-xs sm:text-sm font-bold border-b-2 border-transparent text-gray-400 hover:text-gray-200 transition flex items-center gap-2 whitespace-nowrap">
+          <span>🛡️</span> <span id="tabTitlePermissions">صلاحيات وتحكم المستخدمين</span>
+        </button>
       </div>
 
       <!-- ════════ TAB 1: SESSIONS & LIVE USER TRACKING ════════ -->
@@ -552,6 +555,190 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- ════════ TAB 6: VIEWER PERMISSIONS CONTROLLER ════════ -->
+      <div id="tabViewPermissions" class="hidden space-y-6">
+
+        <!-- Top Overview & Master Save -->
+        <div class="glass-card p-5 border border-purple-900/40 space-y-3">
+          <div class="flex items-center justify-between flex-wrap gap-3">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600/30 to-indigo-500/30 text-purple-300 flex items-center justify-center text-2xl border border-purple-500/40 shadow-inner">
+                🛡️
+              </div>
+              <div>
+                <h3 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+                  <span id="permTitle">التحكم في صلاحيات العرض للمستخدمين</span>
+                  <span class="text-[10px] px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-700/50 font-mono font-bold">Real-time Policy</span>
+                </h3>
+                <p class="text-xs text-gray-400" id="permSubtitle">
+                  تحكم كامل فيما يُسمح للمستخدم الذي يتتبع البث برؤيته: التعليقات، الإعجابات، كبار الداعمين، الهدايا، ساحة الجولة، وبثوث الأصدقاء.
+                </p>
+              </div>
+            </div>
+            <button
+              id="btnSaveGlobalPermissions"
+              class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs transition active:scale-95 shadow-lg shadow-purple-600/30 flex items-center gap-2 cursor-pointer"
+            >
+              <span>💾</span>
+              <span id="btnSavePermsText">حفظ الصلاحيات وتطبيقها فوراً</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 6 Feature Toggles Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+          <!-- 1. Comments -->
+          <div class="glass-card p-4 space-y-2.5 border border-gray-800 hover:border-gray-700 transition">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <span class="text-2xl">💬</span>
+                <div>
+                  <div class="text-xs font-bold text-white">التعليقات المباشرة (Live Comments)</div>
+                  <div class="text-[11px] text-gray-400">سماح أو إخفاء رسائل المشاهدين والدردشة</div>
+                </div>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="permCheckComments" class="sr-only peer" checked>
+                <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+              </label>
+            </div>
+            <p class="text-[11px] text-gray-500">عند التعطيل: يتم حجب صندوق التعليقات وتوفير استهلاك المعالج والبيانات.</p>
+          </div>
+
+          <!-- 2. Likes -->
+          <div class="glass-card p-4 space-y-2.5 border border-gray-800 hover:border-gray-700 transition">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <span class="text-2xl">❤️</span>
+                <div>
+                  <div class="text-xs font-bold text-white">الإعجابات ومعدل النقر (Likes & LPS)</div>
+                  <div class="text-[11px] text-gray-400">سماح أو إخفاء إجمالي الإعجابات وشريط المتفاعلين</div>
+                </div>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="permCheckLikes" class="sr-only peer" checked>
+                <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+              </label>
+            </div>
+            <p class="text-[11px] text-gray-500">عند التعطيل: يتم إخفاء عداد الإعجابات وقائمة أكثر المعجبين.</p>
+          </div>
+
+          <!-- 3. Supporters / Diamonds -->
+          <div class="glass-card p-4 space-y-2.5 border border-gray-800 hover:border-gray-700 transition">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <span class="text-2xl">🏆</span>
+                <div>
+                  <div class="text-xs font-bold text-white">كبار الداعمين والألماسات (Top Supporters)</div>
+                  <div class="text-[11px] text-gray-400">سماح أو إخفاء المتصدرين وإجمالي الألماسات والأرباح</div>
+                </div>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="permCheckSupporters" class="sr-only peer" checked>
+                <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+              </label>
+            </div>
+            <p class="text-[11px] text-gray-500">عند التعطيل: يتم إخفاء قائمة كبار الداعمين وقيمة الألماسات وحساب الأرباح.</p>
+          </div>
+
+          <!-- 4. Gift Alerts -->
+          <div class="glass-card p-4 space-y-2.5 border border-gray-800 hover:border-gray-700 transition">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <span class="text-2xl">🎁</span>
+                <div>
+                  <div class="text-xs font-bold text-white">تنبيهات الهدايا (Gift Alerts)</div>
+                  <div class="text-[11px] text-gray-400">سماح أو إخفاء تدفق الهدايا والكومبو المتحرك</div>
+                </div>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="permCheckGifts" class="sr-only peer" checked>
+                <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+              </label>
+            </div>
+            <p class="text-[11px] text-gray-500">عند التعطيل: يتم إخفاء شريط الهدايا وتأثيرات الهدايا الأسطورية على الشاشة.</p>
+          </div>
+
+          <!-- 5. PK Battles -->
+          <div class="glass-card p-4 space-y-2.5 border border-gray-800 hover:border-gray-700 transition">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <span class="text-2xl">⚔️</span>
+                <div>
+                  <div class="text-xs font-bold text-white">ساحة الجولة المباشرة (PK Battle Arena)</div>
+                  <div class="text-[11px] text-gray-400">سماح أو إخفاء ساحة التنافس وتصادم النقاط والخصم</div>
+                </div>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="permCheckPk" class="sr-only peer" checked>
+                <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+              </label>
+            </div>
+            <p class="text-[11px] text-gray-500">عند التعطيل: يتم إخفاء ساحة الجولة بالكامل ومؤقت وقت الجولة.</p>
+          </div>
+
+          <!-- 6. Live Friends -->
+          <div class="glass-card p-4 space-y-2.5 border border-gray-800 hover:border-gray-700 transition">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <span class="text-2xl">👥</span>
+                <div>
+                  <div class="text-xs font-bold text-white">بثوث الأصدقاء والشركاء (Live Friends)</div>
+                  <div class="text-[11px] text-gray-400">سماح أو إخفاء قائمة الشركاء المتصلين الآن</div>
+                </div>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="permCheckFriends" class="sr-only peer" checked>
+                <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+              </label>
+            </div>
+            <p class="text-[11px] text-gray-500">عند التعطيل: يتم إخفاء بطاقات الأصدقاء والشركاء في أسفل الصفحة.</p>
+          </div>
+
+        </div>
+
+        <!-- Per-Streamer Target Override Card -->
+        <div class="glass-card p-5 space-y-4 border border-gray-800">
+          <div>
+            <h4 class="text-sm font-bold text-white flex items-center gap-2">
+              <span>🎯</span>
+              <span>تخصيص سياسة العرض لحساب تيك توك محدد (Per-Streamer Policy Override)</span>
+            </h4>
+            <p class="text-xs text-gray-400 mt-0.5">
+              إذا أردت تخصيص إعدادات خاصة لحساب معين (مثلاً منع التعليقات عنه فقط مع إبقائها تعمل لبقية الحسابات)، اكتب اسمه هنا:
+            </p>
+          </div>
+
+          <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            <div class="relative flex-1 min-w-[200px]">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-xs">@</span>
+              <input
+                type="text"
+                id="permTargetInput"
+                placeholder="اسم المستخدم لتخصيص صلاحياته (مثال: streamer123)"
+                class="w-full bg-gray-900 border border-gray-700 rounded-xl pl-7 pr-3 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition dir-ltr"
+              />
+            </div>
+            <button id="btnConfigureTargetPerms" class="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs font-bold text-white transition active:scale-95 shadow flex items-center gap-1.5 whitespace-nowrap cursor-pointer">
+              <span>➕</span>
+              <span>تخصيص هذا الحساب</span>
+            </button>
+          </div>
+
+          <!-- Customized Targets Table/List -->
+          <div class="pt-2">
+            <h5 class="text-xs font-bold text-gray-300 mb-2">الحسابات ذات الصلاحيات المخصصة حالياً:</h5>
+            <div id="customTargetsList" class="space-y-2">
+              <div class="p-4 rounded-xl bg-gray-900/50 border border-gray-800/80 text-xs text-gray-400 text-center">
+                لا توجد حسابات مخصصة حالياً — تطبق الصلاحيات العامة أعلاه على جميع الحسابات.
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
 
   </main>
