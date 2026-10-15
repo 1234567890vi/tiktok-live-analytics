@@ -7,8 +7,8 @@
 // Config
 // ---------------------------------------------------------------------------
 const WS_BASE       = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`;
-const MAX_COMMENTS  = 200;
-const MAX_GIFTS     = 100;
+const MAX_COMMENTS  = 100;
+const MAX_GIFTS     = 60;
 const COMBO_SHOW_MS = 2500;   // ms the combo popup stays visible
 const TOAST_DURATION = 4000;  // ms
 
@@ -780,36 +780,44 @@ const GiftFxEngine = {
     setTimeout(() => document.body.classList.remove('screen-rumble'), 400);
   },
 
+  _activeFloaters: 0,
   spawnFloatingGift(imgUrl, combo = 1, side = 'host') {
+    if (this._activeFloaters >= 4) return;
+    this._activeFloaters++;
     try {
       const floater = document.createElement('div');
-      floater.className = 'fixed pointer-events-none z-[85] flex items-center gap-1.5 transition-all';
+      floater.className = 'fixed pointer-events-none z-[85] flex items-center gap-1.5 will-change-transform';
 
       let leftPct;
       let borderClass = '';
       if (side === 'opponent') {
         leftPct = Math.random() * 25 + 62;
-        borderClass = 'floating-gift-opponent border-red-500/80 shadow-[0_0_20px_rgba(239,68,68,0.7)]';
+        borderClass = 'floating-gift-opponent border-red-500/80 shadow-[0_0_15px_rgba(239,68,68,0.5)]';
       } else if (side === 'host') {
         leftPct = Math.random() * 25 + 10;
-        borderClass = 'floating-gift-host border-blue-500/80 shadow-[0_0_20px_rgba(59,130,246,0.7)]';
+        borderClass = 'floating-gift-host border-blue-500/80 shadow-[0_0_15px_rgba(59,130,246,0.5)]';
       } else {
         leftPct = Math.random() * 40 + 30;
-        borderClass = 'border-yellow-400/60 shadow-[0_0_20px_rgba(251,191,36,0.7)]';
+        borderClass = 'border-yellow-400/60 shadow-[0_0_15px_rgba(251,191,36,0.5)]';
       }
 
       floater.style.left = `${leftPct}%`;
       floater.style.bottom = '15%';
-      floater.style.animation = 'fly-gift-up 1.8s cubic-bezier(0.22, 1, 0.36, 1) forwards';
+      floater.style.animation = 'fly-gift-up 1.6s cubic-bezier(0.22, 1, 0.36, 1) forwards';
       floater.innerHTML = `
-        <div class="relative flex items-center justify-center p-1.5 rounded-2xl bg-black/80 border ${borderClass} backdrop-blur-sm">
-          <img src="${imgUrl}" style="width:52px;height:52px;object-fit:contain;" alt="Gift" />
-          ${combo > 1 ? `<span class="absolute -top-2 -right-2 px-2 py-0.5 rounded-full ${side === 'opponent' ? 'bg-gradient-to-r from-red-600 to-rose-600' : 'bg-gradient-to-r from-blue-600 to-cyan-600'} text-white font-black text-xs border border-white/60 shadow-md">x${combo}</span>` : ''}
+        <div class="relative flex items-center justify-center p-1.5 rounded-2xl bg-black/90 border ${borderClass}">
+          <img src="${imgUrl}" style="width:48px;height:48px;object-fit:contain;" alt="Gift" loading="lazy" />
+          ${combo > 1 ? `<span class="absolute -top-2 -right-2 px-2 py-0.5 rounded-full ${side === 'opponent' ? 'bg-gradient-to-r from-red-600 to-rose-600' : 'bg-gradient-to-r from-blue-600 to-cyan-600'} text-white font-black text-xs border border-white/60 shadow">x${combo}</span>` : ''}
         </div>
       `;
       document.body.appendChild(floater);
-      setTimeout(() => floater.remove(), 1900);
-    } catch (_) {}
+      setTimeout(() => {
+        floater.remove();
+        this._activeFloaters = Math.max(0, this._activeFloaters - 1);
+      }, 1650);
+    } catch (_) {
+      this._activeFloaters = Math.max(0, this._activeFloaters - 1);
+    }
   }
 };
 
@@ -3597,34 +3605,24 @@ if (sessionStorage.getItem('tt_admin_token')) {
 // TACTILE RESPONSIVENESS, FLUID NAVIGATION & KINETIC SCROLLING (سلاسة فائقة)
 // ═══════════════════════════════════════════════════════════════════════════
 
-// 1. Dynamic Tactile Ripple Effect (تموج ضوئي ناعم مع كل ضغطة)
+// 1. Dynamic Tactile Feedback (سلاسة فائقة واستجابة فورية 120 FPS بدون أي تأخير)
 function initTactileRipple() {
   document.addEventListener('pointerdown', (e) => {
     const target = e.target.closest('button, a[role="button"], .quick-stream-btn, .gift-filter-tab, .tactile-btn, .friend-track-btn, .friend-tiktok-btn, .kpi-card');
     if (!target) return;
 
-    target.classList.add('ripple-container');
-
-    const rect = target.getBoundingClientRect();
-    const size = Math.max(rect.width, rect.height) * 1.5;
-    const x = e.clientX - rect.left - size / 2;
-    const y = e.clientY - rect.top - size / 2;
-
-    const wave = document.createElement('span');
-    wave.className = 'ripple-wave';
-    wave.style.width = `${size}px`;
-    wave.style.height = `${size}px`;
-    wave.style.left = `${x}px`;
-    wave.style.top = `${y}px`;
-
-    target.appendChild(wave);
-    setTimeout(() => {
-      wave.remove();
-    }, 500);
+    target.classList.add('tactile-active');
+    const onUp = () => {
+      target.classList.remove('tactile-active');
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+    window.addEventListener('pointerup', onUp, { once: true });
+    window.addEventListener('pointercancel', onUp, { once: true });
   }, { passive: true });
 }
 
-// 2. Universal Kinetic Mouse Drag-to-Scroll (تحريك أفقي سلس بالسحب والقصور الذاتي)
+// 2. High-Performance Inertial Drag-to-Scroll (سحب فائق الخفة بدون أي ثقل أو تهنيج)
 function makeKineticScrollable(container) {
   if (!container || container._hasKineticScroll) return;
   container._hasKineticScroll = true;
@@ -3632,49 +3630,81 @@ function makeKineticScrollable(container) {
 
   let isDown = false;
   let startX = 0;
-  let scrollLeft = 0;
-  let velX = 0;
+  let startScroll = 0;
   let lastX = 0;
-  let momentumID = null;
+  let lastTime = 0;
+  let velocity = 0;
+  let momentumRaf = null;
   let hasMoved = false;
 
-  container.addEventListener('mousedown', (e) => {
-    if (e.button !== 0) return;
+  container.addEventListener('pointerdown', (e) => {
+    // Only capture primary mouse button; let mobile touch use native 120Hz hardware scrolling
+    if (e.pointerType === 'touch' || e.button !== 0) return;
+
     isDown = true;
     hasMoved = false;
-    cancelAnimationFrame(momentumID);
+    cancelAnimationFrame(momentumRaf);
     container.classList.add('drag-scrolling');
-    startX = e.pageX - container.offsetLeft;
-    scrollLeft = container.scrollLeft;
-    lastX = e.pageX;
-    velX = 0;
+
+    startX = e.clientX;
+    startScroll = container.scrollLeft;
+    lastX = e.clientX;
+    lastTime = performance.now();
+    velocity = 0;
+
+    try { container.setPointerCapture(e.pointerId); } catch (_) {}
   });
 
-  window.addEventListener('mouseup', () => {
+  container.addEventListener('pointermove', (e) => {
+    if (!isDown) return;
+
+    const deltaX = e.clientX - startX;
+    if (Math.abs(deltaX) > 4) hasMoved = true;
+
+    const now = performance.now();
+    const dt = Math.max(1, now - lastTime);
+    const dx = e.clientX - lastX;
+    velocity = (dx / dt) * 16.67; // Normalized frame velocity
+
+    lastX = e.clientX;
+    lastTime = now;
+
+    container.scrollLeft = startScroll - deltaX;
+  });
+
+  const endDrag = (e) => {
     if (!isDown) return;
     isDown = false;
-    container.classList.remove('drag-scrolling');
 
-    function momentumLoop() {
-      if (Math.abs(velX) > 0.4) {
-        container.scrollLeft -= velX;
-        velX *= 0.92;
-        momentumID = requestAnimationFrame(momentumLoop);
+    try {
+      if (container.hasPointerCapture(e.pointerId)) {
+        container.releasePointerCapture(e.pointerId);
+      }
+    } catch (_) {}
+
+    // High-inertia physics: friction 0.955 gives a silky smooth, lightweight glide
+    let curVel = velocity;
+    const friction = 0.955;
+
+    function step() {
+      if (Math.abs(curVel) > 0.25) {
+        container.scrollLeft -= curVel;
+        curVel *= friction;
+        momentumRaf = requestAnimationFrame(step);
+      } else {
+        container.classList.remove('drag-scrolling');
       }
     }
-    momentumLoop();
-  });
 
-  container.addEventListener('mousemove', (e) => {
-    if (!isDown) return;
-    e.preventDefault();
-    const x = e.pageX - container.offsetLeft;
-    const walk = (x - startX) * 1.25;
-    if (Math.abs(walk) > 6) hasMoved = true;
-    velX = e.pageX - lastX;
-    lastX = e.pageX;
-    container.scrollLeft = scrollLeft - walk;
-  });
+    if (Math.abs(curVel) > 0.5) {
+      momentumRaf = requestAnimationFrame(step);
+    } else {
+      container.classList.remove('drag-scrolling');
+    }
+  };
+
+  container.addEventListener('pointerup', endDrag);
+  container.addEventListener('pointercancel', endDrag);
 
   container.addEventListener('click', (e) => {
     if (hasMoved) {
