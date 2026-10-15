@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>فاحص معلومات الفيديوهات وقصص تيك توك — TIKTOK VRF</title>
+  <meta name="description" content="أداة فحص واستخراج معلومات فيديوهات وقصص تيك توك: المشاهدات، الإعجابات، المشاركات، جودة الفيديو، الناشر، والمتفاعلون مع القصة." />
+
+  <!-- Google Fonts: Cairo, Inter, Fira Code -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Inter:wght@400;500;600;700;800;900&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              pink: '#ff0050',
+              cyan: '#00f2fe',
+              purple: '#8b5cf6',
+              dark: '#0d0d12',
+              card: '#16161f',
+            }
+          },
+          fontFamily: {
+            sans: ['Cairo', 'Inter', 'system-ui', 'sans-serif'],
+            mono: ['Fira Code', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/static/styles.css" />
+  <style>
+    /* Theme overrides */
+    html.theme-oled {
+      --bg-base: #000000;
+      background-color: #000000 !important;
+    }
+    html.theme-oled body {
+      background-color: #000000 !important;
+    }
+    html.theme-oled .glass-panel {
+      background-color: #050508 !important;
+      border-color: #1a1a24 !important;
+    }
+    html.theme-light {
+      --bg-base: #f8fafc;
+      background-color: #f8fafc !important;
+      color: #0f172a !important;
+    }
+    html.theme-light body {
+      background-color: #f8fafc !important;
+      color: #0f172a !important;
+    }
+    html.theme-light .glass-panel {
+      background-color: #ffffff !important;
+      border-color: #e2e8f0 !important;
+      color: #0f172a !important;
+      box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+    }
+    html.theme-light .text-white {
+      color: #0f172a !important;
+    }
+    html.theme-light .text-gray-200 {
+      color: #1e293b !important;
+    }
+    html.theme-light .text-gray-300 {
+      color: #334155 !important;
+    }
+    html.theme-light .text-gray-400 {
+      color: #64748b !important;
+    }
+    html.theme-light .bg-gray-900,
+    html.theme-light .bg-gray-900\/80,
+    html.theme-light .bg-gray-900\/90 {
+      background-color: #ffffff !important;
+      border-color: #e2e8f0 !important;
+    }
+    html.theme-light .bg-gray-950,
+    html.theme-light .bg-gray-950\/80,
+    html.theme-light .bg-gray-950\/90 {
+      background-color: #f1f5f9 !important;
+      border-color: #cbd5e1 !important;
+    }
+    html.theme-light .border-gray-800 {
+      border-color: #e2e8f0 !important;
+    }
+    html.theme-light .border-gray-700 {
+      border-color: #cbd5e1 !important;
+    }
+    .pulse-glow-cyan {
+      box-shadow: 0 0 35px -5px rgba(0, 242, 254, 0.35);
+    }
+  </style>
+</head>
+<body class="bg-[#0d0d12] text-gray-100 font-sans min-h-screen flex flex-col antialiased selection:bg-cyan-500 selection:text-white transition-colors duration-300">
+
+  <!-- ════════════════════════════════════════════════════════════════
+       TOP HEADER & NAVIGATION BAR
+  ════════════════════════════════════════════════════════════════ -->
+  <header class="sticky top-0 z-40 bg-[#0d0d12]/90 backdrop-blur-md border-b border-gray-800/80 transition-colors duration-300">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      <!-- Brand Logo -->
+      <a href="/" class="flex items-center gap-3 group">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 via-blue-600 to-purple-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 group-hover:scale-105 transition">
+          <span class="text-white font-black text-sm tracking-wider">VRF</span>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-extrabold text-base tracking-tight text-white group-hover:text-cyan-400 transition">TIKTOK VRF</span>
+            <span class="text-[10px] px-2 py-0.5 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 font-mono font-bold">INSPECTOR</span>
+          </div>
+          <p class="text-[11px] text-gray-400 hidden sm:block" id="headerSubtitle">فاحص معلومات الفيديوهات وقصص تيك توك</p>
+        </div>
+      </a>
+
+      <!-- Quick Navigation & Theme / Lang Controls -->
+      <div class="flex items-center gap-2">
+        <!-- Live Tracker Link -->
+        <a
+          href="/"
+          class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-800/80 hover:bg-gray-700/80 active:scale-95 text-gray-200 text-xs font-bold transition border border-gray-700 shadow-sm"
+          title="منصة التتبع المباشر للغرف / Live Stream Tracker"
+        >
+          <span>🔴</span>
+          <span class="hidden sm:inline" id="navLiveTracker">البث المباشر</span>
+        </a>
+
+        <!-- Downloader Link -->
+        <a
+          href="/downloader"
+          class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-pink-600/15 hover:bg-pink-600/25 active:scale-95 text-pink-300 hover:text-pink-200 text-xs font-bold transition border border-pink-500/30 shadow-sm"
+          title="تنزيل الفيديوهات بدون علامة مائية"
+        >
+          <span>📥</span>
+          <span class="hidden sm:inline" id="navDownloader">تنزيل الفيديوهات</span>
+        </a>
+
+        <!-- Theme Toggle -->
+        <button
+          id="themeToggleBtn"
+          class="p-2 rounded-xl bg-gray-800/80 hover:bg-gray-700 active:scale-95 text-gray-300 text-sm transition border border-gray-700"
+          title="تغيير المظهر / Toggle Theme"
+        >
+          <span id="themeIcon">🌙</span>
+        </button>
+
+        <!-- Language Toggle -->
+        <button
+          id="langToggleBtn"
+          class="flex items-center gap-1 px-2.5 py-2 rounded-xl bg-gray-800/80 hover:bg-gray-700 active:scale-95 text-xs font-bold text-gray-300 transition border border-gray-700"
+          title="Switch Language"
+        >
+          <span>🌐</span>
+          <span id="langText">EN</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       MAIN HERO SECTION & SMART SEARCH INPUT
+  ════════════════════════════════════════════════════════════════ -->
+  <main class="flex-1 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 w-full space-y-8">
+    
+    <!-- Hero Text -->
+    <div class="text-center space-y-3">
+      <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-cyan-950/60 to-purple-950/60 border border-cyan-500/30 text-cyan-300 text-xs font-semibold shadow-inner">
+        <span>✨</span>
+        <span id="heroBadge">فحص فوري وشامل لبيانات الفيديوهات وقصص تيك توك</span>
+      </div>
+      <h1 class="text-3xl sm:text-5xl font-black text-white tracking-tight" id="heroTitle">
+        فاحص معلومات <span class="bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-500 bg-clip-text text-transparent">الفيديوهات والقصص</span>
+      </h1>
+      <p class="text-sm sm:text-base text-gray-400 max-w-2xl mx-auto leading-relaxed" id="heroSubtitle">
+        الصق رابط أي فيديو أو قصة (Story) أو ألبوم صور من تيك توك، واحصل فوراً على الإحصائيات الدقيقة (المشاهدات، الإعجابات، المشاركات)، جودة الفيديو ومواصفاته، معلومات الناشر، وقائمة المتفاعلين مع القصة.
+      </p>
+    </div>
+
+    <!-- URL Input Card -->
+    <div class="glass-panel p-4 sm:p-6 rounded-2xl bg-[#16161f]/90 border border-gray-800 shadow-2xl pulse-glow-cyan space-y-4">
+      <div class="relative flex items-center">
+        <span class="absolute right-4 text-gray-400 text-lg pointer-events-none">🔍</span>
+        <input
+          type="url"
+          id="inputInspectUrl"
+          placeholder="https://www.tiktok.com/@username/video/... أو رابط قصة تيك توك"
+          class="w-full bg-gray-900/90 border border-gray-700/80 rounded-xl pr-12 pl-24 sm:pl-32 py-3.5 sm:py-4 text-xs sm:text-sm text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition dir-ltr"
+        />
+        <!-- Clear input button -->
+        <button
+          id="btnClearInput"
+          class="hidden absolute left-24 sm:left-32 text-gray-400 hover:text-white p-1 rounded-full text-xs transition"
+          title="مسح الحقل"
+        >
+          ✕
+        </button>
+        <!-- Paste from clipboard button -->
+        <button
+          id="btnPasteUrl"
+          class="absolute left-2 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-cyan-300 text-xs font-bold transition flex items-center gap-1 active:scale-95 border border-gray-700"
+          title="لصق الرابط من الحافظة"
+        >
+          <span>📋</span>
+          <span id="textBtnPaste">لصق</span>
+        </button>
+      </div>
+
+      <!-- Action Button & Quick Suggestions -->
+      <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
+        <p class="text-[11px] text-gray-400 flex items-center gap-1.5" id="hintSupported">
+          <span>💡</span>
+          <span>يدعم جميع الروابط: الفيديوهات (video)، القصص (story)، ألبومات الصور (photo)، والروابط المختصرة (vt.tiktok.com)</span>
+        </p>
+
+        <button
+          id="btnRunInspect"
+          class="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-gradient-to-r from-cyan-600 via-blue-600 to-purple-600 hover:from-cyan-500 hover:to-purple-500 active:scale-95 text-white text-xs sm:text-sm font-extrabold shadow-lg shadow-cyan-600/30 transition flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer"
+        >
+          <span id="btnRunIcon">⚡</span>
+          <span id="btnRunText">فحص واستخراج البيانات</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ── LOADING BOX ──────────────────────────────────────── -->
+    <div id="boxLoading" class="hidden glass-panel p-8 rounded-2xl bg-gray-900/60 border border-gray-800 text-center space-y-4">
+      <div class="inline-block relative w-12 h-12">
+        <div class="w-12 h-12 rounded-full border-4 border-cyan-500/20 border-t-cyan-500 animate-spin"></div>
+        <div class="absolute inset-0 flex items-center justify-center text-xs">⚡</div>
+      </div>
+      <div>
+        <h3 class="text-sm font-bold text-white" id="textLoadingTitle">جارٍ تحليل الرابط واستخراج البيانات الشاملة...</h3>
+        <p class="text-xs text-gray-400 mt-1" id="textLoadingSubtitle">يرجى الانتظار بضع ثوانٍ بينما يتم استخراج مقاييس الفيديو، مواصفات الجودة، معلومات الناشر، وقائمة المتفاعلين مع القصة.</p>
+      </div>
+    </div>
+
+    <!-- ── ERROR ALERT BOX ──────────────────────────────────── -->
+    <div id="boxError" class="hidden glass-panel p-4 rounded-xl bg-red-950/40 border border-red-700/50 flex items-start gap-3">
+      <span class="text-xl">⚠️</span>
+      <div class="flex-1">
+        <h4 class="text-xs font-bold text-red-300" id="errorTitle">فشل فحص الرابط</h4>
+        <p class="text-xs text-red-400 mt-0.5 leading-relaxed" id="errorMessage">يرجى التأكد من صحة الرابط وأن الحساب ليس خاصاً (Private).</p>
+      </div>
+    </div>
+
+    <!-- ── INSPECTION RESULTS SECTION ──────────────────────── -->
+    <div id="boxResults" class="hidden space-y-6">
+
+      <!-- 1. Creator / Publisher Information Card -->
+      <div class="glass-panel p-5 sm:p-6 rounded-2xl bg-[#16161f]/90 border border-gray-800 shadow-xl space-y-5">
+        <div class="flex flex-wrap items-center justify-between gap-4 border-b border-gray-800/80 pb-4">
+          <div class="flex items-center gap-4">
+            <!-- Avatar with ring glow -->
+            <div class="relative">
+              <img
+                id="resAuthorAvatar"
+                src=""
+                alt="Author Avatar"
+                class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-cyan-500/50 shadow-lg shadow-cyan-500/10"
+                onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'64\' height=\'64\' viewBox=\'0 0 24 24\' fill=\'%2364748b\'><path d=\'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z\'/></svg>'"
+              />
+              <span id="resBadgeVerified" class="hidden absolute -bottom-1 -right-1 w-5 h-5 bg-blue-500 text-white rounded-full flex items-center justify-center text-[10px] shadow" title="حساب موثق">✓</span>
+            </div>
+
+            <!-- Author Nickname & Handle -->
+            <div class="space-y-1">
+              <div class="flex items-center gap-2 flex-wrap">
+                <h2 id="resAuthorNickname" class="text-base sm:text-lg font-bold text-white"></h2>
+                <span id="resItemTypeBadge" class="text-[10px] px-2.5 py-0.5 rounded-full font-bold font-mono"></span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span id="resAuthorHandle" class="text-xs font-mono font-bold text-cyan-400"></span>
+                <span class="text-gray-600 text-xs">•</span>
+                <span id="resPublishDate" class="text-xs text-gray-400"></span>
+              </div>
+              <p id="resAuthorBio" class="text-xs text-gray-400 max-w-md line-clamp-2"></p>
+            </div>
+          </div>
+
+          <!-- Open TikTok Profile Button -->
+          <div class="flex items-center gap-2">
+            <a
+              id="resAuthorProfileLink"
+              href="#"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="px-4 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-xs font-bold text-cyan-300 border border-cyan-500/30 transition flex items-center gap-1.5 shadow"
+            >
+              <span>👤</span>
+              <span id="textBtnVisitProfile">زيارة الحساب على تيك توك</span>
+              <span>↗</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Video / Story Caption -->
+        <div class="space-y-1.5">
+          <label class="text-[11px] font-bold text-gray-400 uppercase tracking-wider block" id="labelCaption">وصف / نص الفيديو:</label>
+          <p id="resVideoTitle" class="text-sm text-gray-200 leading-relaxed font-medium bg-gray-900/50 p-3.5 rounded-xl border border-gray-800/80"></p>
+        </div>
+      </div>
+
+      <!-- 2. Performance & Engagement Metrics (7 KPI Cards) -->
+      <div>
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-bold text-white flex items-center gap-2">
+            <span>📊</span>
+            <span id="labelKpiSection">إحصائيات الأداء والمقاييس الرقمية (Analytics & Metrics)</span>
+          </h3>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+          <!-- Views / Plays -->
+          <div class="glass-panel p-3.5 rounded-xl bg-[#16161f]/80 border border-cyan-900/40 relative overflow-hidden">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-[11px] text-gray-400 font-semibold" id="kpiLabelViews">المشاهدات</span>
+              <span class="text-base">👁️</span>
+            </div>
+            <div id="resPlaysCount" class="text-xl font-black text-cyan-400 font-mono tracking-tight">0</div>
+            <div class="text-[10px] text-gray-500 mt-0.5">مشاهدة حقيقية</div>
+          </div>
+
+          <!-- Likes -->
+          <div class="glass-panel p-3.5 rounded-xl bg-[#16161f]/80 border border-pink-900/40 relative overflow-hidden">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-[11px] text-gray-400 font-semibold" id="kpiLabelLikes">الإعجابات</span>
+              <span class="text-base">❤️</span>
+            </div>
+            <div id="resLikesCount" class="text-xl font-black text-pink-400 font-mono tracking-tight">0</div>
+            <div class="text-[10px] text-gray-500 mt-0.5">إعجاب مسجل</div>
+          </div>
+
+          <!-- Comments -->
+          <div class="glass-panel p-3.5 rounded-xl bg-[#16161f]/80 border border-purple-900/40 relative overflow-hidden">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-[11px] text-gray-400 font-semibold" id="kpiLabelComments">التعليقات</span>
+              <span class="text-base">💬</span>
+            </div>
+            <div id="resCommentsCount" class="text-xl font-black text-purple-400 font-mono tracking-tight">0</div>
+            <div class="text-[10px] text-gray-500 mt-0.5">تعليق وتفاعل</div>
+          </div>
+
+          <!-- Shares -->
+          <div class="glass-panel p-3.5 rounded-xl bg-[#16161f]/80 border border-blue-900/40 relative overflow-hidden">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-[11px] text-gray-400 font-semibold" id="kpiLabelShares">المشاركات</span>
+              <span class="text-base">🔁</span>
+            </div>
+            <div id="resSharesCount" class="text-xl font-black text-blue-400 font-mono tracking-tight">0</div>
+            <div class="text-[10px] text-gray-500 mt-0.5">مشاركة للمقطع</div>
+          </div>
+
+          <!-- Favorites / Collects -->
+          <div class="glass-panel p-3.5 rounded-xl bg-[#16161f]/80 border border-amber-900/40 relative overflow-hidden">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-[11px] text-gray-400 font-semibold" id="kpiLabelCollects">المفضلة</span>
+              <span class="text-base">📌</span>
+            </div>
+            <div id="resCollectsCount" class="text-xl font-black text-amber-400 font-mono tracking-tight">0</div>
+            <div class="text-[10px] text-gray-500 mt-0.5">حفظ في المفضلة</div>
+          </div>
+
+          <!-- Downloads -->
+          <div class="glass-panel p-3.5 rounded-xl bg-[#16161f]/80 border border-emerald-900/40 relative overflow-hidden">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-[11px] text-gray-400 font-semibold" id="kpiLabelDownloads">التنزيلات</span>
+              <span class="text-base">📥</span>
+            </div>
+            <div id="resDownloadsCount" class="text-xl font-black text-emerald-400 font-mono tracking-tight">0</div>
+            <div class="text-[10px] text-gray-500 mt-0.5">تنزيل مباشر</div>
+          </div>
+
+          <!-- Engagement Rate % -->
+          <div class="glass-panel p-3.5 rounded-xl bg-[#16161f]/80 border border-indigo-900/40 relative overflow-hidden col-span-2 sm:col-span-4 lg:col-span-1">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-[11px] text-gray-400 font-semibold" id="kpiLabelRate">معدل التفاعل</span>
+              <span class="text-base">📈</span>
+            </div>
+            <div id="resEngagementRate" class="text-xl font-black text-indigo-400 font-mono tracking-tight">0%</div>
+            <div class="text-[10px] text-gray-500 mt-0.5">Engagement Rate</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Video Player & Technical Media Specifications -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Video Preview Player -->
+        <div class="glass-panel p-5 rounded-2xl bg-[#16161f]/90 border border-gray-800 shadow-xl space-y-4">
+          <div class="flex items-center justify-between">
+            <h4 class="text-sm font-bold text-white flex items-center gap-2">
+              <span>🎬</span>
+              <span id="labelVideoPreview">معاينة الفيديو المشغل</span>
+            </h4>
+            <span id="resDurationBadge" class="text-[11px] font-mono font-bold px-2.5 py-1 rounded-lg bg-gray-800 text-gray-300 border border-gray-700">00:00</span>
+          </div>
+
+          <div class="relative w-full aspect-[9/16] max-h-[460px] rounded-xl overflow-hidden bg-black flex items-center justify-center border border-gray-800 mx-auto">
+            <video
+              id="resVideoPlayer"
+              controls
+              playsinline
+              preload="metadata"
+              poster=""
+              class="w-full h-full object-contain"
+            ></video>
+          </div>
+        </div>
+
+        <!-- Technical Specs & Download Streams -->
+        <div class="space-y-5">
+          <!-- Specs card -->
+          <div class="glass-panel p-5 rounded-2xl bg-[#16161f]/90 border border-gray-800 shadow-xl space-y-4">
+            <h4 class="text-sm font-bold text-white flex items-center gap-2 border-b border-gray-800 pb-3">
+              <span>⚙️</span>
+              <span id="labelSpecsTitle">المواصفات التقنية والجودة (Technical Specs)</span>
+            </h4>
+
+            <div class="grid grid-cols-2 gap-3 text-xs">
+              <div class="p-3 rounded-xl bg-gray-900/60 border border-gray-800 space-y-1">
+                <span class="text-[11px] text-gray-400 block" id="specLabelQuality">أعلى دقة متوفرة:</span>
+                <span id="resSpecMaxQuality" class="font-bold text-purple-300 font-mono text-sm">Ultra HD 1080p</span>
+              </div>
+              <div class="p-3 rounded-xl bg-gray-900/60 border border-gray-800 space-y-1">
+                <span class="text-[11px] text-gray-400 block" id="specLabelDuration">المدة الزمنية:</span>
+                <span id="resSpecDuration" class="font-bold text-cyan-300 font-mono text-sm">--:--</span>
+              </div>
+              <div class="p-3 rounded-xl bg-gray-900/60 border border-gray-800 space-y-1">
+                <span class="text-[11px] text-gray-400 block" id="specLabelHdSize">حجم ملف Ultra HD:</span>
+                <span id="resSpecHdSize" class="font-bold text-emerald-400 font-mono text-sm">--</span>
+              </div>
+              <div class="p-3 rounded-xl bg-gray-900/60 border border-gray-800 space-y-1">
+                <span class="text-[11px] text-gray-400 block" id="specLabelSdSize">حجم ملف Standard SD:</span>
+                <span id="resSpecSdSize" class="font-bold text-blue-400 font-mono text-sm">--</span>
+              </div>
+            </div>
+
+            <!-- Soundtrack / Music Info -->
+            <div id="resMusicSection" class="p-3.5 rounded-xl bg-gray-900/80 border border-gray-800 flex items-center justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-pink-500/20 text-pink-400 flex items-center justify-center text-lg border border-pink-500/30 flex-shrink-0">
+                  🎵
+                </div>
+                <div>
+                  <div id="resMusicTitle" class="text-xs font-bold text-white line-clamp-1">Original Sound</div>
+                  <div id="resMusicAuthor" class="text-[11px] text-gray-400 font-mono"></div>
+                </div>
+              </div>
+              <audio id="resMusicAudio" controls class="hidden"></audio>
+            </div>
+          </div>
+
+          <!-- Direct Download Streams -->
+          <div class="glass-panel p-5 rounded-2xl bg-[#16161f]/90 border border-gray-800 shadow-xl space-y-3">
+            <h4 class="text-sm font-bold text-white flex items-center gap-2">
+              <span>📥</span>
+              <span id="labelDownloadLinks">روابط التنزيل المباشر الصافي بدون علامة:</span>
+            </h4>
+            <div id="resQualitiesList" class="space-y-2">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Photo Album Slides (if photo mode) -->
+      <div id="resPhotosSection" class="hidden glass-panel p-5 sm:p-6 rounded-2xl bg-[#16161f]/90 border border-gray-800 shadow-xl space-y-4">
+        <div class="flex items-center justify-between">
+          <h4 class="text-sm font-bold text-white flex items-center gap-2">
+            <span>🖼️</span>
+            <span id="labelPhotosTitle">صور ألبوم القصة / المنشور (Photo Slideshow):</span>
+          </h4>
+          <span id="resPhotosCount" class="text-xs px-2.5 py-0.5 rounded-full bg-cyan-950/80 text-cyan-300 border border-cyan-800/50 font-mono font-bold">0 صور</span>
+        </div>
+        <div id="resPhotosGrid" class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <!-- Rendered via JS -->
+        </div>
+      </div>
+
+      <!-- 4. Story & Video Interactors / Commenters / Likers -->
+      <div class="glass-panel p-5 sm:p-6 rounded-2xl bg-[#16161f]/90 border border-purple-900/40 shadow-xl space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-800 pb-4">
+          <div>
+            <h4 class="text-sm font-bold text-white flex items-center gap-2">
+              <span>👥</span>
+              <span id="labelInteractorsTitle">قائمة المتفاعلين والمعلقين وأبرز المعجبين بالقصة/الفيديو</span>
+              <span id="resInteractorsBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-purple-950 text-purple-300 border border-purple-700/60 font-mono font-bold">0 متفاعل</span>
+            </h4>
+            <p class="text-xs text-gray-400 mt-1" id="descInteractors">
+              يعرض الأشخاص الذين أبدوا إعجابهم وتفاعلوا مع المحتوى، مع عداد إعجابات تفاعلهم وروابط حساباتهم المباشرة.
+            </p>
+          </div>
+
+          <!-- Quick Search Filter for Interactors -->
+          <div class="relative w-full sm:w-64">
+            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">🔍</span>
+            <input
+              type="text"
+              id="filterInteractorsInput"
+              placeholder="بحث في المتفاعلين..."
+              class="w-full bg-gray-900 border border-gray-700 rounded-xl pr-8 pl-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 transition"
+            />
+          </div>
+        </div>
+
+        <!-- Interactors Grid / List -->
+        <div id="resInteractorsList" class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[500px] overflow-y-auto scrollbar-thin p-1">
+          <!-- Rendered via JS -->
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- ════════════════════════════════════════════════════════════════
+       FOOTER
+  ════════════════════════════════════════════════════════════════ -->
+  <footer class="mt-auto border-t border-gray-800/80 bg-[#0d0d12]/80 backdrop-blur-md py-6 transition-colors duration-300">
+    <div class="max-w-7xl mx-auto px-4 text-center space-y-2">
+      <div class="flex items-center justify-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+        <span class="text-xs text-gray-400 font-semibold">TIKTOK VRF &bull; Video & Story Inspector Platform</span>
+      </div>
+      <p class="text-[11px] text-gray-500">
+        أداة مجانية وسريعة 100% لفحص تفاصيل وتحليلات وإحصائيات تيك توك بدون الحاجة لتسجيل الدخول.
+      </p>
+    </div>
+  </footer>
+
+  <!-- Toast Container -->
+  <div id="toastContainer" class="fixed bottom-4 left-4 z-50 flex flex-col gap-2 pointer-events-none max-w-sm"></div>
+
+  <!-- Application Script -->
+  <script>
+    'use strict';
+
+    // State
+    let currentLang = localStorage.getItem('tt_tracker_lang') || 'ar';
+    let currentTheme = localStorage.getItem('tt_insp_theme') || 'dark';
+    let isInspecting = false;
+    let loadedInteractors = [];
+
+    // DOM Elements
+    const $ = id => document.getElementById(id);
+    const inputInspectUrl = $('inputInspectUrl');
+    const btnClearInput = $('btnClearInput');
+    const btnPasteUrl = $('btnPasteUrl');
+    const btnRunInspect = $('btnRunInspect');
+    const btnRunIcon = $('btnRunIcon');
+    const btnRunText = $('btnRunText');
+    const boxLoading = $('boxLoading');
+    const boxError = $('boxError');
+    const errorMessage = $('errorMessage');
+    const boxResults = $('boxResults');
+
+    const resAuthorAvatar = $('resAuthorAvatar');
+    const resBadgeVerified = $('resBadgeVerified');
+    const resAuthorNickname = $('resAuthorNickname');
+    const resAuthorHandle = $('resAuthorHandle');
+    const resPublishDate = $('resPublishDate');
+    const resAuthorBio = $('resAuthorBio');
+    const resItemTypeBadge = $('resItemTypeBadge');
+    const resAuthorProfileLink = $('resAuthorProfileLink');
+    const resVideoTitle = $('resVideoTitle');
+
+    const resPlaysCount = $('resPlaysCount');
+    const resLikesCount = $('resLikesCount');
+    const resCommentsCount = $('resCommentsCount');
+    const resSharesCount = $('resSharesCount');
+    const resCollectsCount = $('resCollectsCount');
+    const resDownloadsCount = $('resDownloadsCount');
+    const resEngagementRate = $('resEngagementRate');
+
+    const resVideoPlayer = $('resVideoPlayer');
+    const resDurationBadge = $('resDurationBadge');
+    const resSpecMaxQuality = $('resSpecMaxQuality');
+    const resSpecDuration = $('resSpecDuration');
+    const resSpecHdSize = $('resSpecHdSize');
+    const resSpecSdSize = $('resSpecSdSize');
+    const resMusicTitle = $('resMusicTitle');
+    const resMusicAuthor = $('resMusicAuthor');
+    const resQualitiesList = $('resQualitiesList');
+
+    const resPhotosSection = $('resPhotosSection');
+    const resPhotosCount = $('resPhotosCount');
+    const resPhotosGrid = $('resPhotosGrid');
+
+    const resInteractorsBadge = $('resInteractorsBadge');
+    const resInteractorsList = $('resInteractorsList');
+    const filterInteractorsInput = $('filterInteractorsInput');
+
+    const themeToggleBtn = $('themeToggleBtn');
+    const themeIcon = $('themeIcon');
+    const langToggleBtn = $('langToggleBtn');
+    const langText = $('langText');
+
+    // Localization Dictionary
+    const I18N = {
+      ar: {
+        headerSubtitle: 'فاحص معلومات الفيديوهات وقصص تيك توك',
+        navLiveTracker: 'البث المباشر',
+        navDownloader: 'تنزيل الفيديوهات',
+        heroBadge: 'فحص فوري وشامل لبيانات الفيديوهات وقصص تيك توك',
+        heroTitle: 'فاحص معلومات <span class="bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-500 bg-clip-text text-transparent">الفيديوهات والقصص</span>',
+        heroSubtitle: 'الصق رابط أي فيديو أو قصة (Story) أو ألبوم صور من تيك توك، واحصل فوراً على الإحصائيات الدقيقة (المشاهدات، الإعجابات، المشاركات)، جودة الفيديو ومواصفاته، معلومات الناشر، وقائمة المتفاعلين مع القصة.',
+        inputPlaceholder: 'https://www.tiktok.com/@username/video/... أو رابط قصة تيك توك',
+        textBtnPaste: 'لصق',
+        hintSupported: 'يدعم جميع الروابط: الفيديوهات (video)، القصص (story)، ألبومات الصور (photo)، والروابط المختصرة (vt.tiktok.com)',
+        btnRunText: 'فحص واستخراج البيانات',
+        btnRunningText: 'جارٍ الفحص والاستخراج...',
+        textLoadingTitle: 'جارٍ تحليل الرابط واستخراج البيانات الشاملة...',
+        textLoadingSubtitle: 'يرجى الانتظار بضع ثوانٍ بينما يتم استخراج مقاييس الفيديو، مواصفات الجودة، معلومات الناشر، وقائمة المتفاعلين مع القصة.',
+        errorTitle: 'فشل فحص الرابط',
+        errorDefault: 'يرجى التأكد من صحة الرابط وأن الحساب ليس خاصاً (Private).',
+        textBtnVisitProfile: 'زيارة الحساب على تيك توك',
+        labelCaption: 'وصف / نص الفيديو أو القصة:',
+        labelKpiSection: 'إحصائيات الأداء والمقاييس الرقمية (Analytics & Metrics)',
+        kpiLabelViews: 'المشاهدات',
+        kpiLabelLikes: 'الإعجابات',
+        kpiLabelComments: 'التعليقات',
+        kpiLabelShares: 'المشاركات',
+        kpiLabelCollects: 'المفضلة',
+        kpiLabelDownloads: 'التنزيلات',
+        kpiLabelRate: 'معدل التفاعل',
+        labelVideoPreview: 'معاينة الفيديو المشغل',
+        labelSpecsTitle: 'المواصفات التقنية والجودة (Technical Specs)',
+        specLabelQuality: 'أعلى دقة متوفرة:',
+        specLabelDuration: 'المدة الزمنية:',
+        specLabelHdSize: 'حجم ملف Ultra HD:',
+        specLabelSdSize: 'حجم ملف Standard SD:',
+        labelDownloadLinks: 'روابط التنزيل المباشر الصافي بدون علامة:',
+        labelPhotosTitle: 'صور ألبوم القصة / المنشور (Photo Slideshow):',
+        labelInteractorsTitle: 'قائمة المتفاعلين والمعلقين وأبرز المعجبين بالقصة/الفيديو',
+        descInteractors: 'يعرض الأشخاص الذين أبدوا إعجابهم وتفاعلوا مع المحتوى، مع عداد إعجابات تفاعلهم وروابط حساباتهم المباشرة.',
+        filterPlaceholder: 'بحث في المتفاعلين...',
+        toastPasted: 'تم لصق الرابط من الحافظة! 📋',
+        toastSuccess: 'تم استخراج كافة البيانات بنجاح! 🔍',
+      },
+      en: {
+        headerSubtitle: 'TikTok Video & Story Inspector',
+        navLiveTracker: 'Live Tracker',
+        navDownloader: 'Video Downloader',
+        heroBadge: 'Instant Analytics for TikTok Videos & Stories',
+        heroTitle: 'Inspect <span class="bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-500 bg-clip-text text-transparent">Videos & Stories</span>',
+        heroSubtitle: 'Paste any TikTok video, story, or photo album link to instantly extract full analytics (views, likes, shares), video qualities, publisher profile, and story interactors/likers.',
+        inputPlaceholder: 'https://www.tiktok.com/@username/video/... or TikTok story link',
+        textBtnPaste: 'Paste',
+        hintSupported: 'Supports all URLs: videos, stories, photo slides, and short links (vt.tiktok.com)',
+        btnRunText: 'Inspect & Extract Data',
+        btnRunningText: 'Inspecting data...',
+        textLoadingTitle: 'Analyzing link and extracting metrics...',
+        textLoadingSubtitle: 'Please wait a moment while engagement stats, video quality specs, publisher profile, and interactors list are being retrieved.',
+        errorTitle: 'Inspection Failed',
+        errorDefault: 'Please ensure the URL is valid and the account is not private.',
+        textBtnVisitProfile: 'Visit Profile on TikTok',
+        labelCaption: 'Video / Story Caption:',
+        labelKpiSection: 'Performance Metrics & Engagement Analytics',
+        kpiLabelViews: 'Views / Plays',
+        kpiLabelLikes: 'Likes',
+        kpiLabelComments: 'Comments',
+        kpiLabelShares: 'Shares',
+        kpiLabelCollects: 'Favorites',
+        kpiLabelDownloads: 'Downloads',
+        kpiLabelRate: 'Engagement',
+        labelVideoPreview: 'Video Stream Preview',
+        labelSpecsTitle: 'Technical Specifications & Quality',
+        specLabelQuality: 'Highest Resolution:',
+        specLabelDuration: 'Duration:',
+        specLabelHdSize: 'Ultra HD File Size:',
+        specLabelSdSize: 'Standard SD File Size:',
+        labelDownloadLinks: 'Clean Direct Download Streams (No Watermark):',
+        labelPhotosTitle: 'Photo Slideshow Album:',
+        labelInteractorsTitle: 'Story Interactors, Commenters & Likers',
+        descInteractors: 'Displays viewers who liked, commented, or reacted to this content with like counts and direct profile links.',
+        filterPlaceholder: 'Search interactors...',
+        toastPasted: 'URL pasted from clipboard! 📋',
+        toastSuccess: 'Inspection completed successfully! 🔍',
+      }
+    };
+
+    // Helper: Formatter
+    function fmt(num) {
+      if (num === undefined || num === null) return '0';
+      if (num >= 1_000_000) return (num / 1_000_000).toFixed(1) + 'M';
+      if (num >= 1_000) return (num / 1_000).toFixed(1) + 'K';
+      return Number(num).toLocaleString();
+    }
+
+    // Toast
+    function showToast(msg, type = 'info') {
+      const el = document.createElement('div');
+      const colors = {
+        success: 'bg-emerald-600 text-white border-emerald-400/50',
+        error: 'bg-red-600 text-white border-red-400/50',
+        info: 'bg-cyan-600 text-white border-cyan-400/50',
+      };
+      el.className = `px-4 py-3 rounded-xl border shadow-xl text-xs sm:text-sm font-semibold transition-all transform duration-300 opacity-0 translate-y-2 pointer-events-auto flex items-center gap-2 ${colors[type] || colors.info}`;
+      el.textContent = msg;
+      $('toastContainer').appendChild(el);
+      requestAnimationFrame(() => {
+        el.classList.remove('opacity-0', 'translate-y-2');
+      });
+      setTimeout(() => {
+        el.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => el.remove(), 300);
+      }, 3500);
+    }
+
+    // Apply Theme
+    function applyTheme(theme) {
+      currentTheme = theme;
+      localStorage.setItem('tt_insp_theme', theme);
+      document.documentElement.classList.remove('theme-dark', 'theme-light', 'theme-oled');
+      if (theme === 'light') {
+        document.documentElement.classList.add('theme-light');
+        themeIcon.textContent = '☀️';
+      } else if (theme === 'oled') {
+        document.documentElement.classList.add('theme-oled');
+        themeIcon.textContent = '🖤';
+      } else {
+        document.documentElement.classList.add('theme-dark');
+        themeIcon.textContent = '🌙';
+      }
+    }
+
+    // Apply Language
+    function applyLanguage(lang) {
+      currentLang = lang;
+      localStorage.setItem('tt_tracker_lang', lang);
+      document.documentElement.lang = lang;
+      document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+
+      const t = I18N[lang] || I18N.ar;
+      langText.textContent = lang === 'ar' ? 'EN' : 'عربي';
+
+      $('headerSubtitle').textContent = t.headerSubtitle;
+      $('navLiveTracker').textContent = t.navLiveTracker;
+      $('navDownloader').textContent = t.navDownloader;
+      $('heroBadge').textContent = t.heroBadge;
+      $('heroTitle').innerHTML = t.heroTitle;
+      $('heroSubtitle').textContent = t.heroSubtitle;
+      inputInspectUrl.placeholder = t.inputPlaceholder;
+      $('textBtnPaste').textContent = t.textBtnPaste;
+      $('hintSupported').innerHTML = `<span>💡</span><span>${t.hintSupported}</span>`;
+      btnRunText.textContent = isInspecting ? t.btnRunningText : t.btnRunText;
+      $('textLoadingTitle').textContent = t.textLoadingTitle;
+      $('textLoadingSubtitle').textContent = t.textLoadingSubtitle;
+      $('errorTitle').textContent = t.errorTitle;
+      $('textBtnVisitProfile').textContent = t.textBtnVisitProfile;
+      $('labelCaption').textContent = t.labelCaption;
+      $('labelKpiSection').textContent = t.labelKpiSection;
+
+      $('kpiLabelViews').textContent = t.kpiLabelViews;
+      $('kpiLabelLikes').textContent = t.kpiLabelLikes;
+      $('kpiLabelComments').textContent = t.kpiLabelComments;
+      $('kpiLabelShares').textContent = t.kpiLabelShares;
+      $('kpiLabelCollects').textContent = t.kpiLabelCollects;
+      $('kpiLabelDownloads').textContent = t.kpiLabelDownloads;
+      $('kpiLabelRate').textContent = t.kpiLabelRate;
+
+      $('labelVideoPreview').textContent = t.labelVideoPreview;
+      $('labelSpecsTitle').textContent = t.labelSpecsTitle;
+      $('specLabelQuality').textContent = t.specLabelQuality;
+      $('specLabelDuration').textContent = t.specLabelDuration;
+      $('specLabelHdSize').textContent = t.specLabelHdSize;
+      $('specLabelSdSize').textContent = t.specLabelSdSize;
+      $('labelDownloadLinks').textContent = t.labelDownloadLinks;
+      $('labelPhotosTitle').textContent = t.labelPhotosTitle;
+      $('labelInteractorsTitle').textContent = t.labelInteractorsTitle;
+      $('descInteractors').textContent = t.descInteractors;
+      filterInteractorsInput.placeholder = t.filterPlaceholder;
+    }
+
+    // Clipboard Paste
+    async function handlePaste() {
+      try {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          const text = await navigator.clipboard.readText();
+          if (text && text.trim()) {
+            inputInspectUrl.value = text.trim();
+            btnClearInput.classList.remove('hidden');
+            showToast(currentLang === 'ar' ? 'تم لصق الرابط من الحافظة! 📋' : 'URL pasted from clipboard! 📋', 'info');
+            runInspection();
+            return;
+          }
+        }
+      } catch (err) {
+        console.debug('Clipboard error:', err);
+      }
+      inputInspectUrl.focus();
+      showToast(currentLang === 'ar' ? 'يرجى لصق الرابط في الحقل (Ctrl+V)' : 'Please paste URL in the input field', 'info');
+    }
+
+    // Input changes
+    inputInspectUrl.addEventListener('input', () => {
+      if (inputInspectUrl.value.trim()) {
+        btnClearInput.classList.remove('hidden');
+      } else {
+        btnClearInput.classList.add('hidden');
+      }
+    });
+
+    btnClearInput.addEventListener('click', () => {
+      inputInspectUrl.value = '';
+      btnClearInput.classList.add('hidden');
+      inputInspectUrl.focus();
+    });
+
+    // Run Inspection
+    async function runInspection() {
+      if (isInspecting) return;
+      const rawUrl = inputInspectUrl.value.trim();
+      const t = I18N[currentLang] || I18N.ar;
+
+      if (!rawUrl) {
+        showError(currentLang === 'ar' ? 'يرجى إدخال أو لصق رابط فيديو أو قصة تيك توك.' : 'Please enter or paste a TikTok video or story URL.');
+        inputInspectUrl.focus();
+        return;
+      }
+
+      if (!rawUrl.includes('tiktok.com') && !rawUrl.includes('douyin.com')) {
+        showError(currentLang === 'ar' ? 'الرابط المدخل ليس رابط تيك توك صالح.' : 'The entered URL is not a valid TikTok URL.');
+        return;
+      }
+
+      // Show loading
+      hideError();
+      boxResults.classList.add('hidden');
+      boxLoading.classList.remove('hidden');
+      isInspecting = true;
+      btnRunInspect.disabled = true;
+      btnRunIcon.textContent = '⏳';
+      btnRunText.textContent = t.btnRunningText;
+
+      try {
+        const resp = await fetch('/api/tiktok/inspect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: rawUrl }),
+        });
+
+        const resData = await resp.json();
+        if (!resp.ok || resData.status !== 'ok' || !resData.data) {
+          throw new Error(resData.message || t.errorDefault);
+        }
+
+        renderInspectionResults(resData.data);
+        showToast(t.toastSuccess, 'success');
+      } catch (err) {
+        console.error('Inspection error:', err);
+        showError(err.message || t.errorDefault);
+      } finally {
+        isInspecting = false;
+        btnRunInspect.disabled = false;
+        btnRunIcon.textContent = '⚡';
+        btnRunText.textContent = t.btnRunText;
+        boxLoading.classList.add('hidden');
+      }
+    }
+
+    function showError(msg) {
+      errorMessage.textContent = msg;
+      boxError.classList.remove('hidden');
+      showToast(msg, 'error');
+    }
+
+    function hideError() {
+      boxError.classList.add('hidden');
+    }
+
+    // Render Results
+    function renderInspectionResults(d) {
+      const isAr = currentLang === 'ar';
+      const author = d.author || {};
+      const stats = d.stats || {};
+      const specs = d.specs || {};
+      const music = d.music || {};
+
+      // 1. Author & Post Meta
+      resAuthorAvatar.src = author.avatar_proxy || author.avatar || '';
+      resAuthorNickname.textContent = author.nickname || 'TikTok Creator';
+      resAuthorHandle.textContent = `@${author.unique_id || 'user'}`;
+      resAuthorProfileLink.href = author.profile_url || `https://www.tiktok.com/@${author.unique_id}`;
+      resAuthorBio.textContent = author.signature || '';
+      resPublishDate.textContent = d.created_at_formatted ? `🕒 ${d.created_at_formatted}` : '';
+
+      // Item type badge
+      if (d.is_story) {
+        resItemTypeBadge.className = 'text-[10px] px-2.5 py-0.5 rounded-full font-bold font-mono bg-purple-950 text-purple-300 border border-purple-700/60';
+        resItemTypeBadge.textContent = isAr ? '🟣 قصة تيك توك (Story)' : '🟣 TikTok Story';
+      } else if (d.is_photo) {
+        resItemTypeBadge.className = 'text-[10px] px-2.5 py-0.5 rounded-full font-bold font-mono bg-cyan-950 text-cyan-300 border border-cyan-700/60';
+        resItemTypeBadge.textContent = isAr ? '🖼️ ألبوم صور (Photo Mode)' : '🖼️ Photo Slideshow';
+      } else {
+        resItemTypeBadge.className = 'text-[10px] px-2.5 py-0.5 rounded-full font-bold font-mono bg-pink-950 text-pink-300 border border-pink-700/60';
+        resItemTypeBadge.textContent = isAr ? '🎥 فيديو تيك توك' : '🎥 TikTok Video';
+      }
+
+      resVideoTitle.textContent = d.title || (isAr ? 'بدون وصف' : 'No caption');
+
+      // 2. Metrics & KPI counts
+      resPlaysCount.textContent = fmt(stats.plays || 0);
+      resLikesCount.textContent = fmt(stats.likes || 0);
+      resCommentsCount.textContent = fmt(stats.comments || 0);
+      resSharesCount.textContent = fmt(stats.shares || 0);
+      resCollectsCount.textContent = fmt(stats.collects || 0);
+      resDownloadsCount.textContent = fmt(stats.downloads || 0);
+      resEngagementRate.textContent = `${stats.engagement_rate || 0}%`;
+
+      // 3. Video Player & Specs
+      resDurationBadge.textContent = d.duration_formatted || '00:00';
+      resSpecDuration.textContent = d.duration_formatted || '00:00';
+      resSpecHdSize.textContent = specs.hd_size_formatted || (isAr ? 'غير متاح' : 'N/A');
+      resSpecSdSize.textContent = specs.sd_size_formatted || (isAr ? 'غير متاح' : 'N/A');
+      resSpecMaxQuality.textContent = specs.has_hd ? 'Ultra HD (1080p) ⭐' : 'Standard SD (720p)';
+
+      if (d.preview_video_url) {
+        resVideoPlayer.src = d.preview_video_url;
+        resVideoPlayer.poster = d.cover_proxy || d.cover || '';
+        resVideoPlayer.load();
+      }
+
+      // Music
+      resMusicTitle.textContent = music.title || 'Original Sound';
+      resMusicAuthor.textContent = music.author ? `👤 ${music.author}` : '';
+
+      // Qualities List
+      resQualitiesList.innerHTML = '';
+      (d.qualities || []).forEach(q => {
+        const item = document.createElement('div');
+        item.className = 'flex items-center justify-between p-3 rounded-xl bg-gray-900/60 border border-gray-800 hover:border-cyan-500/40 transition';
+        item.innerHTML = `
+          <div class="flex items-center gap-2.5">
+            <span class="text-lg">${q.id === 'hd' ? '💎' : (q.id === 'audio' ? '🎵' : '⚡')}</span>
+            <div>
+              <div class="text-xs font-bold text-white">${isAr ? q.label : q.label_en}</div>
+              <div class="text-[10px] text-gray-400 font-mono">${q.size ? `حجم الملف: ${q.size}` : q.resolution}</div>
+            </div>
+          </div>
+          <a
+            href="${q.download_url}"
+            class="px-4 py-2 rounded-xl bg-cyan-600/20 hover:bg-cyan-600 border border-cyan-500/40 text-cyan-300 hover:text-white text-xs font-bold transition active:scale-95 flex items-center gap-1.5 shadow"
+          >
+            <span>📥</span>
+            <span>${isAr ? 'تحميل مباشر' : 'Download'}</span>
+          </a>
+        `;
+        resQualitiesList.appendChild(item);
+      });
+
+      // Photos (if any)
+      if (d.images && d.images.length > 0) {
+        resPhotosSection.classList.remove('hidden');
+        resPhotosCount.textContent = `${d.images.length} ${isAr ? 'صور' : 'Photos'}`;
+        resPhotosGrid.innerHTML = '';
+        d.images.forEach(img => {
+          const div = document.createElement('div');
+          div.className = 'relative group rounded-xl overflow-hidden border border-gray-800 bg-black aspect-[3/4]';
+          div.innerHTML = `
+            <img src="${img.proxy_url || img.url}" alt="Photo ${img.index}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+            <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition p-2 flex flex-col justify-between">
+              <span class="text-[10px] px-1.5 py-0.5 rounded bg-black/60 text-white font-mono self-start">#${img.index}</span>
+              <a href="${img.download_url}" class="w-full py-1.5 rounded-lg bg-cyan-600 text-white text-[11px] font-bold text-center flex items-center justify-center gap-1 shadow">
+                <span>📥</span><span>${isAr ? 'تحميل' : 'Save'}</span>
+              </a>
+            </div>
+          `;
+          resPhotosGrid.appendChild(div);
+        });
+      } else {
+        resPhotosSection.classList.add('hidden');
+      }
+
+      // 4. Interactors & Story Likers
+      loadedInteractors = d.interactors || [];
+      resInteractorsBadge.textContent = `${loadedInteractors.length} ${isAr ? 'متفاعل' : 'Interactors'}`;
+      renderInteractorsList(loadedInteractors);
+
+      // Reveal Results
+      boxResults.classList.remove('hidden');
+      boxResults.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // Render Interactors List
+    function renderInteractorsList(list) {
+      const isAr = currentLang === 'ar';
+      resInteractorsList.innerHTML = '';
+
+      if (!list || list.length === 0) {
+        resInteractorsList.innerHTML = `
+          <div class="col-span-2 p-8 rounded-xl bg-gray-900/40 border border-gray-800 text-center text-xs text-gray-500">
+            ${isAr ? 'لا توجد تعليقات أو تفاعلات مسجلة متاحة لهذا المقطع حالياً.' : 'No comments or interactions recorded for this post yet.'}
+          </div>
+        `;
+        return;
+      }
+
+      list.forEach(item => {
+        const u = item.user || {};
+        const card = document.createElement('div');
+        card.className = 'p-3.5 rounded-xl bg-gray-900/70 border border-gray-800 hover:border-purple-500/40 transition flex items-start gap-3';
+
+        const safeComment = (item.text || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+        card.innerHTML = `
+          <img
+            src="${u.avatar_proxy || u.avatar || ''}"
+            alt="${u.nickname}"
+            class="w-10 h-10 rounded-full object-cover border border-purple-500/40 flex-shrink-0"
+            onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'40\' height=\'40\' viewBox=\'0 0 24 24\' fill=\'%2364748b\'><path d=\'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z\'/></svg>'"
+          />
+          <div class="flex-1 min-w-0 space-y-1">
+            <div class="flex items-center justify-between gap-1 flex-wrap">
+              <div class="flex items-center gap-1.5 min-w-0">
+                <span class="text-xs font-bold text-white truncate">${u.nickname || 'User'}</span>
+                ${u.verified ? '<span class="text-blue-400 text-[11px]" title="موثق">✓</span>' : ''}
+                <span class="text-[11px] font-mono text-purple-400 truncate dir-ltr">@${u.unique_id || 'user'}</span>
+              </div>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-pink-950/80 text-pink-300 border border-pink-700/60 font-bold flex items-center gap-1">
+                <span>❤️</span><span>${fmt(item.likes || 0)}</span>
+              </span>
+            </div>
+            <p class="text-xs text-gray-300 leading-relaxed break-words bg-black/20 p-2 rounded-lg border border-gray-800/60">${safeComment || (isAr ? 'تفاعل بإعجاب' : 'Reacted with like')}</p>
+            <div class="flex items-center justify-between pt-1 text-[10px] text-gray-500">
+              <span>${item.created_at_formatted ? `🕒 ${item.created_at_formatted}` : ''}</span>
+              <a href="${u.profile_url || `https://www.tiktok.com/@${u.unique_id}`}" target="_blank" rel="noopener noreferrer" class="text-cyan-400 hover:underline flex items-center gap-0.5 font-bold">
+                <span>${isAr ? 'عرض الحساب' : 'Profile'}</span><span>↗</span>
+              </a>
+            </div>
+          </div>
+        `;
+        resInteractorsList.appendChild(card);
+      });
+    }
+
+    // Filter Interactors
+    filterInteractorsInput.addEventListener('input', e => {
+      const q = e.target.value.toLowerCase().trim();
+      if (!q) {
+        renderInteractorsList(loadedInteractors);
+        return;
+      }
+      const filtered = loadedInteractors.filter(item => {
+        const u = item.user || {};
+        return (
+          (u.nickname && u.nickname.toLowerCase().includes(q)) ||
+          (u.unique_id && u.unique_id.toLowerCase().includes(q)) ||
+          (item.text && item.text.toLowerCase().includes(q))
+        );
+      });
+      renderInteractorsList(filtered);
+    });
+
+    // Event Listeners
+    btnPasteUrl.addEventListener('click', handlePaste);
+    btnRunInspect.addEventListener('click', runInspection);
+    inputInspectUrl.addEventListener('keydown', e => {
+      if (e.key === 'Enter') runInspection();
+    });
+
+    themeToggleBtn.addEventListener('click', () => {
+      const themes = ['dark', 'light', 'oled'];
+      const next = themes[(themes.indexOf(currentTheme) + 1) % themes.length];
+      applyTheme(next);
+    });
+
+    langToggleBtn.addEventListener('click', () => {
+      applyLanguage(currentLang === 'ar' ? 'en' : 'ar');
+    });
+
+    // Auto-check URL parameters (e.g. /inspector?url=...)
+    window.addEventListener('DOMContentLoaded', () => {
+      applyTheme(currentTheme);
+      applyLanguage(currentLang);
+
+      const params = new URLSearchParams(window.location.search);
+      const urlParam = params.get('url');
+      if (urlParam) {
+        inputInspectUrl.value = urlParam.trim();
+        btnClearInput.classList.remove('hidden');
+        runInspection();
+      }
+    });
+  </script>
+</body>
+</html>
