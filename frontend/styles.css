@@ -477,68 +477,6 @@ a[role="button"]:active,
   scroll-behavior: auto !important;
 }
 
-/* ── Floating Quick Navigation Dock (شريط التنقل السريع) ────────── */
-#floatingNavDock {
-  box-shadow: 0 10px 35px -5px rgba(0, 0, 0, 0.75), 0 0 20px rgba(236, 72, 153, 0.15);
-  animation: dockFloatIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  will-change: transform, opacity;
-}
-@keyframes dockFloatIn {
-  from { opacity: 0; transform: translate3d(-50%, 25px, 0) scale3d(0.95, 0.95, 1); }
-  to   { opacity: 1; transform: translate3d(-50%, 0, 0) scale3d(1, 1, 1); }
-}
-.nav-dock-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.45rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #94a3b8;
-  background: transparent;
-  border: 1px solid transparent;
-  transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
-  cursor: pointer;
-  position: relative;
-  white-space: nowrap;
-}
-.nav-dock-btn:hover {
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.08);
-  transform: translate3d(0, -2px, 0);
-}
-.nav-dock-btn:active {
-  transform: scale3d(0.9, 0.9, 1) !important;
-}
-.nav-dock-btn.active {
-  color: #ffffff;
-  background: linear-gradient(135deg, rgba(236, 72, 153, 0.35), rgba(99, 102, 241, 0.35));
-  border-color: rgba(236, 72, 153, 0.5);
-  box-shadow: 0 0 14px rgba(236, 72, 153, 0.45);
-}
-.nav-dock-icon {
-  font-size: 1rem;
-  line-height: 1;
-}
-html.theme-light #floatingNavDock {
-  background-color: rgba(255, 255, 255, 0.9) !important;
-  border-color: #cbd5e1 !important;
-  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.15), 0 0 15px rgba(236, 72, 153, 0.12) !important;
-}
-html.theme-light .nav-dock-btn {
-  color: #64748b;
-}
-html.theme-light .nav-dock-btn:hover {
-  color: #0f172a;
-  background: rgba(0, 0, 0, 0.05);
-}
-html.theme-light .nav-dock-btn.active {
-  color: #db2777;
-  background: rgba(244, 114, 182, 0.18);
-  border-color: #f472b6;
-}
-
 /* ── Toast ────────────────────────────────────────────────────── */
 .toast {
   padding: 10px 16px;
