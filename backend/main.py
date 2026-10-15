@@ -15,7 +15,7 @@ import re
 import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
-
+from urllib.parse import quote, unquote, urljoin, urlsplit, urlunsplit
 import httpx
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse, Response
@@ -818,6 +818,191 @@ def clean_tiktok_username(raw: str) -> str:
     # Remove leading @ and any trailing path or query
     s = s.lstrip("@").split("?")[0].split("/")[0].strip()
     return s
+
+
+# ---------------------------------------------------------------------------
+# TikTok Video Downloader API (تنزيل فيديوهات تيك توك بدون علامة مائية والجودات)
+# ---------------------------------------------------------------------------
+@app.post("/api/tiktok/video-info")
+async def tiktok_video_info(request: Request, data: dict):
+    """
+    Fetch TikTok video details and available qualities without watermark.
+    Extracts HD (1080p), SD, and MP3 audio download streams.
+    """
+    raw_url = str(data.get("url", "")).strip()
+    if not raw_url:
+        return JSONResponse(status_code=400, content={"status": "error", "message": "يرجى إدخال رابط فيديو تيك توك"})
+
+    # Clean URL and validate basic TikTok domain structure
+    if "tiktok.com" not in raw_url and "douyin.com" not in raw_url:
+        return JSONResponse(status_code=400, content={"status": "error", "message": "الرابط المدخل ليس رابط تيك توك صالح"})
+
+    try:
+        client = _get_proxy_client()
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Accept": "application/json",
+        }
+        resp = await client.post(
+            "https://www.tikwm.com/api/",
+            data={"url": raw_url, "hd": 1},
+            headers=headers,
+            timeout=15.0,
+        )
+        res_data = resp.json()
+        if res_data.get("code") != 0 or not res_data.get("data"):
+            msg = res_data.get("msg") or "فشل استخراج الفيديو. تأكد من أن الحساب ليس خاصاً (Private) وأن الرابط صحيح."
+            return JSONResponse(status_code=400, content={"status": "error", "message": msg})
+
+        d = res_data["data"]
+        vid_id = str(d.get("id") or secrets.token_hex(4))
+        title = d.get("title") or "TikTok Video"
+        cover = d.get("cover") or d.get("origin_cover") or ""
+        duration = int(d.get("duration") or 0)
+        author = d.get("author") or {}
+
+        def _fmt_size(b):
+            if not b:
+                return ""
+            if b >= 1024 * 1024:
+                return f"{b / (1024 * 1024):.1f} MB"
+            if b >= 1024:
+                return f"{b / 1024:.0f} KB"
+            return f"{b} B"
+
+        qualities = []
+        # 1. HD (1080p No Watermark) if available
+        hd_url = d.get("hdplay")
+        if hd_url:
+            qualities.append({
+                "id": "hd",
+                "label": "جودة فائقة HD (1080p)",
+                "label_en": "Ultra HD (1080p)",
+                "badge": "أعلى دقة ⭐",
+                "badge_en": "Best Quality ⭐",
+                "watermark": False,
+                "size": _fmt_size(d.get("hd_size")),
+                "size_bytes": d.get("hd_size"),
+                "direct_url": hd_url,
+                "download_url": f"/api/tiktok/download-stream?url={quote(hd_url)}&filename=tiktok_hd_{vid_id}.mp4",
+            })
+
+        # 2. SD (Standard Definition No Watermark)
+        sd_url = d.get("play")
+        if sd_url:
+            qualities.append({
+                "id": "sd",
+                "label": "جودة عادية SD (سريعة)",
+                "label_en": "Standard SD (Fast)",
+                "badge": "حجم أخف ⚡",
+                "badge_en": "Faster ⚡",
+                "watermark": False,
+                "size": _fmt_size(d.get("size")),
+                "size_bytes": d.get("size"),
+                "direct_url": sd_url,
+                "download_url": f"/api/tiktok/download-stream?url={quote(sd_url)}&filename=tiktok_{vid_id}.mp4",
+            })
+
+        # 3. Audio / MP3
+        music_url = d.get("music")
+        if music_url:
+            qualities.append({
+                "id": "audio",
+                "label": "تحميل الصوت فقط (MP3)",
+                "label_en": "Audio Only (MP3)",
+                "badge": "صوت نقي 🎵",
+                "badge_en": "Original Audio 🎵",
+                "watermark": False,
+                "size": "MP3",
+                "size_bytes": None,
+                "direct_url": music_url,
+                "download_url": f"/api/tiktok/download-stream?url={quote(music_url)}&filename=tiktok_audio_{vid_id}.mp3",
+            })
+
+        # 4. Images / Photo Slideshow (if it's a photo mode post)
+        images = d.get("images") or []
+        image_items = []
+        for idx, img_u in enumerate(images):
+            image_items.append({
+                "index": idx + 1,
+                "url": img_u,
+                "download_url": f"/api/tiktok/download-stream?url={quote(img_u)}&filename=tiktok_photo_{vid_id}_{idx+1}.jpg",
+            })
+
+        return {
+            "status": "ok",
+            "video": {
+                "id": vid_id,
+                "title": title,
+                "cover": cover,
+                "duration": duration,
+                "duration_formatted": f"{duration // 60:02d}:{duration % 60:02d}",
+                "author": {
+                    "unique_id": author.get("unique_id") or "user",
+                    "nickname": author.get("nickname") or "TikTok Creator",
+                    "avatar": author.get("avatar") or "",
+                },
+                "stats": {
+                    "plays": d.get("play_count", 0),
+                    "likes": d.get("digg_count", 0),
+                    "comments": d.get("comment_count", 0),
+                    "shares": d.get("share_count", 0),
+                },
+                "qualities": qualities,
+                "images": image_items,
+            }
+        }
+    except Exception as exc:
+        logger.error("TikTok video download info error: %s", exc)
+        return JSONResponse(status_code=500, content={"status": "error", "message": f"حدث خطأ أثناء فحص الرابط: {str(exc)}"})
+
+
+@app.get("/api/tiktok/download-stream")
+async def tiktok_download_stream(request: Request, url: str, filename: str = "tiktok_video.mp4"):
+    """
+    Direct proxy download stream for TikTok video or audio.
+    Sets Content-Disposition attachment so the browser downloads the file directly to the user's device.
+    """
+    if not url or not (url.startswith("http://") or url.startswith("https://")):
+        return JSONResponse(status_code=400, content={"error": "Invalid URL"})
+
+    # Sanitize filename
+    clean_filename = re.sub(r'[^\w\.-]', '_', filename)
+    if not clean_filename:
+        clean_filename = "tiktok_download.mp4"
+
+    # Guess media type
+    media_type = "video/mp4"
+    if clean_filename.endswith(".mp3"):
+        media_type = "audio/mpeg"
+    elif clean_filename.endswith(".jpg") or clean_filename.endswith(".jpeg"):
+        media_type = "image/jpeg"
+    elif clean_filename.endswith(".png"):
+        media_type = "image/png"
+
+    client = _get_proxy_client()
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Referer": "https://www.tiktok.com/",
+    }
+
+    async def _stream_generator():
+        try:
+            async with client.stream("GET", url, headers=headers, follow_redirects=True, timeout=60.0) as resp:
+                async for chunk in resp.aiter_bytes(chunk_size=65536):
+                    yield chunk
+        except Exception as stream_err:
+            logger.debug("Download stream interrupted: %s", stream_err)
+
+    return StreamingResponse(
+        _stream_generator(),
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{clean_filename}"',
+            "Cache-Control": "public, max-age=86400",
+            "Access-Control-Allow-Origin": "*",
+        }
+    )
 
 
 @app.websocket("/ws/track/{username:path}")
