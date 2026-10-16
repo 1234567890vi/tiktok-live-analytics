@@ -480,6 +480,45 @@
         </div>
       </div>
 
+      <!-- 0.5 POST-ROUND RESULT BANNER (عرض نتيجة الجولة بدقة بعد انتهاء الجولة ووقت الحكم مع بقاء الضيوف) -->
+      <div id="pkRoundResultDeck" class="hidden p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-950/70 via-slate-900/90 to-blue-950/70 border border-emerald-500/40 shadow-[0_0_25px_rgba(16,185,129,0.18)] transition-all duration-300">
+        <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+          <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-2xl shadow-inner flex-shrink-0" id="pkResultIcon">
+              🏆
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" id="pkResultOutcomeTag">
+                  نتيجة الجولة
+                </span>
+                <span class="text-xs text-gray-400 font-mono" id="pkResultRoundTag">الجولة 1</span>
+              </div>
+              <h3 class="text-base sm:text-lg font-black text-white mt-0.5" id="pkResultTitle">
+                🎉 انتصار ساحق لفريقنا!
+              </h3>
+              <p class="text-xs text-gray-300" id="pkResultDesc">
+                فارق النقاط النهائي: +0 نقطة لصالح فريقنا
+              </p>
+            </div>
+          </div>
+
+          <!-- Score Breakdown Badges -->
+          <div class="flex flex-wrap items-center gap-2 text-xs">
+            <div class="px-3 py-1.5 rounded-xl bg-blue-950/80 border border-blue-600/40 text-blue-300 font-mono">
+              <span class="text-gray-400">نقاط فريقنا:</span> <span class="font-bold text-white" id="pkResultHostPts">0</span>
+            </div>
+            <div class="text-gray-400 font-black">VS</div>
+            <div class="px-3 py-1.5 rounded-xl bg-red-950/80 border border-red-600/40 text-red-300 font-mono">
+              <span class="text-gray-400">نقاط الخصم:</span> <span class="font-bold text-white" id="pkResultOppPts">0</span>
+            </div>
+            <div class="px-3 py-1.5 rounded-xl bg-amber-950/60 border border-amber-600/40 text-amber-300 font-mono" id="pkResultPhaseTag">
+              ⏱️ وقت الحكم والتحدي
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 1. SOLO COMMAND DECK (عرض البث الفردي عندما يكون لايف وحيد) -->
       <div id="pkSoloDeck" class="p-5 rounded-2xl bg-gradient-to-br from-indigo-950/30 via-slate-900/50 to-purple-950/20 border border-indigo-700/30 space-y-4 shadow-[0_0_25px_rgba(99,102,241,0.08)]">
         <div class="flex flex-col md:flex-row items-center justify-between gap-4">
