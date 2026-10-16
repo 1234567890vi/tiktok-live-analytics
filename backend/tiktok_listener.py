@@ -478,18 +478,18 @@ except ModuleNotFoundError:
             o_anchors = opponent_anchors if opponent_anchors is not None else prev_opp_anchors
             tot_anchors = len(h_anchors) + len(o_anchors)
 
-            if not active or status == "IDLE":
-                final_battle_type = "solo"
-            elif battle_type and battle_type not in ("1v1", "auto"):
+            if battle_type and battle_type not in ("1v1", "auto", "solo"):
                 final_battle_type = battle_type
-            elif tot_anchors <= 1:
-                final_battle_type = "solo"
-            elif tot_anchors == 2:
-                final_battle_type = "1v1"
             elif tot_anchors == 3:
                 final_battle_type = "3-way"
-            else:
+            elif tot_anchors >= 4:
                 final_battle_type = "2v2"
+            elif tot_anchors == 2:
+                final_battle_type = "1v1"
+            elif battle_type and battle_type in ("1v1", "2v2", "3-way"):
+                final_battle_type = battle_type
+            else:
+                final_battle_type = "solo"
 
             # Build unified participants list with ranks and individual points
             participants = []
@@ -882,8 +882,12 @@ def _parse_anchor_user(wrapper, default_anchor_id: str = "") -> dict:
     viewer_count = int(
         _safe(val, "user_count", default=0) or
         _safe(val, "viewer_count", default=0) or
+        _safe(val, "room_info", "user_count", default=0) or
+        _safe(val, "room_info", "stats", "user_count", default=0) or
         _safe(user, "user_count", default=0) or
         _safe(user, "viewer_count", default=0) or
+        _safe(user, "room_info", "user_count", default=0) or
+        _safe(user, "room_info", "stats", "user_count", default=0) or
         0
     )
 
@@ -1276,16 +1280,25 @@ class TikTokSession:
         if not u_id and not uniq:
             return None
 
-        # Check viewer count
+        # Check viewer count and room id
         v_cnt = viewer_count
         if v_cnt <= 0:
             v_cnt = int(
                 _safe(user_obj, "viewer_count", default=0) or
                 _safe(user_obj, "user_count", default=0) or
+                _safe(user_obj, "room_info", "user_count", default=0) or
+                _safe(user_obj, "room_info", "stats", "user_count", default=0) or
                 0
             )
         if v_cnt <= 0 and uniq.lower() in self._known_friends:
             v_cnt = int(self._known_friends[uniq.lower()].get("viewer_count", 0) or 0)
+
+        room_id = str(
+            _safe(user_obj, "room_id", default="") or
+            _safe(user_obj, "room_info", "room_id", default="") or
+            _safe(user_obj, "room_info", "id", default="") or
+            ""
+        )
 
         key = u_id if u_id else uniq.lower()
         existing = self._connected_guests.get(key, {})
@@ -1304,6 +1317,7 @@ class TikTokSession:
             "role": role,
             "role_label": role_label,
             "viewer_count": int(v_cnt if v_cnt > 0 else existing.get("viewer_count", 0)),
+            "room_id": room_id or existing.get("room_id", ""),
             "is_host": False,
             "joined_at": existing.get("joined_at", time.time()),
             "last_seen": time.time(),
@@ -1322,9 +1336,14 @@ class TikTokSession:
                 "avatar_url": guest_entry["avatar_url"],
                 "relation": role_label,
                 "viewer_count": guest_entry["viewer_count"],
+                "room_id": guest_entry["room_id"],
                 "status": "LIVE",
                 "last_seen": time.time(),
             }
+
+        # If viewer_count is still 0 and we have a unique_id, attempt background enrichment
+        if (v_cnt <= 0 or not existing) and uniq:
+            asyncio.create_task(self.enrich_friend_viewer_count_async(key, room_id, uniq))
 
         return guest_entry
 
@@ -1338,6 +1357,7 @@ class TikTokSession:
                 keys_to_del.append(k)
         for k in keys_to_del:
             self._connected_guests.pop(k, None)
+        self.sync_roster_to_engine()
 
     def resolve_supporter_identity(self, uinfo: dict, event=None) -> dict:
         """
@@ -1474,13 +1494,66 @@ class TikTokSession:
                 r_data = await self._client._web.fetch_room_info(room_id=target_room_id)
                 if r_data and isinstance(r_data, dict):
                     cnt = int(r_data.get("user_count") or r_data.get("stats", {}).get("user_count", 0))
-                    if cnt > 0 and key in self._known_friends:
-                        self._known_friends[key]["viewer_count"] = cnt
-                        if target_room_id:
-                            self._known_friends[key]["room_id"] = str(target_room_id)
+                    if cnt > 0:
+                        if key in self._known_friends:
+                            self._known_friends[key]["viewer_count"] = cnt
+                            if target_room_id:
+                                self._known_friends[key]["room_id"] = str(target_room_id)
+                        if key in self._connected_guests:
+                            self._connected_guests[key]["viewer_count"] = cnt
+                        if unique_id and unique_id.lower() in self._connected_guests:
+                            self._connected_guests[unique_id.lower()]["viewer_count"] = cnt
+                        self.sync_roster_to_engine()
                         await self.broadcast_live_friends()
         except Exception as e:
             logger.debug("Failed to enrich viewer count for friend %s: %s", key, e)
+
+    def sync_roster_to_engine(self) -> None:
+        """
+        Keeps LiveRoomEngine and PK state in sync with real connected mic guests.
+        Ensures accurate layout (solo, 1v1, 3-way, 2v2) before, during, and after battles.
+        """
+        roster = self.get_co_host_roster()
+        tot = roster.get("total_streamers", 1)
+        members = roster.get("members", [])
+        curr_pk = self._engine.get_pk_state()
+        curr_pk_dict = curr_pk.to_dict() if hasattr(curr_pk, "to_dict") else dict(curr_pk)
+        curr_status = curr_pk_dict.get("status", "IDLE")
+        curr_active = curr_pk_dict.get("is_active", False)
+
+        # Only sync anchor structure when not in an active round to prevent race condition
+        if not curr_active:
+            host_anchors = [dict(m) for m in members if m.get("is_host") or m.get("role") == "host"]
+            if not host_anchors and members:
+                host_anchors = [dict(members[0])]
+            allies = [dict(m) for m in members if m.get("role") == "ally"]
+            if allies:
+                host_anchors.extend(allies)
+
+            opp_anchors = [dict(m) for m in members if not m.get("is_host") and m.get("role") in ("rival", "guest")]
+            if tot >= 4 and len(host_anchors) == 1 and len(opp_anchors) >= 3:
+                host_anchors.append(opp_anchors.pop(0))
+
+            if tot == 1:
+                b_type = "solo"
+            elif tot == 2:
+                b_type = "1v1"
+            elif tot == 3:
+                b_type = "3-way"
+            else:
+                b_type = "2v2"
+
+            opp_name = opp_anchors[0].get("unique_id", "opponent") if opp_anchors else "الخصم"
+
+            self._engine.update_pk_battle(
+                active=False,
+                status=curr_status,
+                battle_type=b_type,
+                host=self.username,
+                opp=opp_name,
+                host_anchors=host_anchors,
+                opponent_anchors=opp_anchors,
+            )
 
     async def broadcast_live_friends(self, force: bool = False) -> None:
         """Broadcast the updated live friends list to connected WebSockets."""
@@ -1625,8 +1698,18 @@ class TikTokSession:
 
         # Calculate highest viewer count to highlight top streamer
         max_viewers = max((m.get("viewer_count", 0) for m in members), default=0)
+        pts_map = {str(p.get("user_id", "") or p.get("unique_id", "")): p for p in pk_dict.get("participants", [])}
         for m in members:
             m["is_top_viewed"] = (m.get("viewer_count", 0) == max_viewers and max_viewers > 0 and len(members) > 1)
+            m_id = str(m.get("user_id", "") or "")
+            m_uniq = str(m.get("unique_id", "") or "").lower()
+            p_match = pts_map.get(m_id) or pts_map.get(m_uniq)
+            if p_match:
+                m["points"] = int(p_match.get("points", 0) or 0)
+                m["rank"] = int(p_match.get("rank", 0) or 0)
+            else:
+                m["points"] = 0
+                m["rank"] = 0
 
         total_streamers = len(members)
         guest_count = total_streamers - 1
@@ -2687,6 +2770,7 @@ class TikTokSession:
                 active=False,
                 status="ENDED",
             )
+            self.sync_roster_to_engine()
             pk = self._engine.get_pk_state()
             pk_dict = pk.to_dict() if hasattr(pk, "to_dict") else pk.__dict__
             roster = self.get_co_host_roster()
@@ -2723,8 +2807,13 @@ class TikTokSession:
                                 if now - g_entry.get("last_seen", 0) > 10:
                                     self._connected_guests.pop(k, None)
 
+            self.sync_roster_to_engine()
             roster = self.get_co_host_roster()
+            pk = self._engine.get_pk_state()
+            pk_dict = pk.to_dict() if hasattr(pk, "to_dict") else dict(pk)
+            pk_dict["co_host_roster"] = roster
             await self._send({"type": "co_host_roster", "data": roster})
+            await self._send({"type": "pk_battle", "data": pk_dict, "event": "roster_sync"})
 
         # ---- Link Event (Mic Enter, Leave, Kickout, List Change) ----
         @client.on(LinkEvent)
@@ -2769,8 +2858,13 @@ class TikTokSession:
                     if self._connected_guests[k].get("role") == "guest":
                         self._connected_guests.pop(k, None)
 
+            self.sync_roster_to_engine()
             roster = self.get_co_host_roster()
+            pk = self._engine.get_pk_state()
+            pk_dict = pk.to_dict() if hasattr(pk, "to_dict") else dict(pk)
+            pk_dict["co_host_roster"] = roster
             await self._send({"type": "co_host_roster", "data": roster})
+            await self._send({"type": "pk_battle", "data": pk_dict, "event": "roster_sync"})
 
         # ---- PK Battle Item Cards (Boxing Gloves x5, Fog, Time boosters) ----
         if LinkMicBattleItemCardEvent:
